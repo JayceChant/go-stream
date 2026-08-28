@@ -1,19 +1,45 @@
 package stream
 
+import "sync"
+
 // evalCtx 是一次终止求值的共享上下文（错误即值模型）：
 // 由终止求值入口创建，沿 drive 链层层传递，记录求值过程中出现的首个可预期错误；
 // 求值结束后由发起终止操作的 Stream 实例读取（经 Err() 暴露给用户）。
+//
+// 并发安全：err 的写入以 mutex 保护——Zip 等双流算子在求值内并发驱动两条
+// 管道（各自携带本 ctx），首错保留语义需原子化；读路径（fail 后短路分支、
+// 求值结束写回）均为同步调用，无需额外同步。
 type evalCtx struct {
-	err error
+	mu       sync.Mutex
+	err      error
+	panicVal any // 后台 goroutine（如 Zip）中用户回调 panic 的暂存值
 }
 
 // fail 记录首个错误并返回 false，供 sink 以 return ec.fail(err)
 // 在一条语句内同时表达「记录错误」与「请求短路」。
 func (ec *evalCtx) fail(err error) bool {
+	ec.mu.Lock()
+	defer ec.mu.Unlock()
 	if ec.err == nil {
 		ec.err = err
 	}
 	return false
+}
+
+// firstErr 返回已记录的首错（并发读安全）。
+func (ec *evalCtx) firstErr() error {
+	ec.mu.Lock()
+	defer ec.mu.Unlock()
+	return ec.err
+}
+
+// takePanic 取出后台 goroutine 暂存的 panic 值（一次性读取）。
+func (ec *evalCtx) takePanic() any {
+	ec.mu.Lock()
+	defer ec.mu.Unlock()
+	p := ec.panicVal
+	ec.panicVal = nil
+	return p
 }
 
 // pipeline 是流的核心求值机，被 Stream 嵌入组合（Java AbstractPipeline 的 Go 化）。
@@ -66,6 +92,6 @@ func (p *pipeline[T]) evaluate(down Sink[T]) *evalCtx {
 	p.checkLinked()
 	ec := &evalCtx{}
 	p.drive(down, ec)
-	p.err = ec.err
+	p.err = ec.firstErr()
 	return ec
 }

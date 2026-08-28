@@ -31,7 +31,7 @@ func TestSinkFunc(t *testing.T) {
 
 func TestStreamStructEmbedding(t *testing.T) {
 	sp := &testSplitterator[int]{
-		baseSplitterator: baseSplitterator[int]{estSize: 2, chars: Sized | Ordered},
+		baseSplitterator: baseSplitterator[int]{estSize: 2, chars: SpSized | SpOrdered},
 		items:            []int{7, 8},
 	}
 	// 编译期断言：pipeline 被 Stream 嵌入组合（未导出字段由包内构造路径使用）
@@ -39,8 +39,8 @@ func TestStreamStructEmbedding(t *testing.T) {
 		source: sp,
 		chars:  sp.Characteristics(),
 	}}
-	if s.chars != Sized|Ordered {
-		t.Errorf("Stream.chars = %d, 期望 %d", s.chars, Sized|Ordered)
+	if s.chars != SpSized|SpOrdered {
+		t.Errorf("Stream.chars = %d, 期望 %d", s.chars, SpSized|SpOrdered)
 	}
 	if s.source != sp {
 		t.Error("Stream.source 应为构造时传入的源")

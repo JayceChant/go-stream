@@ -7,16 +7,16 @@ package stream
 type Characteristics uint16
 
 const (
-	// Sized 表示源可精确报告元素数量（EstimateSize 返回精确值）。
-	Sized Characteristics = 1 << iota
-	// Ordered 表示源具有确定的相遇顺序，遍历与拆分必须保持该顺序。
-	Ordered
-	// SubSized 表示 TrySplit 产生的子源同样可精确报告大小（仅在 Sized 时有意义）。
-	SubSized
-	// Sorted 表示源元素按某比较器有序。
-	Sorted
-	// Distinct 表示源元素两两不重复。
-	Distinct
+	// SpSized 表示源可精确报告元素数量（EstimateSize 返回精确值）。
+	SpSized Characteristics = 1 << iota
+	// SpOrdered 表示源具有确定的相遇顺序，遍历与拆分必须保持该顺序。
+	SpOrdered
+	// SpSubSized 表示 TrySplit 产生的子源同样可精确报告大小（仅在 SpSized 时有意义）。
+	SpSubSized
+	// SpSorted 表示源元素按某比较器有序。
+	SpSorted
+	// SpDistinct 表示源元素两两不重复。
+	SpDistinct
 )
 
 // Splitterator 是流的数据源抽象：可逐个推进、可整体遍历、可分裂（为并行预留）。

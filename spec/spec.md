@@ -39,7 +39,7 @@
 | 数据源 | Spliterator（数组/Collection/IO/生成器） | `Splitterator[T]` 接口 + Go 原生源：slice、map、channel、`iter.Seq[T]`、生成器函数 |
 | 原始类型特化 | IntStream/LongStream/DoubleStream 避免装箱 | **不需要**：Go 泛型值类型天然零装箱，用 `cmp.Ordered`/`Number` 约束即可 |
 | 并行 | ForkJoinPool + trySplit | **阶段 1 不实现**，列入 TODO（见"阶段划分"）；接口层预留 TrySplit/特征位/Combiner |
-| `Distinct` 需要 comparable | equals/hashCode | 方法不能追加约束：提供 `DistinctBy(key func(T) comparable)` 方法 + 包级 `Distinct[T comparable]` 双形态 |
+| `Distinct` 需要 comparable | equals/hashCode | 方法不能追加约束：提供 `DistinctBy(key func(T) any)`（键须可比较）方法 + 包级 `Distinct[T comparable]` 双形态（Go 的 comparable 仅可作约束不能作普通类型） |
 | 比较器 | `Comparator<T>`（int 返回） | 对齐 Go 1.21 `slices.SortFunc` 惯例：`func(a, b T) int`（`cmp.Compare` 风格） |
 | 错误处理 | unchecked 异常穿透 | **错误即值**（详案见下）：可预期错误走 error 值；不可恢复错误 panic（详案见下） |
 | 关闭资源 | onClose/BaseStream.close | 非目标（v1 不做）；channel 源自然耗尽 |
@@ -112,15 +112,15 @@ Java Stream 的骨架是一棵**单继承类树**（`BaseStream` ← `AbstractPi
 
 **Collector 族**：`ToSlice`/`ToSet`/`ToMap`/`ToMapMerge`/`GroupingBy`/`Joining`/`Counting`/`Reducing`/`Mapping`
 
-**Splitterator**：`TryAdvance(f func(T) bool) bool`/`ForEachRemaining`/`TrySplit()`/`EstimateSize()`/`Characteristics()`；特征位 Sized/Ordered/SubSized/Sorted/Distinct；实现：slice（可二分）、range（可二分）、seq、channel、func 源（后三者不可分）
+**Splitterator**：`TryAdvance(f func(T) bool) bool`/`ForEachRemaining`/`TrySplit()`/`EstimateSize()`/`Characteristics()`；特征位常量 SpSized/SpOrdered/SpSubSized/SpSorted/SpDistinct（Sp 前缀避免与 `Distinct` 函数等包级标识符冲突）；实现：slice（可二分）、range（可二分）、seq、channel、func 源（后三者不可分）
 
 ### Tier B：推荐新增（Go 风格 / 泛型方法 showcase）——**建议全部纳入**
 
 | API | 形态 | 建议 | 理由 |
 |---|---|---|---|
-| `Enumerate() *Stream[KV[int, T]]` | 方法 | ✅ 纳入 | 对应 Go `for i, v := range` 习惯；Java 无此物因有索引 for |
-| `Scan[U any](seed U, f func(U, T) U) *Stream[U]` | 方法 | ✅ 纳入 | 滚动累积/前缀和；**有状态但单遍无需物化**，展示引擎"有状态不分段"能力 |
-| `Chunk(n int) *Stream[[]T]` | 方法 | ✅ 纳入 | 批处理（批量写库/分页）高频需求 |
+| `Enumerate[T any](s) *Stream[KV[int, T]]` | 包级函数 | ✅ 纳入 | 对应 Go `for i, v := range` 习惯；**实现时发现**：泛型方法返回 T 的派生类型（`Stream[KV[int,T]]`）触发 Go 1.27 实例化循环（T→KV[int,T]→KV[int,KV[int,T]]…），只能包级 |
+| `Scan[U any](seed U, f func(U, T) U) *Stream[U]` | 方法 | ✅ 纳入 | 滚动累积/前缀和（含初值共 n+1 项）；**有状态但单遍无需物化**，展示引擎"有状态不分段"能力 |
+| `Chunk[T any](s, n int) *Stream[[]T]` | 包级函数 | ✅ 纳入 | 批处理（批量写库/分页）高频需求；同 Enumerate 受实例化循环限制须包级 |
 | `Zip[U, R any](o *Stream[U], f func(T, U) R) *Stream[R]` | 泛型方法 | ✅ 纳入 | 双流拉链；双类型参数方法是 Go 1.27 泛型方法的最佳 showcase |
 | `FromFunc(next func() (T, bool, error))` | 构造 | ✅ 纳入 | 拉式 IO 源 + 错误即值入口（错误模型闭环） |
 | `MapErr`/`FilterErr`/`FlatMapErr`/`PeekErr` | 方法 | ✅ 纳入 | 错误即值核心（见错误处理设计） |
@@ -187,7 +187,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 
 ### Requirement: 中间操作（惰性、返回新 Stream）
 无状态（StatelessOp，单遍融合）：`Filter`/`Map[U]`/`FlatMap[U]`/`FlatMapSeq[U]`/`Peek`/`TakeWhile`（短路）/`DropWhile`；Err 变体：`MapErr`/`FilterErr`/`FlatMapErr`/`PeekErr`。
-有状态（StatefulOp，物化上游段）：`Limit`（短路）/`Skip`/`Sorted`（稳定）/`DistinctBy`/`Reverse`；**单遍有状态**（不物化）：`Scan`/`Chunk`/`Enumerate`。
+有状态（StatefulOp，物化上游段）：`Limit`（短路）/`Skip`/`Sorted`（稳定）/`DistinctBy`/`Reverse`；**单遍有状态**（不物化）：`Scan`；**包级单遍有状态**（实例化循环限制）：`Chunk`/`Enumerate`。
 双流：`Zip[U, R]`（取短，两条流均被消费）。
 
 #### Scenario: 无状态链单遍融合

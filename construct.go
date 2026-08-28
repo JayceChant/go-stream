@@ -9,17 +9,17 @@ import "iter"
 
 // Of 以可变参数构建流。
 func Of[T any](xs ...T) *Stream[T] {
-	return newHead(newSliceSp(xs, Sized|Ordered))
+	return newHead(newSliceSp(xs, SpSized|SpOrdered))
 }
 
 // Empty 构建空流。
 func Empty[T any]() *Stream[T] {
-	return newHead(newSliceSp[T](nil, Sized|Ordered))
+	return newHead(newSliceSp[T](nil, SpSized|SpOrdered))
 }
 
 // FromSlice 基于 slice 构建流（零拷贝，直接引用原切片）。
 func FromSlice[T any](s []T) *Stream[T] {
-	return newHead(newSliceSp(s, Sized|Ordered))
+	return newHead(newSliceSp(s, SpSized|SpOrdered))
 }
 
 // FromSeq 基于 Go 1.23 push 迭代器构建流（一次性：seq 无法暂停复用）。
@@ -99,7 +99,7 @@ func Iterate[T any](seed T, next func(T) T) *Stream[T] {
 
 // Range 构建整数区间流 [start, stop)（左闭右开，步长 1）。
 func Range[I Integer](start, stop I) *Stream[I] {
-	return newHead(newRangeSp(start, stop, Sized|Ordered))
+	return newHead(newRangeSp(start, stop, SpSized|SpOrdered))
 }
 
 // Concat 串联两条流：先耗尽 a 再消费 b（a、b 均被标记消费）。
@@ -115,11 +115,11 @@ func Concat[T any](a, b *Stream[T]) *Stream[T] {
 	a.checkLinked()
 	b.checkLinked()
 	ad, bd := a.drive, b.drive
-	chars := (a.chars | b.chars) & ^Sized // 长度不再精确
+	chars := (a.chars | b.chars) & ^SpSized // 长度不再精确
 	return &Stream[T]{pipeline[T]{
 		drive: func(down Sink[T], ec *evalCtx) {
 			ad(suppressEnd[T]{down}, ec) // a 段：Begin 下传、End 吞掉
-			if ec.err == nil {
+			if ec.firstErr() == nil {
 				bd(skipBegin[T]{down}, ec) // b 段：Begin 吞掉、End 下传
 			} else {
 				down.End() // 错误路径也保证 End 收尾

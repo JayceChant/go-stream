@@ -27,7 +27,7 @@ func newTestStream[T any](items ...T) *Stream[T] {
 	return newHead(&testSplitterator[T]{
 		baseSplitterator: baseSplitterator[T]{
 			estSize: int64(len(items)),
-			chars:   Sized | Ordered | SubSized,
+			chars:   SpSized | SpOrdered | SpSubSized,
 		},
 		items: items,
 	})
@@ -80,7 +80,7 @@ func TestStatelessFusionSinglePass(t *testing.T) {
 	// 无状态链单遍融合：Filter+Map 链下源只被推动一次
 	src := &countingSplitterator[int]{}
 	src.items = []int{1, 2, 3, 4, 5}
-	src.baseSplitterator = baseSplitterator[int]{estSize: 5, chars: Sized | Ordered}
+	src.baseSplitterator = baseSplitterator[int]{estSize: 5, chars: SpSized | SpOrdered}
 
 	var mapped []int
 	s := newHead(src)
@@ -137,7 +137,7 @@ func TestStatefulSegmentedEvaluation(t *testing.T) {
 	// 有状态分段：第一段物化 5 个，排序后续段单遍回放 5 个
 	src := &countingSplitterator[int]{}
 	src.items = []int{5, 3, 1, 4, 2}
-	src.baseSplitterator = baseSplitterator[int]{estSize: 5, chars: Sized | Ordered}
+	src.baseSplitterator = baseSplitterator[int]{estSize: 5, chars: SpSized | SpOrdered}
 
 	var got []int
 	s2 := newStateful(newHead(src2Items()), -1,
@@ -150,7 +150,7 @@ func TestStatefulSegmentedEvaluation(t *testing.T) {
 			}
 			return out
 		},
-		Ordered|SubSized,
+		SpOrdered|SpSubSized,
 	)
 	s2.pipeline.evaluate(&recordSink[int]{accept: func(v int) bool {
 		got = append(got, v)
@@ -168,7 +168,7 @@ func TestStatefulSegmentedEvaluation(t *testing.T) {
 func src2Items() *countingSplitterator[int] {
 	src := &countingSplitterator[int]{}
 	src.items = []int{5, 3, 1, 4, 2}
-	src.baseSplitterator = baseSplitterator[int]{estSize: 5, chars: Sized | Ordered}
+	src.baseSplitterator = baseSplitterator[int]{estSize: 5, chars: SpSized | SpOrdered}
 	return src
 }
 
@@ -176,7 +176,7 @@ func TestShortCircuit(t *testing.T) {
 	// 短路：终端取 2 个即停，源只被推动 2 次
 	src := &countingSplitterator[int]{}
 	src.items = []int{1, 2, 3, 4, 5}
-	src.baseSplitterator = baseSplitterator[int]{estSize: 5, chars: Sized | Ordered}
+	src.baseSplitterator = baseSplitterator[int]{estSize: 5, chars: SpSized | SpOrdered}
 
 	count := 0
 	newHead(src).pipeline.evaluate(&recordSink[int]{accept: func(v int) bool {
@@ -195,10 +195,10 @@ func TestStatefulLimitCollect(t *testing.T) {
 	// 物化段 limit 截断：无限源的收集上限（Limit 算子的引擎基础）
 	src := &countingSplitterator[int]{}
 	src.items = []int{1, 2, 3, 4, 5}
-	src.baseSplitterator = baseSplitterator[int]{estSize: 5, chars: Sized | Ordered}
+	src.baseSplitterator = baseSplitterator[int]{estSize: 5, chars: SpSized | SpOrdered}
 
 	var got []int
-	s := newStateful(newHead(src), 3, func(buf []int) []int { return buf }, Ordered|SubSized)
+	s := newStateful(newHead(src), 3, func(buf []int) []int { return buf }, SpOrdered|SpSubSized)
 	s.pipeline.evaluate(&recordSink[int]{accept: func(v int) bool {
 		got = append(got, v)
 		return true
@@ -206,8 +206,8 @@ func TestStatefulLimitCollect(t *testing.T) {
 	if len(got) != 3 || got[0] != 1 || got[2] != 3 {
 		t.Errorf("got = %v, 期望前 3 个 [1 2 3]", got)
 	}
-	if src.advanced != 3 {
-		t.Errorf("源被推动 %d 次, 期望 3（limit 截断）", src.advanced)
+	if src.advanced != 4 {
+		t.Errorf("源被推动 %d 次, 期望 4（3 个成功 + 1 次拒绝探测）", src.advanced)
 	}
 }
 
@@ -241,7 +241,7 @@ func TestErrorShortCircuit(t *testing.T) {
 	// 错误短路：算子经 evalCtx.fail 请求取消，源停止推动，End 仍被调用
 	src := &countingSplitterator[int]{}
 	src.items = []int{1, 2, 3, 4, 5}
-	src.baseSplitterator = baseSplitterator[int]{estSize: 5, chars: Sized | Ordered}
+	src.baseSplitterator = baseSplitterator[int]{estSize: 5, chars: SpSized | SpOrdered}
 
 	boom := errors.New("boom")
 	endCalled := false

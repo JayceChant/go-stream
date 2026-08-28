@@ -20,18 +20,19 @@ func (p *pipeline[T]) checkLinked() {
 
 // newStateless 追加一个无状态阶段：仅组合求值闭包，不触发任何遍历（惰性）。
 //
-// wrap 把下游 sink 包装成本阶段的 sink（Java opWrapSink 的等价物，求值时
-// 与全部无状态算子融合为单遍）；返回的新流以本流为上游，本流随即标记
-// consumed（不可再被其它中间操作链接）。
-func newStateless[T any](
+// 双类型参数 T→U 支持元素类型迁移的算子（Map/FlatMap 等）；同型算子
+// 调用时 U 自动推断为 T。wrap 把下游 sink 包装成本阶段的 sink
+// （Java opWrapSink 的等价物，求值时与全部无状态算子融合为单遍）；
+// 返回的新流以本流为上游，本流随即标记 consumed（不可再被链接）。
+func newStateless[T, U any](
 	up *Stream[T],
-	wrap func(down Sink[T], ec *evalCtx) Sink[T],
+	wrap func(down Sink[U], ec *evalCtx) Sink[T],
 	chars Characteristics,
-) *Stream[T] {
+) *Stream[U] {
 	up.checkLinked()
 	ud := up.drive
-	return &Stream[T]{pipeline[T]{
-		drive: func(down Sink[T], ec *evalCtx) {
+	return &Stream[U]{pipeline[U]{
+		drive: func(down Sink[U], ec *evalCtx) {
 			ud(wrap(down, ec), ec)
 		},
 		chars: chars,
@@ -56,8 +57,11 @@ func (c *collectingSink[T]) Begin(size int64) {
 }
 
 func (c *collectingSink[T]) Accept(t T) bool {
+	if c.limit >= 0 && int64(len(c.buf)) >= c.limit {
+		return false // 已达收集上限：拒绝并请求取消（含 limit=0）
+	}
 	c.buf = append(c.buf, t)
-	return c.limit < 0 || int64(len(c.buf)) < c.limit
+	return true
 }
 
 func (c *collectingSink[T]) End() {}
@@ -83,7 +87,7 @@ func newStateful[T any](
 			cs := &collectingSink[T]{limit: limit}
 			ud(cs, ec) // 第一段：物化，collectingSink 为该段终端
 			var out []T
-			if ec.err == nil {
+			if ec.firstErr() == nil {
 				out = process(cs.buf)
 			}
 			down.Begin(int64(len(out))) // 第二段：单遍回放

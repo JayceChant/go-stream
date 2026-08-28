@@ -25,7 +25,7 @@ func (t *testSplitterator[T]) ForEachRemaining(f func(T) bool) {
 
 func TestBaseSplitteratorEmbedding(t *testing.T) {
 	sp := &testSplitterator[int]{
-		baseSplitterator: baseSplitterator[int]{estSize: 3, chars: Sized | Ordered},
+		baseSplitterator: baseSplitterator[int]{estSize: 3, chars: SpSized | SpOrdered},
 		items:            []int{1, 2, 3},
 	}
 
@@ -35,8 +35,8 @@ func TestBaseSplitteratorEmbedding(t *testing.T) {
 	if got := sp.EstimateSize(); got != 3 {
 		t.Errorf("EstimateSize() = %d, 期望 3", got)
 	}
-	if got := sp.Characteristics(); got != Sized|Ordered {
-		t.Errorf("Characteristics() = %d, 期望 %d", got, Sized|Ordered)
+	if got := sp.Characteristics(); got != SpSized|SpOrdered {
+		t.Errorf("Characteristics() = %d, 期望 %d", got, SpSized|SpOrdered)
 	}
 	if sp.TrySplit() != nil {
 		t.Error("默认 TrySplit() 应返回 nil（串行不可分裂）")
@@ -55,7 +55,7 @@ func TestBaseSplitteratorEmbedding(t *testing.T) {
 
 	// 短路语义：f 返回 false 时停止推进
 	sp2 := &testSplitterator[int]{
-		baseSplitterator: baseSplitterator[int]{estSize: 3, chars: Sized | Ordered},
+		baseSplitterator: baseSplitterator[int]{estSize: 3, chars: SpSized | SpOrdered},
 		items:            []int{1, 2, 3},
 	}
 	count := 0

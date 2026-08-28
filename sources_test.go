@@ -45,18 +45,18 @@ func TestGenerateAndIterate(t *testing.T) {
 	// Generate + 引擎 limit 截断（无限源必须可短路终止，不可直接求值）
 	n := 0
 	s := newStateful(Generate(func() int { n++; return n }), 4,
-		func(buf []int) []int { return buf }, Ordered|SubSized)
+		func(buf []int) []int { return buf }, SpOrdered|SpSubSized)
 	got := collectViaProbe(s)
 	if len(got) != 4 || got[3] != 4 {
 		t.Errorf("Generate 截断结果 = %v, 期望 [1 2 3 4]", got)
 	}
-	if n != 4 {
-		t.Errorf("生成函数调用 %d 次, 期望 4（短路收集）", n)
+	if n != 5 {
+		t.Errorf("生成函数调用 %d 次, 期望 5（4 次成功 + 1 次拒绝探测）", n)
 	}
 
 	// Iterate + newStateful(limit) 截断
 	s2 := newStateful(Iterate(1, func(v int) int { return v * 2 }), 4,
-		func(buf []int) []int { return buf }, Ordered|SubSized)
+		func(buf []int) []int { return buf }, SpOrdered|SpSubSized)
 	got2 := collectViaProbe(s2)
 	if len(got2) != 4 || got2[3] != 8 {
 		t.Errorf("Iterate 截断结果 = %v, 期望 [1 2 4 8]", got2)
@@ -137,7 +137,7 @@ func TestFromFuncError(t *testing.T) {
 }
 
 func TestSliceTrySplit(t *testing.T) {
-	sp := newSliceSp([]int{1, 2, 3, 4, 5, 6, 7}, Sized|Ordered)
+	sp := newSliceSp([]int{1, 2, 3, 4, 5, 6, 7}, SpSized|SpOrdered)
 	front := sp // TrySplit 后自身收缩为前半段
 	back := sp.TrySplit()
 	if back == nil {
@@ -156,14 +156,14 @@ func TestSliceTrySplit(t *testing.T) {
 		}
 	}
 	// 不可再分的下限：剩 1 个元素时返回 nil
-	sp1 := newSliceSp([]int{9}, Sized|Ordered)
+	sp1 := newSliceSp([]int{9}, SpSized|SpOrdered)
 	if sp1.TrySplit() != nil {
 		t.Error("单元素源 TrySplit 应返回 nil")
 	}
 }
 
 func TestRangeTrySplit(t *testing.T) {
-	sp := newRangeSp[int64](0, 10, Sized|Ordered|SubSized)
+	sp := newRangeSp[int64](0, 10, SpSized|SpOrdered|SpSubSized)
 	back := sp.TrySplit()
 	if back == nil {
 		t.Fatal("区间应可分裂")

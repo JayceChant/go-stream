@@ -23,13 +23,13 @@
   - [x] SubTask 3.2: splitterator 实现：slice（可二分 TrySplit）、range（可二分，溢出安全中点）、seq（iter.Pull 拉取式，支持单步推进与取消释放）、channel、func 源（不可分）；生成器型 EstimateSize 返回 -1
   - [x] 验证：单测各源正确性、TrySplit 前后半段不重叠且并集完整、FromFunc 错误记录与部分结果
 
-- [ ] Task 4: 中间操作（含 Err 变体与扩展算子）
-  - [ ] SubTask 4.1: 无状态：`Filter`/`Map`(泛型方法)/`FlatMap`/`FlatMapSeq`/`Peek`/`TakeWhile`/`DropWhile`
-  - [ ] SubTask 4.2: Err 变体：`MapErr`/`FilterErr`/`FlatMapErr`/`PeekErr`（首错短路 + 错误槽记录）
-  - [ ] SubTask 4.3: 有状态（物化型）：`Limit`(短路)/`Skip`/`Sorted`(稳定, cmp int 比较器)/`DistinctBy`/`Reverse`
-  - [ ] SubTask 4.4: 有状态（单遍型，不物化）：`Scan[U]`/`Chunk(n)`/`Enumerate`；双流：`Zip[U,R]`（取短，两流均消费）
-  - [ ] SubTask 4.5: 特征位传播（Map 清除 Sized/Sorted/Distinct；Filter 保留 Sized；物化后 SubSized）
-  - [ ] 验证：单测各操作语义（空流/超界/稳定排序/DistinctBy 首见/Scan 前缀和/Chunk 尾块/Zip 取短）、短路链（无限源+TakeWhile/Limit）、MapErr 短路与 Err() 返回
+- [x] Task 4: 中间操作（含 Err 变体与扩展算子）
+  - [x] SubTask 4.1: 无状态：`Filter`/`Map`(泛型方法)/`FlatMap`/`FlatMapSeq`/`Peek`/`TakeWhile`/`DropWhile`
+  - [x] SubTask 4.2: Err 变体：`MapErr`/`FilterErr`/`FlatMapErr`/`PeekErr`（首错短路 + 错误槽记录）
+  - [x] SubTask 4.3: 有状态（物化型）：`Limit`(短路)/`Skip`/`Sorted`(稳定, cmp int 比较器)/`DistinctBy`/`Reverse`
+  - [x] SubTask 4.4: 有状态（单遍型，不物化）：`Scan[U]`（方法）；`Chunk(n)`/`Enumerate` 因 Go 1.27 泛型方法实例化循环限制（T→[]T/KV[int,T] 派生类型）改为**包级函数**；双流：`Zip[U,R]`（取短，pullFromDrive 后台拉取 + stop 防泄漏）
+  - [x] SubTask 4.5: 特征位传播（常量重命名 SpSized/SpOrdered/SpSubSized/SpSorted/SpDistinct 避免与 Distinct 函数冲突）：变换型算子清除 SpSized/SpSorted/SpDistinct；Filter 保留；Limit/Skip/物化后置 SpSized+SpSubSized；TakeWhile/DropWhile 清 SpSized
+  - [x] 验证：单测各操作语义（空流/超界/Limit(0) 边界/稳定排序/DistinctBy 首见/Scan 前缀和含初值/Chunk 尾块/Zip 取短与无限源停止/Zip panic 传播）、短路链（无限源+TakeWhile/Limit）、MapErr 短路与 Err() 返回、特征位传播断言、nil 回调 panic、`go test -race` 全绿
 
 - [ ] Task 5: 终止操作与 Collector
   - [ ] SubTask 5.1: `ForEach`/`ForEachUntil`/`ToSlice`/`Count`/`Reduce`/`ReduceOpt`/`First`/`FindAny`/`AnyMatch`/`AllMatch`/`NoneMatch`/`Min(cmp)`/`Max(cmp)`/`Err()`

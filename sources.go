@@ -17,8 +17,8 @@ type sliceSp[T any] struct {
 
 // newSliceSp 基于（子）切片构造源：estSize 为剩余元素数。
 func newSliceSp[T any](s []T, chars Characteristics) *sliceSp[T] {
-	if chars&Sized != 0 {
-		chars |= SubSized
+	if chars&SpSized != 0 {
+		chars |= SpSubSized
 	}
 	return &sliceSp[T]{baseSplitterator[T]{int64(len(s)), chars}, s, 0}
 }
@@ -115,7 +115,7 @@ type seqSp[T any] struct {
 
 func newSeqSp[T any](seq iter.Seq[T]) *seqSp[T] {
 	next, stop := iter.Pull(seq)
-	return &seqSp[T]{baseSplitterator[T]{-1, Ordered}, next, stop, false}
+	return &seqSp[T]{baseSplitterator[T]{-1, SpOrdered}, next, stop, false}
 }
 
 func (sp *seqSp[T]) TryAdvance(f func(T) bool) bool {
@@ -147,7 +147,7 @@ type channelSp[T any] struct {
 }
 
 func newChannelSp[T any](ch <-chan T) *channelSp[T] {
-	return &channelSp[T]{baseSplitterator[T]{-1, Ordered}, ch}
+	return &channelSp[T]{baseSplitterator[T]{-1, SpOrdered}, ch}
 }
 
 func (sp *channelSp[T]) TryAdvance(f func(T) bool) bool {
@@ -175,7 +175,7 @@ type funcSp[T any] struct {
 }
 
 func newFuncSp[T any](next func() (T, bool, error)) *funcSp[T] {
-	return &funcSp[T]{baseSplitterator[T]{-1, Ordered}, next, nil}
+	return &funcSp[T]{baseSplitterator[T]{-1, SpOrdered}, next, nil}
 }
 
 func (sp *funcSp[T]) TryAdvance(f func(T) bool) bool {

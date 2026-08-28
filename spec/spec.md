@@ -162,7 +162,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 
 - Affected specs: 无（首个 spec）
 - Affected code: 全部新增
-  - `go.mod`、`stream.go`（Stream+构造）、`pipeline.go`（引擎+错误槽+consumed）、`sink.go`、`spliterator.go`、`op.go`（newStateless/newStateful）
+  - `go.mod`、`stream.go`（Stream 类型/约束/KV）、`pipeline.go`（引擎+错误槽+consumed+newHead+evaluate）、`sink.go`、`spliterator.go`、`op.go`（newStateless/newStateful）、`sources.go`（各源 Splitterator 实现）、`construct.go`（包级构造函数）
   - `ops_stateless.go`（含 Err 变体）、`ops_stateful.go`（含 Scan/Chunk）、`op_ext.go`（Zip/Enumerate）
   - `terminal.go`（含 Err()）、`collector.go`、`numeric.go`（包级 Sum/Avg/Sorted/Min/Max/Contains/Distinct）
   - `*_test.go`、`example_test.go`、`benchmark_test.go`

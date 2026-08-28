@@ -18,10 +18,10 @@
   - [x] SubTask 2.5: 错误槽写回"发起终止调用的 Stream 实例"（`Err()` 读取在 Task 5 终止操作实现）
   - [x] 验证：单测——基本流转 Begin/End 配对、Filter+Map 链单遍（计数器探针）、短路停止推动源、limit 截断、重复消费/重复链接 panic、Err 短路后部分结果与 End 收尾
 
-- [ ] Task 3: 构造函数与 Splitterator 实现
-  - [ ] SubTask 3.1: `Of`/`FromSlice`(零拷贝)/`Empty`/`FromSeq`/`FromChannel`/`FromMap`(KV, Unordered)/`FromFunc(next func() (T, bool, error))`/`Generate`/`Iterate`/`Range[I Integer]`/`Concat`
-  - [ ] SubTask 3.2: splitterator 实现：slice（可二分 TrySplit）、range（可二分）、seq、channel、func 源（不可分）；生成器型 EstimateSize 返回 -1
-  - [ ] 验证：单测各源正确性、TrySplit 前后半段不重叠且并集完整、FromFunc 错误记录与部分结果
+- [x] Task 3: 构造函数与 Splitterator 实现
+  - [x] SubTask 3.1: `Of`/`FromSlice`(零拷贝)/`Empty`/`FromSeq`/`FromChannel`/`FromMap`(KV, Unordered)/`FromFunc(next func() (T, bool, error))`/`Generate`/`Iterate`/`Range[I Integer]`/`Concat`
+  - [x] SubTask 3.2: splitterator 实现：slice（可二分 TrySplit）、range（可二分，溢出安全中点）、seq（iter.Pull 拉取式，支持单步推进与取消释放）、channel、func 源（不可分）；生成器型 EstimateSize 返回 -1
+  - [x] 验证：单测各源正确性、TrySplit 前后半段不重叠且并集完整、FromFunc 错误记录与部分结果
 
 - [ ] Task 4: 中间操作（含 Err 变体与扩展算子）
   - [ ] SubTask 4.1: 无状态：`Filter`/`Map`(泛型方法)/`FlatMap`/`FlatMapSeq`/`Peek`/`TakeWhile`/`DropWhile`

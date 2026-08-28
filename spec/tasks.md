@@ -47,12 +47,12 @@
   - [x] 验证：`go test ./...` 全绿；benchmark 目标 <3x
   - [x] 附带（spec 修订）：Map/MapErr 1:1 变换保留 SpSized（对齐 Java StreamOpFlag；原规则清 SpSized 致下游无法预分配，1e2 规模 4.8x 超标，修正后 2.84x）
 
-- [ ] Task 7: Markdown 文档与可运行示例
-  - [ ] SubTask 7.1: `README.md`：简介/安装/快速上手/API 速览/与 Java 对照表/设计要点/路线图（**明确列出并行 `Parallel(n)` TODO**）
-  - [ ] SubTask 7.2: `docs/design.md`：架构原理（管道/Sink/Splitterator/分段求值/错误即值模型/组合替代继承映射表）
-  - [ ] SubTask 7.3: `docs/api.md`：按源/中间/终止/Collector 分组的 API 参考 + 示例
-  - [ ] SubTask 7.4: `example_test.go`：可运行示例，与文档示例保持一致
-  - [ ] 验证：`go test` 执行 example 通过；文档示例可复制运行
+- [x] Task 7: Markdown 文档与可运行示例
+  - [x] SubTask 7.1: `README.md`：简介/安装/快速上手/API 速览/与 Java 对照表/设计要点/路线图（**明确列出并行 `Parallel(n)` TODO**）
+  - [x] SubTask 7.2: `docs/design.md`：架构原理（管道/Sink/Splitterator/分段求值/错误即值模型/组合替代继承映射表）
+  - [x] SubTask 7.3: `docs/api.md`：按源/中间/终止/Collector 分组的 API 参考 + 示例
+  - [x] SubTask 7.4: `example_test.go`：可运行示例，与文档示例保持一致
+  - [x] 验证：`go test` 执行 example 通过（9 个 Example 全 PASS）；文档示例可复制运行
 
 # 后续 TODO（本阶段不实现，下一 spec 必做）
 - [ ] Task 8（后续）: 并行求值 `Parallel(n)`/`Sequential()`

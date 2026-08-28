@@ -35,12 +35,13 @@
 
 所有命令行操作（git、go 工具链、脚本等）统一遵守以下执行环境规则，以提高兼容性（中文/UTF-8/POSIX 工具链）：
 
+- **本地环境路径等配置统一存放于项目根目录的 `.env.local`**（见第 8 节），执行命令前先读取，避免每次重复探测。
 - **Linux / macOS**：无需特殊处理，使用默认 shell 直接执行。
-- **Windows**：**优先使用 Git Bash**（本机为 `D:\dev\Git\bin\bash.exe`）执行命令。
-  - **仅当 Git Bash 不支持时**，才回退到 PowerShell 或 cmd（例如：需要 PowerShell 专属 cmdlet / `.ps1` 脚本、Windows 特有工具、COM/WMI 交互等场景）。
-  - 注意：`where bash` 可能解析到 `C:\windows\system32\bash.exe`，那是 **WSL bash**（Linux 子系统），不是 Git Bash，勿混淆；应显式使用 Git for Windows 的安装路径。
-  - 在 bash 中引用 Windows 路径时使用 `/d/...` 形式（如 `/d/jayce/code/go-workspace/go-stream`）。
-  - 回退到 PowerShell/cmd 时，警惕中文编码问题（控制台默认 GBK 代码页）；涉及中文输出/参数的操作，参考第 2 节的文件中转方案。
+- **Windows**：按以下优先级选择执行环境，仅当高优先级不可用时才降级：
+  1. **WSL**（首选）：Linux 原生 bash 与 git（UTF-8 全链路，中文安全）；go 工具链经 interop 调用 Windows 侧 `go.exe`（版本需 ≥ go 1.27）。项目路径形如 `/mnt/<盘符>/...`。
+     - 注意：`C:\windows\system32\bash.exe` 即 WSL bash；勿与 Git Bash 混淆。
+  2. **Git Bash**（次选）：完整 POSIX 工具链，中文安全。项目路径形如 `/d/...`。
+  3. **cmd / PowerShell**（末选，仅当上述两者均不支持时）：例如需要 PowerShell 专属 cmdlet / `.ps1` 脚本、Windows 特有工具、COM/WMI 交互等场景。此时警惕中文编码问题（控制台默认 GBK 代码页），涉及中文输出/参数的操作参考第 2 节的文件中转方案。
 
 ## 4. 语言与文档
 
@@ -81,8 +82,13 @@ go test ./...         # 全绿
 6. 按第 2 节规范提交（中文 Conventional Commits）
 7. 回到第 1 步
 
-## 8. 其它全局规则
+## 8. 环境中立与其它全局规则
 
+- **本地路径不得进入任何提交文档**（AGENTS.md、spec/、README、docs 等）：文档中只允许出现相对项目根目录的路径与本机无关的通用描述。本机绝对路径（shell 位置、项目根、工具链路径等）**只能**写入项目根目录的 `.env.local`。
+- **`.env.local` 为本地环境配置 dotfile**：
+  - 已在 `.gitignore` 中忽略，**禁止提交**；
+  - 键值格式（`KEY=VALUE`），至少包含：`WIN_PROJECT_ROOT`、`WSL_BASH`/`WSL_PROJECT_ROOT`/`WSL_GIT`/`WSL_GO`/`WSL_GOFMT`、`GIT_BASH`/`GIT_BASH_PROJECT_ROOT`；
+  - 文件不存在时：按第 3 节优先级**现场探测一次**并生成，后续循环直接读取，避免重复探测。
 - **不得回滚用户的手动修改**：工作区可能包含与当前任务无关的用户改动，保持原样、不带入提交。
 - 不过度设计：不实现 spec 未要求的功能（Tier C 明确不做清单见 spec）。
 - 文件组织遵循 spec「Impact」一节的文件布局；新增文件需在 spec 中补记。

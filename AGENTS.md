@@ -11,7 +11,7 @@
   - [`spec/checklist.md`](./spec/checklist.md) —— 验收检查清单；**验证通过后必须勾选 `[x]`**
 - 所有后续 task 都要遵循 spec 的规定；实现不得偏离规格。
 - 实现过程中发现规格有误或不完整：先修订 `spec.md`（说明理由），经确认后再改代码。**规格与代码冲突时，以最新修订的 spec 为准。**
-- 并行求值（`Parallel(n)`）是 spec 中明确的后续 TODO，在独立 spec 立项前不得实现。
+- 并行求值（`Parallel(n)`）原为 spec 后续 TODO，已随用户确认的 goal 立项并实现（Task 8，语义见 spec「并行求值 v1」）。
 
 ## 2. Git 提交规范（强制）
 

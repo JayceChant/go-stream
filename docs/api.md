@@ -39,7 +39,7 @@ err := s.Err()
 | `Map[U](f func(T) U) *Stream[U]` | 1:1 变换（泛型方法，类型迁移） |
 | `FlatMap[U](f func(T) []U) *Stream[U]` | 展开子切片 |
 | `FlatMapSeq[U](f func(T) iter.Seq[U]) *Stream[U]` | 惰性子序列展开 |
-| `Peek(f func(T)) *Stream[T]` | 副作用观察（调试） |
+| `Peek(f func(T)) *Stream[T]` | 副作用观察（调试）；并行流下 f 在分片 goroutine 内执行，顺序不保证 |
 | `TakeWhile(p) *Stream[T]` *短路* | 保留首批满足 p 的元素 |
 | `DropWhile(p) *Stream[T]` | 丢弃首批满足 p 的元素 |
 

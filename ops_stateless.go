@@ -109,6 +109,7 @@ func (w *flatMapSeqSink[T, U]) Accept(v T) bool {
 func (w *flatMapSeqSink[T, U]) End() { w.down.End() }
 
 // Peek 对每个元素施加副作用 f（不改变元素，常用于调试观察）。
+// 并行流下 f 在分片 goroutine 内执行，观察顺序不保证（需保序请用 ForEach）。
 func (s *Stream[T]) Peek(f func(T)) *Stream[T] {
 	if f == nil {
 		panic("stream: Peek 函数为 nil")

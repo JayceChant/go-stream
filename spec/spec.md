@@ -38,7 +38,7 @@
 | 元素推送 | `Consumer<T>`/`Sink` | `Sink[T]` 接口（只用 T，合法）+ `Accept` 返回 bool 融合 cancellationRequested |
 | 数据源 | Spliterator（数组/Collection/IO/生成器） | `Splitterator[T]` 接口 + Go 原生源：slice、map、channel、`iter.Seq[T]`、生成器函数 |
 | 原始类型特化 | IntStream/LongStream/DoubleStream 避免装箱 | **不需要**：Go 泛型值类型天然零装箱，用 `cmp.Ordered`/`Number` 约束即可 |
-| 并行 | ForkJoinPool + trySplit | **阶段 1 不实现**，列入 TODO（见"阶段划分"）；接口层预留 TrySplit/特征位/Combiner |
+| 并行 | ForkJoinPool + trySplit | `Parallel(n)`/`Sequential()`（Task 8 已实现）：TrySplit 分片 + goroutine；短路终止与物化算子后自动降级串行（见「并行求值 v1」） |
 | `Distinct` 需要 comparable | equals/hashCode | 方法不能追加约束：提供 `DistinctBy(key func(T) any)`（键须可比较）方法 + 包级 `Distinct[T comparable]` 双形态（Go 的 comparable 仅可作约束不能作普通类型） |
 | 比较器 | `Comparator<T>`（int 返回） | 对齐 Go 1.21 `slices.SortFunc` 惯例：`func(a, b T) int`（`cmp.Compare` 风格） |
 | 错误处理 | unchecked 异常穿透 | **错误即值**（详案见下）：可预期错误走 error 值；不可恢复错误 panic（详案见下） |
@@ -142,30 +142,30 @@ Java Stream 的骨架是一棵**单继承类树**（`BaseStream` ← `AbstractPi
 
 Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本高价值（复用既有引擎，无新机制）；包级函数族是 Go 泛型方法约束限制的**必要补偿**而非可选装饰；Err 族是错误模型闭环必需。Tier C 严守边界防止过度设计。
 
-## 阶段划分（并行 = TODO）
+## 阶段划分（并行已随 Task 8 交付）
 
 - **阶段 1（本 spec 全部任务）**：串行核心引擎 + 全部 Tier A/B API + 错误即值模型 + Collector + 测试与基准 + Markdown 文档。
-- ~~**后续 TODO**~~：`Parallel(n)`/`Sequential()` 并行求值——**已实现（Task 8，语义细化见「并行求值 v1」Requirement）**。
-- **接口层从第一天为并行预留（不可省）**：`TrySplit`/`Characteristics`/`EstimateSize` 语义、Collector 的 `Combiner` 字段、`newStateful` 的物化闭包签名。
+- **并行（原后续 TODO，已实现）**：`Parallel(n)`/`Sequential()` 并行求值——语义细化见「并行求值 v1」Requirement。
+- **接口层从第一天为并行预留（已兑现）**：`TrySplit`/`Characteristics`/`EstimateSize` 语义、Collector 的 `Combiner` 字段、`newStateful` 的物化闭包签名。
 
 ## What Changes
 
 - **BREAKING**：无（全新仓库）
 - 新建 Go module：`github.com/JayceChant/go-stream`，go 1.27，根包 `stream`
 - 核心类型：`Stream[T]`（嵌入 `pipeline[T]`）、`Sink[T]`、`Splitterator[T]`（嵌入 `baseSplitterator[T]`）、`Collector[T,A,R]`、`KV[K,V]`、`Number`/复用 `cmp.Ordered` 约束
-- 求值引擎：Sink 链反向包装、单遍融合、短路、有状态分段物化、一次性消费、错误即值短路
-- API：Tier A + Tier B 全量；并行延后为 TODO（接口预留）
-- 测试：单测 + `example_test.go`（可运行示例）+ 基准（vs 手写 for 循环）
+- 求值引擎：Sink 链反向包装、单遍融合、短路、有状态分段物化、一次性消费、错误即值短路；并行分片求值（parallel.go）
+- API：Tier A + Tier B 全量 + `Parallel(n)`/`Sequential()`
+- 测试：单测 + `example_test.go`（可运行示例）+ 基准（vs 手写 for 循环）+ 并行加速比
 - 文档（Markdown，任务化）：`README.md`、`docs/design.md`（架构与 Java 对照）、`docs/api.md`（API 参考）
 
 ## Impact
 
 - Affected specs: 无（首个 spec）
 - Affected code: 全部新增
-  - `go.mod`、`stream.go`（Stream 类型/约束/KV）、`pipeline.go`（引擎+错误槽+consumed+newHead+evaluate）、`sink.go`、`spliterator.go`、`op.go`（newStateless/newStateful）、`sources.go`（各源 Splitterator 实现）、`construct.go`（包级构造函数）
+  - `go.mod`、`stream.go`（Stream 类型/约束/KV）、`pipeline.go`（引擎+错误槽+consumed+newHead+evaluate+分片）、`sink.go`、`spliterator.go`、`op.go`（newStateless/newStateful）、`sources.go`（各源 Splitterator 实现）、`construct.go`（包级构造函数）
   - `ops_stateless.go`（含 Err 变体）、`ops_stateful.go`（含 Scan/Chunk）、`op_ext.go`（Zip/Enumerate）
-  - `terminal.go`（含 Err()）、`collector.go`、`numeric.go`（包级 Sum/Avg/Sorted/Min/Max/Contains/Distinct）
-  - `*_test.go`、`example_test.go`、`benchmark_test.go`
+  - `terminal.go`（含 Err() 与并行终端）、`collector.go`、`numeric.go`（包级 Sum/Avg/Sorted/Min/Max/Contains/Distinct）、`parallel.go`（Parallel/Sequential/分片求值）
+  - `*_test.go`、`example_test.go`、`benchmark_test.go`、`parallel_test.go`
   - `README.md`、`docs/design.md`、`docs/api.md`
 
 ## ADDED Requirements
@@ -240,8 +240,9 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - **WHEN** `stream.Sum(stream.Range(0, 100))`
 - **THEN** 返回 4950
 
-### Requirement: 并行预留（本阶段不实现，TODO）
-接口层 SHALL 保留 TrySplit/特征位/Combiner/物化闭包签名；README 路线图 SHALL 声明 `Parallel(n)` 为后续版本计划。
+### Requirement: 并行接口预留（已兑现）
+~~接口层 SHALL 保留 TrySplit/特征位/Combiner/物化闭包签名；README 路线图 SHALL 声明 `Parallel(n)` 为后续版本计划。~~
+**已兑现**：预留接口全部落地并由「并行求值 v1」Requirement 取代（见下）。
 
 ### Requirement: 并行求值 v1（Task 8 实现）
 `Parallel(n)` 设置并行度、`Sequential()` 还原串行（均为中间操作语义：消费上游、返回携带标志的新流）。求值时满足以下条件才走并行路径，否则自动降级串行（正确性优先）：
@@ -262,13 +263,13 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - **THEN** 正确排序（串行求值），不 panic
 
 ### Requirement: 文档（Markdown）
-SHALL 交付：`README.md`（简介/安装/快速上手/API 速览/与 Java 对照/设计要点/路线图含并行 TODO）、`docs/design.md`（架构原理：管道/Sink/Splitterator/分段求值/错误模型/组合替代继承映射表）、`docs/api.md`（分组 API 参考 + 示例）；`example_test.go` 提供可运行示例（与文档示例一致）。
+SHALL 交付：`README.md`（简介/安装/快速上手/API 速览/与 Java 对照/设计要点/路线图）、`docs/design.md`（架构原理：管道/Sink/Splitterator/分段求值/错误模型/组合替代继承映射表/并行求值）、`docs/api.md`（分组 API 参考 + 示例）；`example_test.go` 提供可运行示例（与文档示例一致）。
 
 ### Requirement: 质量保障
-全部公开 API 中文 godoc；`go vet`/`go test ./...` 全绿；benchmark：`Filter+Map+ToSlice` 相对手写 for 循环额外开销目标 <3x。
+全部公开 API 中文 godoc；`go vet`/`go test ./...` 全绿；benchmark：`Filter+Map+ToSlice` 相对手写 for 循环额外开销目标 <3x；并行求值 `go test -race` 全绿。
 
 ## 非目标（Non-Goals）
-- 并行求值实现（阶段 1；接口预留）——后续 TODO 必做
+- ~~并行求值实现（阶段 1；接口预留）——后续 TODO 必做~~（已随 Task 8 交付）
 - Collector 错误化 Finisher；onClose/资源管理；可重放流；原始特化流；限速/背压（见 Tier C）
 
 ## MODIFIED Requirements

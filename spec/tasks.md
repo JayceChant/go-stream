@@ -31,12 +31,12 @@
   - [x] SubTask 4.5: 特征位传播（常量重命名 SpSized/SpOrdered/SpSubSized/SpSorted/SpDistinct 避免与 Distinct 函数冲突）：变换型算子清除 SpSized/SpSorted/SpDistinct；Filter 保留；Limit/Skip/物化后置 SpSized+SpSubSized；TakeWhile/DropWhile 清 SpSized
   - [x] 验证：单测各操作语义（空流/超界/Limit(0) 边界/稳定排序/DistinctBy 首见/Scan 前缀和含初值/Chunk 尾块/Zip 取短与无限源停止/Zip panic 传播）、短路链（无限源+TakeWhile/Limit）、MapErr 短路与 Err() 返回、特征位传播断言、nil 回调 panic、`go test -race` 全绿
 
-- [ ] Task 5: 终止操作与 Collector
-  - [ ] SubTask 5.1: `ForEach`/`ForEachUntil`/`ToSlice`/`Count`/`Reduce`/`ReduceOpt`/`First`/`FindAny`/`AnyMatch`/`AllMatch`/`NoneMatch`/`Min(cmp)`/`Max(cmp)`/`Err()`
-  - [ ] SubTask 5.2: `Collector[T,A,R]` struct（Supplier/Accumulator/Combiner/Finisher + IdentityFinish/Unordered 特征）与 `Collect[A,R]` 泛型方法
-  - [ ] SubTask 5.3: 预置收集器：ToSlice/ToSet/ToMap(last-wins)/ToMapMerge/GroupingBy(保遇序)/Joining/Counting/Reducing/Mapping
-  - [ ] SubTask 5.4: 包级便捷函数：`Contains[T comparable]`/`Sorted/Min/Max[T cmp.Ordered]`/`Sum/Avg[T Number]`/`Distinct[T comparable]`
-  - [ ] 验证：单测全部终止操作（短路计数探针）、收集器（分组保序、ToMap last-wins、ToMapMerge 合并）、`stream.Sum(stream.Range(0,100)) == 4950`
+- [x] Task 5: 终止操作与 Collector
+  - [x] SubTask 5.1: `ForEach`/`ForEachUntil`/`ToSlice`/`Count`/`Reduce`/`ReduceOpt`/`First`/`FindAny`/`AnyMatch`/`AllMatch`/`NoneMatch`/`Min(cmp)`/`Max(cmp)`/`Err()`
+  - [x] SubTask 5.2: `Collector[T,A,R]` struct（Supplier/Accumulator/Combiner/Finisher + IdentityFinish/Unordered 特征）与 `Collect[A,R]` 泛型方法
+  - [x] SubTask 5.3: 预置收集器：ToSlice/ToSet/ToMap(last-wins)/ToMapMerge/GroupingBy(保遇序)/Joining/Counting/Reducing/Mapping
+  - [x] SubTask 5.4: 包级便捷函数：`Contains[T comparable]`/`Sorted/Min/Max[T cmp.Ordered]`/`Sum/Avg[T Number]`/`Distinct[T comparable]`
+  - [x] 验证：单测全部终止操作（短路计数探针）、收集器（分组保序、ToMap last-wins、ToMapMerge 合并）、`stream.Sum(stream.Range(0,100)) == 4950`
 
 - [ ] Task 6: 端到端测试与基准
   - [ ] SubTask 6.1: 端到端组合场景（filter→map→collect、groupingBy、无限流 take、错误管道部分结果等，模拟 Java 典型用法）

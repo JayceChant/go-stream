@@ -190,9 +190,13 @@ func TestCharsPropagation(t *testing.T) {
 	if c := base2().Filter(func(int) bool { return true }).chars; c&SpSized == 0 || c&SpOrdered == 0 {
 		t.Errorf("Filter 后特征位 = %b, SpSized/SpOrdered 应保留", c)
 	}
-	// Map 清除 SpSized/SpDistinct/SpSorted
-	if c := base2().Map(func(v int) int { return v }).chars; c&SpSized != 0 {
-		t.Errorf("Map 后特征位 = %b, SpSized 应清除", c)
+	// Map（1:1 变换）保留 SpSized，清除 SpSorted/SpDistinct
+	if c := base2().Map(func(v int) int { return v }).chars; c&SpSized == 0 || c&SpSorted != 0 || c&SpDistinct != 0 {
+		t.Errorf("Map 后特征位 = %b, SpSized 应保留、SpSorted/SpDistinct 应清除", c)
+	}
+	// FlatMap（1:N 变换）清除 SpSized
+	if c := base2().FlatMap(func(v int) []int { return []int{v} }).chars; c&SpSized != 0 {
+		t.Errorf("FlatMap 后特征位 = %b, SpSized 应清除", c)
 	}
 	// Limit 保持 SpSized 且清 SpSorted
 	if c := base2().Limit(2).chars; c&SpSized == 0 || c&SpSorted != 0 {

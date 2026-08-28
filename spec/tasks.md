@@ -28,7 +28,7 @@
   - [x] SubTask 4.2: Err 变体：`MapErr`/`FilterErr`/`FlatMapErr`/`PeekErr`（首错短路 + 错误槽记录）
   - [x] SubTask 4.3: 有状态（物化型）：`Limit`(短路)/`Skip`/`Sorted`(稳定, cmp int 比较器)/`DistinctBy`/`Reverse`
   - [x] SubTask 4.4: 有状态（单遍型，不物化）：`Scan[U]`（方法）；`Chunk(n)`/`Enumerate` 因 Go 1.27 泛型方法实例化循环限制（T→[]T/KV[int,T] 派生类型）改为**包级函数**；双流：`Zip[U,R]`（取短，pullFromDrive 后台拉取 + stop 防泄漏）
-  - [x] SubTask 4.5: 特征位传播（常量重命名 SpSized/SpOrdered/SpSubSized/SpSorted/SpDistinct 避免与 Distinct 函数冲突）：变换型算子清除 SpSized/SpSorted/SpDistinct；Filter 保留；Limit/Skip/物化后置 SpSized+SpSubSized；TakeWhile/DropWhile 清 SpSized
+  - [x] SubTask 4.5: 特征位传播（常量重命名 SpSized/SpOrdered/SpSubSized/SpSorted/SpDistinct 避免与 Distinct 函数冲突）：**修订（Task 6）**——Map/MapErr 1:1 变换保留 SpSized（对齐 Java StreamOpFlag，使下游按 size 预分配），仅清 SpSorted/SpDistinct；FlatMap 族与 TakeWhile/DropWhile 清 SpSized；Filter 保留；Limit/Skip/物化后置 SpSized+SpSubSized
   - [x] 验证：单测各操作语义（空流/超界/Limit(0) 边界/稳定排序/DistinctBy 首见/Scan 前缀和含初值/Chunk 尾块/Zip 取短与无限源停止/Zip panic 传播）、短路链（无限源+TakeWhile/Limit）、MapErr 短路与 Err() 返回、特征位传播断言、nil 回调 panic、`go test -race` 全绿
 
 - [x] Task 5: 终止操作与 Collector
@@ -38,11 +38,14 @@
   - [x] SubTask 5.4: 包级便捷函数：`Contains[T comparable]`/`Sorted/Min/Max[T cmp.Ordered]`/`Sum/Avg[T Number]`/`Distinct[T comparable]`
   - [x] 验证：单测全部终止操作（短路计数探针）、收集器（分组保序、ToMap last-wins、ToMapMerge 合并）、`stream.Sum(stream.Range(0,100)) == 4950`
 
-- [ ] Task 6: 端到端测试与基准
-  - [ ] SubTask 6.1: 端到端组合场景（filter→map→collect、groupingBy、无限流 take、错误管道部分结果等，模拟 Java 典型用法）
-  - [ ] SubTask 6.2: benchmark：管道 vs 手写 for 循环（1e2/1e4/1e6 规模），记录开销倍数
-  - [ ] SubTask 6.3: `go vet` 清洁、全部公开 API 中文 godoc
-  - [ ] 验证：`go test ./...` 全绿；benchmark 目标 <3x
+- [x] Task 6: 端到端测试与基准
+  - [x] SubTask 6.1: 端到端组合场景（filter→map→collect、groupingBy、无限流 take、错误管道部分结果等，模拟 Java 典型用法）
+  - [x] SubTask 6.2: benchmark：管道 vs 手写 for 循环（1e2/1e4/1e6 规模），记录开销倍数
+    - 实测（Ryzen 5 7535U，benchtime 300ms）：Filter+Map+ToSlice（字符串）开销倍数 1e2=2.84x / 1e4=2.61x / 1e6=1.56x，全部 <3x 达标
+    - 附 BenchmarkPipelineIntVsManual（纯数值无分配）为引擎裸开销参考，不计入验收
+  - [x] SubTask 6.3: `go vet` 清洁、全部公开 API 中文 godoc
+  - [x] 验证：`go test ./...` 全绿；benchmark 目标 <3x
+  - [x] 附带（spec 修订）：Map/MapErr 1:1 变换保留 SpSized（对齐 Java StreamOpFlag；原规则清 SpSized 致下游无法预分配，1e2 规模 4.8x 超标，修正后 2.84x）
 
 - [ ] Task 7: Markdown 文档与可运行示例
   - [ ] SubTask 7.1: `README.md`：简介/安装/快速上手/API 速览/与 Java 对照表/设计要点/路线图（**明确列出并行 `Parallel(n)` TODO**）

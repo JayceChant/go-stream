@@ -4,10 +4,12 @@ import "iter"
 
 // ops_stateless.go：无状态中间操作（求值时融合为单遍，不物化）。
 //
-// 特征位传播（沿 Java StreamOpFlag 语义）：
+// 特征位传播（对齐 Java StreamOpFlag 语义，Task 6 修订）：
 //   - Filter：保留上游全部特征位（过滤不改变结构性质）
-//   - Map/FlatMap/Scan/Enumerate 等元素变换：清除 SpSized/SpDistinct/SpSorted
-//     （元素集已改变，数量与序性质不再成立；大小最多只能保留上界信息）
+//   - Map/MapErr（1:1 变换）：保留 SpSized（下游可按 size 预分配），
+//     清除 SpDistinct/SpSorted（元素集已改变，去重与有序不再成立）
+//   - FlatMap 族/Scan/Enumerate 等元素变换：清除 SpSized/SpDistinct/SpSorted
+//     （1:N 变换，数量不再精确）
 //   - TakeWhile/DropWhile：清除 SpSized（截断后数量未知），其余保留
 
 // Filter 保留满足谓词 p 的元素。
@@ -35,13 +37,14 @@ func (w *filterSink[T]) Accept(v T) bool {
 func (w *filterSink[T]) End() { w.down.End() }
 
 // Map 将每个元素经 f 变换为新类型 U（泛型方法，元素类型迁移）。
+// 1:1 变换：保留 SpSized（下游可按 size 预分配），仅清 SpSorted/SpDistinct。
 func (s *Stream[T]) Map[U any](f func(T) U) *Stream[U] {
 	if f == nil {
 		panic("stream: Map 函数为 nil")
 	}
 	return newStateless(s, func(down Sink[U], _ *evalCtx) Sink[T] {
 		return &mapSink[T, U]{down: down, f: f}
-	}, s.chars&^(SpSized|SpDistinct|SpSorted))
+	}, s.chars&^(SpDistinct|SpSorted))
 }
 
 type mapSink[T, U any] struct {
@@ -49,9 +52,9 @@ type mapSink[T, U any] struct {
 	f    func(T) U
 }
 
-func (w *mapSink[T, U]) Begin(int64)     { w.down.Begin(-1) }
-func (w *mapSink[T, U]) Accept(v T) bool { return w.down.Accept(w.f(v)) }
-func (w *mapSink[T, U]) End()            { w.down.End() }
+func (w *mapSink[T, U]) Begin(size int64) { w.down.Begin(size) }
+func (w *mapSink[T, U]) Accept(v T) bool  { return w.down.Accept(w.f(v)) }
+func (w *mapSink[T, U]) End()             { w.down.End() }
 
 // FlatMap 将每个元素经 f 展开为子序列并依次输出。
 func (s *Stream[T]) FlatMap[U any](f func(T) []U) *Stream[U] {
@@ -179,13 +182,14 @@ func (w *dropWhileSink[T]) End() { w.down.End() }
 // ---- Err 变体（错误即值：首错短路 + 部分结果保留，详见 spec 错误模型）----
 
 // MapErr 带错误返回的 Map：f 出错时记录首错并终止求值。
+// 1:1 变换：保留 SpSized，仅清 SpSorted/SpDistinct。
 func (s *Stream[T]) MapErr[U any](f func(T) (U, error)) *Stream[U] {
 	if f == nil {
 		panic("stream: MapErr 函数为 nil")
 	}
 	return newStateless(s, func(down Sink[U], ec *evalCtx) Sink[T] {
 		return &mapErrSink[T, U]{down: down, ec: ec, f: f}
-	}, s.chars&^(SpSized|SpDistinct|SpSorted))
+	}, s.chars&^(SpDistinct|SpSorted))
 }
 
 type mapErrSink[T, U any] struct {
@@ -194,7 +198,7 @@ type mapErrSink[T, U any] struct {
 	f    func(T) (U, error)
 }
 
-func (w *mapErrSink[T, U]) Begin(int64) { w.down.Begin(-1) }
+func (w *mapErrSink[T, U]) Begin(size int64) { w.down.Begin(size) }
 func (w *mapErrSink[T, U]) Accept(v T) bool {
 	u, err := w.f(v)
 	if err != nil {

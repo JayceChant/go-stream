@@ -28,7 +28,11 @@
   - `scope` 可选，常用：stream / pipeline / splitterator / collector / spec / docs 等
   - 示例：`feat(stream): 实现 Map/Filter 无状态算子`、`docs(spec): 修订错误处理模型`
 - 一次提交只做一件事；只 `git add` 与本任务相关的文件，**不得** 将用户未提交的无关改动混入。
-- Windows 环境下中文 message 必须通过 **UTF-8 文件 + `git commit -F <file>`** 传递，避免编码污染（提交后需验证 `git log` 输出正常）。临时 message 文件用后即删。
+- 中文 message 的运行环境与编码规则（已实测验证）：
+  - **Linux / macOS**：无需特殊处理，任何 shell 均可直接用 `git commit -m`。
+  - **Windows**：优先在 **Git Bash**（本机为 `D:\dev\Git\bin\bash.exe`）中执行 git 命令，可安全使用 `git commit -m "中文"`（UTF-8 全链路）。
+    - 注意：`where bash` 找到的 `C:\windows\system32\bash.exe` 是 **WSL bash**，不是 Git Bash，勿混淆。
+    - 若无法使用 Git Bash（如仅 PowerShell 可用），回退方案：将 message 写入 **UTF-8 文件**，用 `git commit -F <file>` 提交，提交后用 `git log` 验证无乱码。临时 message 文件用后即删。
 - 遵守常规 git 安全约定：禁止 force push、禁止未授权的历史改写（`reset --hard`/`checkout .`/`restore` 等）、禁止提交含密钥的文件。
 
 ## 3. 语言与文档

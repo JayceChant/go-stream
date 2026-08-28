@@ -33,10 +33,8 @@ func (sliceTotal[T]) total(parts []Sink[T], down Sink[T], ec *evalCtx) {
 			continue
 		}
 		for _, v := range cs.buf {
-			if !down.Accept(v) {
-				ec.cancel.Store(true)
-				down.End()
-				return
+			if !down.Accept(v) { // 回放短路：停止后续片（物化已完成，无需广播）
+				break
 			}
 		}
 	}

@@ -1,9 +1,6 @@
 package stream
 
-import (
-	"sync"
-	"sync/atomic"
-)
+import "sync"
 
 // evalCtx 是一次终止求值的共享上下文（错误即值模型）：
 // 由终止求值入口创建，沿 drive 链层层传递，记录求值过程中出现的首个可预期错误；
@@ -17,10 +14,8 @@ type evalCtx struct {
 	err      error
 	panicVal any // 后台 goroutine（如 Zip）中用户回调 panic 的暂存值
 	// partSrc 为并行求值的分片源覆盖（类型擦除，仅 Head 段求值闭包读取；
-	// 空间上安全：分片由 splitN 闭包产生，类型与 Head 元素型一致）。
+	// 类型安全：分片由 splitN 闭包产生，类型与 Head 元素型一致）。
 	partSrc any
-	// cancel 为并行求值的短路广播：终端请求取消后各分片提前停止遍历。
-	cancel atomic.Bool
 }
 
 // fail 记录首个错误并返回 false，供 sink 以 return ec.fail(err)
@@ -134,9 +129,6 @@ func driveFromSource[T any](src Splitterator[T]) func(down Sink[T], ec *evalCtx)
 		}
 		down.Begin(cur.EstimateSize())
 		cur.ForEachRemaining(func(t T) bool {
-			if ec.cancel.Load() {
-				return false
-			}
 			return down.Accept(t)
 		})
 		down.End()

@@ -2,13 +2,13 @@
 
 依赖关系：Task 1 → Task 2 → (Task 3 ∥ Task 4 ∥ Task 5) → Task 6 → Task 7（文档可与测试并行）
 
-- [ ] Task 1: 项目脚手架与核心类型定义（组合式架构）
-  - [ ] SubTask 1.1: 初始化 go module `github.com/JayceChant/go-stream`（go 1.27），根包 `stream`
-  - [ ] SubTask 1.2: 定义 `Sink[T]` 接口（`Begin(size int64)`/`Accept(T) bool`/`End()`），Accept 返回 bool 融合取消语义
-  - [ ] SubTask 1.3: 定义 `Splitterator[T]` 接口、`Characteristics` 位标志（Sized/Ordered/SubSized/Sorted/Distinct）、`baseSplitterator[T]` 公共嵌入 struct（默认 TrySplit 返回 nil）
-  - [ ] SubTask 1.4: 定义 `pipeline[T]` struct（source/upstream/wrap 闭包/flags/consumed/errState 错误槽）与 `type Stream[T any] struct { pipeline[T] }`（嵌入组合）
-  - [ ] SubTask 1.5: 定义 `KV[K,V]`、`Number` 约束（Integer | Float）
-  - [ ] 验证：`go build ./...` 通过；接口定义不含方法级类型参数（Go 1.27 接口限制）
+- [x] Task 1: 项目脚手架与核心类型定义（组合式架构）
+  - [x] SubTask 1.1: 初始化 go module `github.com/JayceChant/go-stream`（go 1.27），根包 `stream`
+  - [x] SubTask 1.2: 定义 `Sink[T]` 接口（`Begin(size int64)`/`Accept(T) bool`/`End()`），Accept 返回 bool 融合取消语义
+  - [x] SubTask 1.3: 定义 `Splitterator[T]` 接口、`Characteristics` 位标志（Sized/Ordered/SubSized/Sorted/Distinct）、`baseSplitterator[T]` 公共嵌入 struct（默认 TrySplit 返回 nil）
+  - [x] SubTask 1.4: 定义 `pipeline[T]` struct（drive 求值闭包〔构造期捕获上游引用与 wrap，因 Go 无 raw type 无法以同型字段存放异构上游〕/source/chars/consumed/err 错误槽）与 `type Stream[T any] struct { pipeline[T] }`（嵌入组合）
+  - [x] SubTask 1.5: 定义 `KV[K,V]`、`Number` 约束（Integer | Float）
+  - [x] 验证：`go build ./...` 通过；接口定义不含方法级类型参数（Go 1.27 接口限制）
 
 - [ ] Task 2: 求值引擎（pipeline 核心 + 错误即值机制）
   - [ ] SubTask 2.1: `newStateless(up, wrap func(down Sink[T]) Sink[T])`：仅记录 wrap 闭包，不遍历

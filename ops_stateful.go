@@ -80,13 +80,16 @@ func (s *Stream[T]) Reverse() *Stream[T] {
 
 // Scan 滚动累积（前缀和式）：输出 seed, f(seed,x1), f(f(seed,x1),x2), ...
 // 输出个数与输入相同（含初值，比 Java 无对应物的常见 Go 实现多一项）。
+// 有状态单遍（滚动 acc）→ 并行降级（splitN=nil）。
 func (s *Stream[T]) Scan[U any](seed U, f func(U, T) U) *Stream[U] {
 	if f == nil {
 		panic("stream: Scan 函数为 nil")
 	}
-	return newStateless(s, func(down Sink[U], _ *evalCtx) Sink[T] {
+	ns := newStateless(s, func(down Sink[U], _ *evalCtx) Sink[T] {
 		return &scanSink[T, U]{down: down, acc: seed, f: f}
 	}, s.chars&^(SpSized|SpDistinct|SpSorted))
+	ns.splitN = nil
+	return ns
 }
 
 type scanSink[T, U any] struct {

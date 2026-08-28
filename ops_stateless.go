@@ -152,13 +152,16 @@ func (w *takeWhileSink[T]) Accept(v T) bool {
 func (w *takeWhileSink[T]) End() { w.down.End() }
 
 // DropWhile 丢弃首批满足 p 的元素，之后全部放行。
+// 有状态单遍（done 门闸）→ 并行降级（splitN=nil）。
 func (s *Stream[T]) DropWhile(p func(T) bool) *Stream[T] {
 	if p == nil {
 		panic("stream: DropWhile 谓词为 nil")
 	}
-	return newStateless(s, func(down Sink[T], _ *evalCtx) Sink[T] {
+	ns := newStateless(s, func(down Sink[T], _ *evalCtx) Sink[T] {
 		return &dropWhileSink[T]{down: down, p: p}
 	}, s.chars & ^SpSized)
+	ns.splitN = nil
+	return ns
 }
 
 type dropWhileSink[T any] struct {

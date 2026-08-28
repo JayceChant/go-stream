@@ -24,6 +24,7 @@ func (p *pipeline[T]) checkLinked() {
 // 调用时 U 自动推断为 T。wrap 把下游 sink 包装成本阶段的 sink
 // （Java opWrapSink 的等价物，求值时与全部无状态算子融合为单遍）；
 // 返回的新流以本流为上游，本流随即标记 consumed（不可再被链接）。
+// 并行标志与分片闭包原样继承（splitN 为擦除形态，可穿越 T→U 异构边界）。
 func newStateless[T, U any](
 	up *Stream[T],
 	wrap func(down Sink[U], ec *evalCtx) Sink[T],
@@ -35,7 +36,9 @@ func newStateless[T, U any](
 		drive: func(down Sink[U], ec *evalCtx) {
 			ud(wrap(down, ec), ec)
 		},
-		chars: chars,
+		chars:  chars,
+		parN:   up.parN,
+		splitN: up.splitN,
 	}}
 }
 
@@ -74,6 +77,9 @@ func (c *collectingSink[T]) End() {}
 // 与 spec 最初设想的「materialize + wrap 双闭包」相比，此处收敛为
 // 「limit + process」两点式物化策略：续段的 Begin/End/短路协议由引擎统一
 // 处理，算子只描述切片变换，不易出错；该签名同时为后续并行分片预留。
+//
+// 并行求值在此降级（splitN 置 nil）：物化需要全量元素，分片物化 +
+// 分片变换的语义组合复杂度远超 v1 目标（如 Skip 的跨片偏移）。
 func newStateful[T any](
 	up *Stream[T],
 	limit int64,
@@ -99,5 +105,6 @@ func newStateful[T any](
 			down.End()
 		},
 		chars: chars,
+		parN:  up.parN, // 并行标志保留但 splitN 已降级，求值自动串行
 	}}
 }

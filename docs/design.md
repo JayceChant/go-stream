@@ -128,13 +128,38 @@ type Splitterator[T any] interface {
 
 每个 Stream 实例仅可被链接（作为上游）或消费（终止求值）一次：`checkLinked` 检查并置位 `consumed`，重复使用 panic（`errConsumed`）——与 Java `linkedOrConsumed` 语义一致，防止流的隐式重放。
 
-## 7. 并行预留（TODO）
+## 7. 并行求值（Parallel v1）
 
-当前串行。以下接口为 `Parallel(n)` 预留且已稳定：
+`Parallel(n)` 声明后续求值最多 n 个分片并行；`Sequential()` 还原串行。均为「纯标志 stage」：不改变元素流，仅改写 `pipeline.parN`。
 
-- `Splitterator.TrySplit`：slice/range 已实现均衡二分
-- 特征位：`SpOrdered` 决定合并是否需保序；`SpSubSized` 保证子源大小精确
-- `Collector.Combiner`：全部预置收集器已实现分片合并语义
-- `newStateful` 的 `limit+process` 签名：并行物化的扩展点
+### 分片机制
 
-规划：TrySplit 递归分片至 n 份 → goroutine 各跑管道 → Combiner 按分片序合并（Ordered）→ 短路终止竞速。
+Go 无 raw type，异构 stage 链（Map 前后元素类型不同）无法持有同型 source 字段。因此 Head 构造时设置**类型擦除的分片闭包** `splitN func(n int) []any`，沿链原样传播（可穿越 Map 异构边界）；Head 段求值闭包经 `ec.partSrc` 断言恢复具体类型（构造拓扑保证一致）。
+
+求值期递归 `TrySplit` 至 n 份（保序二分：前半段 n/2 份 + 后半段 n-n/2 份）。仅可分源（slice/range）构造时设置 splitN。
+
+### 分片求值与合并
+
+每片 goroutine **独立重入** `p.drive`（全新 sink 链 + 独立终端累积，无共享可变状态）；片级终端由主 goroutine 在启动前串行预创建（登记安全）。完成后：
+
+- **通用路径**（ToSlice/ForEach/Min/Max）：各片物化，按分片序回放进用户终端（Ordered 保序；回放中短路即广播取消）
+- **Collect 专属**：片级独立 Supplier+Accumulator，按分片序 `Combiner` 合并
+- **Count/Reduce**：片内聚合，total 求和/合并
+
+### 降级规则（正确性优先）
+
+满足任一即自动串行，无需用户干预：
+
+- 物化型有状态算子之后（`Limit`/`Skip`/`Sorted`/`DistinctBy`/`Reverse` 置 splitN=nil）
+- 单遍有状态（`Scan`/`Chunk`/`Enumerate`/`DropWhile`）
+- 双流算子（`Zip`/`Concat`）
+- 短路终止族（`First`/`FindAny`/`AnyMatch`/`AllMatch`/`NoneMatch`/`ForEachUntil`——保持串行短路优势）
+- 不可分源（splitN 未设置或 TrySplit 返回 nil）
+
+### 错误与 panic
+
+片内首错（`FromFunc`/`MapErr` 族）按片序并入主错误槽；**出错片截断于错误点，其余片结果完整保留**（分片粒度的部分结果）。片内用户回调 panic 被捕获后由发起 goroutine 原样 re-panic。
+
+### 实测
+
+CPU 密集场景（200k 元素 × 200 次循环体）4 分片加速比 ~3.3x（`TestParallel_Speedup` 可复现）。

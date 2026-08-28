@@ -59,6 +59,7 @@ s.Collect(stream.GroupingBy(keyOf, valOf))
 | 无状态中间 | `Filter` `Map` `FlatMap` `FlatMapSeq` `Peek` `TakeWhile` `DropWhile` |
 | Err 变体 | `MapErr` `FilterErr` `FlatMapErr` `PeekErr` |
 | 有状态中间 | `Limit` `Skip` `Sorted` `DistinctBy` `Reverse` `Scan` |
+| 并行控制 | `Parallel(n)` `Sequential()` |
 | 包级中间 | `Distinct` `Sorted`（自然序）`Chunk` `Enumerate` |
 | 双流 | `Zip` |
 | 终止 | `ForEach` `ForEachUntil` `ToSlice` `Count` `Reduce` `ReduceOpt` `Collect` `First` `FindAny` `AnyMatch` `AllMatch` `NoneMatch` `Min` `Max` `Err` |
@@ -78,7 +79,7 @@ s.Collect(stream.GroupingBy(keyOf, valOf))
 | `Collectors.groupingBy` | `stream.GroupingBy` | 组内保遇序 |
 | `Comparator` | `func(a, b T) int` | 对齐标准库 `slices.SortFunc`/`cmp.Compare` 惯例 |
 | `IntStream` 特化族 | 泛型 + `Number`/`cmp.Ordered` 约束 | Go 泛型零装箱，无需特化 |
-| `stream.parallel()` | **暂未实现（见路线图）** | 阶段 1 串行；接口层已预留 TrySplit/特征位/Combiner |
+| `stream.parallel()` | `Parallel(n)` / `Sequential()` | TrySplit 分片 + goroutine；短路终止与物化算子后自动降级串行 |
 | 异常穿透 | 错误即值（`Err()`/`MapErr` 族） | 对齐 Go 官方错误风格 |
 | `stream.distinct()` | `DistinctBy(key)` 方法 / `Distinct` 包级 | `comparable` 仅可作约束，方法无法追加约束故双形态 |
 
@@ -106,8 +107,8 @@ s.Collect(stream.GroupingBy(keyOf, valOf))
 ## 路线图
 
 - [x] v1 串行求值引擎、全量算子、Collector 体系、错误即值模型
-- [ ] **并行求值 `Parallel(n)` / `Sequential()`**（TODO，必做）：基于 TrySplit 递归分片 + goroutine 并行执行 + Collector.Combiner 合并；Ordered 特征按分片序合并、短路终止竞速——接口层（TrySplit/特征位/Combiner/物化闭包）已预留
-- [ ] v1.x：`onClose`/资源管理、可重放流（视需求）
+- [x] **并行求值 `Parallel(n)` / `Sequential()`**：TrySplit 递归分片 + goroutine 并行执行 + Collector.Combiner 合并；按分片序合并保序（Ordered）、短路终止族与物化算子后自动降级串行（正确性优先）；CPU 密集场景实测加速比 ~3.3x（4 分片）
+- [ ] v1.x：`onClose`/资源管理、可重放流（视需求）、Unordered 流式合并（当前物化回放）
 
 ## License
 

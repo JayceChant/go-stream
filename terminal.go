@@ -5,12 +5,42 @@ package stream
 // 短路终止（First/AnyMatch/AllMatch/NoneMatch）在条件满足时立即停止源遍历；
 // 出错时返回已累积的部分结果（错误即值模型），Err() 查询首错。
 
-// ForEach 对每个元素执行 f。
+// ForEach 对每个元素执行 f（并行流下仍按相遇序，f 在合并阶段串行调用）。
 func (s *Stream[T]) ForEach(f func(T)) {
 	if f == nil {
 		panic("stream: ForEach 函数为 nil")
 	}
-	s.pipeline.evaluate(sinkFunc[T](func(v T) bool { f(v); return true }))
+	s.pipeline.evaluateNP(sinkFunc[T](func(v T) bool { f(v); return true }), sliceTotal[T]{})
+}
+
+// sliceTotal 是通用并行终端：每片物化（collectingSink），total 按分片序
+// 回放进用户终端 down（保序；短路即停止后续回放并广播取消）。
+type sliceTotal[T any] struct{}
+
+func (sliceTotal[T]) part() Sink[T] { return &collectingSink[T]{limit: -1} }
+
+func (sliceTotal[T]) total(parts []Sink[T], down Sink[T], ec *evalCtx) {
+	var total int
+	for _, ps := range parts {
+		if cs, ok := ps.(*collectingSink[T]); ok {
+			total += len(cs.buf)
+		}
+	}
+	down.Begin(int64(total))
+	for _, ps := range parts {
+		cs, ok := ps.(*collectingSink[T])
+		if !ok {
+			continue
+		}
+		for _, v := range cs.buf {
+			if !down.Accept(v) {
+				ec.cancel.Store(true)
+				down.End()
+				return
+			}
+		}
+	}
+	down.End()
 }
 
 // ForEachUntil 对每个元素执行 f；f 返回 false 时提前终止。
@@ -21,28 +51,74 @@ func (s *Stream[T]) ForEachUntil(f func(T) bool) {
 	s.pipeline.evaluate(sinkFunc[T](f))
 }
 
-// ToSlice 收集全部元素为新切片。
+// ToSlice 收集全部元素为新切片（并行流按相遇序合并进同一终端）。
 func (s *Stream[T]) ToSlice() []T {
 	cs := &collectingSink[T]{limit: -1}
-	s.pipeline.evaluate(cs)
+	s.pipeline.evaluateNP(cs, sliceTotal[T]{})
 	return cs.buf
 }
 
-// Count 返回元素总数。
+// Count 返回元素总数（并行流片内计数、片序求和）。
 func (s *Stream[T]) Count() int64 {
 	var n int64
-	s.pipeline.evaluate(sinkFunc[T](func(T) bool { n++; return true }))
+	s.pipeline.evaluateNP(sinkFunc[T](func(T) bool { n++; return true }), countTotal[T]{&n})
 	return n
 }
 
-// Reduce 以 identity 为初值折叠全部元素。
+// countTotal 是 Count 的并行终端：片内计数，total 求和。
+type countTotal[T any] struct{ n *int64 }
+
+type countSink[T any] struct{ n int64 }
+
+func (c *countSink[T]) Begin(int64)   {}
+func (c *countSink[T]) Accept(T) bool { c.n++; return true }
+func (c *countSink[T]) End()          {}
+
+func (countTotal[T]) part() Sink[T] { return &countSink[T]{} }
+
+func (t countTotal[T]) total(parts []Sink[T], _ Sink[T], _ *evalCtx) {
+	for _, ps := range parts {
+		if cs, ok := ps.(*countSink[T]); ok {
+			*t.n += cs.n
+		}
+	}
+}
+
+// Reduce 以 identity 为初值折叠全部元素（并行流片内折叠、片序合并）。
 func (s *Stream[T]) Reduce(identity T, op func(T, T) T) T {
 	if op == nil {
 		panic("stream: Reduce 操作为 nil")
 	}
 	acc := identity
-	s.pipeline.evaluate(sinkFunc[T](func(v T) bool { acc = op(acc, v); return true }))
+	s.pipeline.evaluateNP(sinkFunc[T](func(v T) bool { acc = op(acc, v); return true }), reduceTotal[T]{&acc, op})
 	return acc
+}
+
+// reduceTotal 是 Reduce 的并行终端：片内以 identity 折叠，total 片序 op 合并。
+type reduceTotal[T any] struct {
+	acc *T
+	op  func(T, T) T
+}
+
+type reduceSink[T any] struct {
+	acc T
+	op  func(T, T) T
+}
+
+func (r *reduceSink[T]) Begin(int64)     {}
+func (r *reduceSink[T]) Accept(v T) bool { r.acc = r.op(r.acc, v); return true }
+func (r *reduceSink[T]) End()            {}
+
+func (t reduceTotal[T]) part() Sink[T] {
+	return &reduceSink[T]{acc: *t.acc, op: t.op}
+}
+
+func (t reduceTotal[T]) total(parts []Sink[T], _ Sink[T], _ *evalCtx) {
+	for _, ps := range parts {
+		if rs, ok := ps.(*reduceSink[T]); ok {
+			*t.acc = t.op(*t.acc, rs.acc)
+		}
+	}
 }
 
 // ReduceOpt 无初值折叠：空流返回 (零值, false)。
@@ -145,7 +221,7 @@ func (s *Stream[T]) minmax(cmp func(a, b T) int, sign int) (T, bool) {
 	}
 	var best T
 	found := false
-	s.pipeline.evaluate(sinkFunc[T](func(v T) bool {
+	s.pipeline.evaluateNP(sinkFunc[T](func(v T) bool {
 		if !found {
 			best, found = v, true
 			return true
@@ -154,7 +230,7 @@ func (s *Stream[T]) minmax(cmp func(a, b T) int, sign int) (T, bool) {
 			best = v
 		}
 		return true
-	}))
+	}), sliceTotal[T]{})
 	return best, found
 }
 
@@ -165,11 +241,40 @@ func (s *Stream[T]) Err() error {
 }
 
 // Collect 以自定义收集器汇聚元素（泛型方法，支持 A→R 类型迁移）。
+// 并行流：片级独立累积，按分片序以 Combiner 合并，Finisher 收尾。
 func (s *Stream[T]) Collect[A, R any](c Collector[T, A, R]) R {
 	a := c.Supplier()
-	s.pipeline.evaluate(sinkFunc[T](func(v T) bool {
+	var pt parallelTotal[T]
+	if c.Combiner != nil {
+		pt = &collectTotal[T, A]{
+			sup: c.Supplier, acc: c.Accumulator, com: c.Combiner, main: &a,
+		}
+	}
+	s.pipeline.evaluateNP(sinkFunc[T](func(v T) bool {
 		c.Accumulator(a, v)
 		return true
-	}))
+	}), pt)
 	return c.Finisher(a)
+}
+
+// collectTotal 是 Collect 的并行终端：每片独立 Supplier+Accumulator
+// （part 时创建并按片序登记），total 按分片序以 Combiner 合并进 main。
+type collectTotal[T, A any] struct {
+	sup     func() A
+	acc     func(A, T)
+	com     func(A, A) A
+	main    *A
+	partial []A // 片级累积容器（按片序）
+}
+
+func (t *collectTotal[T, A]) part() Sink[T] {
+	a := t.sup()
+	t.partial = append(t.partial, a)
+	return sinkFunc[T](func(v T) bool { t.acc(a, v); return true })
+}
+
+func (t *collectTotal[T, A]) total(_ []Sink[T], _ Sink[T], _ *evalCtx) {
+	for _, a := range t.partial {
+		*t.main = t.com(*t.main, a)
+	}
 }

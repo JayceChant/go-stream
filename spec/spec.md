@@ -145,7 +145,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 ## 阶段划分（并行 = TODO）
 
 - **阶段 1（本 spec 全部任务）**：串行核心引擎 + 全部 Tier A/B API + 错误即值模型 + Collector + 测试与基准 + Markdown 文档。
-- **后续 TODO（下一个 spec，务必实现）**：`Parallel(n)`/`Sequential()` 并行求值——TrySplit 递归分片至 n 份、goroutine 各跑管道、Collector.Combiner 合并、Ordered 特征按分片序合并、短路终止竞速。
+- ~~**后续 TODO**~~：`Parallel(n)`/`Sequential()` 并行求值——**已实现（Task 8，语义细化见「并行求值 v1」Requirement）**。
 - **接口层从第一天为并行预留（不可省）**：`TrySplit`/`Characteristics`/`EstimateSize` 语义、Collector 的 `Combiner` 字段、`newStateful` 的物化闭包签名。
 
 ## What Changes
@@ -242,6 +242,24 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 
 ### Requirement: 并行预留（本阶段不实现，TODO）
 接口层 SHALL 保留 TrySplit/特征位/Combiner/物化闭包签名；README 路线图 SHALL 声明 `Parallel(n)` 为后续版本计划。
+
+### Requirement: 并行求值 v1（Task 8 实现）
+`Parallel(n)` 设置并行度、`Sequential()` 还原串行（均为中间操作语义：消费上游、返回携带标志的新流）。求值时满足以下条件才走并行路径，否则自动降级串行（正确性优先）：
+
+- **分片机制**：pipeline 携带类型擦除的 `splitN` 闭包（沿链传播，可穿越 Map 等异构 stage——Go 无 raw type，无法以同型字段存源）；仅可分源（slice/range，即 TrySplit 非 nil 的源）在构造时设置。求值时递归 `TrySplit` 至 n 份（保序：前/后半段递归）。
+- **分片求值**：每片 goroutine 独立重入 `p.drive`（head 层经 `ec.partSrc` 覆盖源），**每片全新 sink 链 + 独立终端累积**（避免共享 sink 的数据竞争）；物化分片结果后按分片序回放进用户终端（Ordered 保序；Unordered 收益留待 v2 流式合并）。
+- **Collect 专属路径**：片级独立 `Supplier`+`Accumulator`，按分片序 `Combiner` 合并，`Finisher` 收尾。
+- **降级规则**（splitN 置 nil 或 evaluateNP）：物化型有状态算子（Limit/Skip/Sorted/DistinctBy/Reverse）之后、单遍有状态（Scan/Chunk/Enumerate/DropWhile）、双流（Zip/Concat）、短路终止族（First/FindAny/AnyMatch/AllMatch/NoneMatch/ForEachUntil——保持串行短路优势）、不可分源——均串行。
+- **错误与 panic**：片内首错按片序合并进主错误槽（部分结果保留）；片内回调 panic 捕获后由发起 goroutine 原样 re-panic。
+- **验证**：`go test -race` 全绿；CPU 密集场景并行加速比 benchmark > 1.5x。
+
+#### Scenario: 并行保序
+- **WHEN** `FromSlice(0..9999).Parallel(4).Filter(p).Map(f).ToSlice()`
+- **THEN** 结果与串行完全一致（分片序回放）
+
+#### Scenario: 管道含状态算子自动降级
+- **WHEN** `FromSlice(xs).Parallel(4).Sorted(cmp).ToSlice()`
+- **THEN** 正确排序（串行求值），不 panic
 
 ### Requirement: 文档（Markdown）
 SHALL 交付：`README.md`（简介/安装/快速上手/API 速览/与 Java 对照/设计要点/路线图含并行 TODO）、`docs/design.md`（架构原理：管道/Sink/Splitterator/分段求值/错误模型/组合替代继承映射表）、`docs/api.md`（分组 API 参考 + 示例）；`example_test.go` 提供可运行示例（与文档示例一致）。

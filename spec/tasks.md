@@ -54,12 +54,13 @@
   - [x] SubTask 7.4: `example_test.go`：可运行示例，与文档示例保持一致
   - [x] 验证：`go test` 执行 example 通过（9 个 Example 全 PASS）；文档示例可复制运行
 
-# 后续 TODO（本阶段不实现，下一 spec 必做）
-- [ ] Task 8（后续）: 并行求值 `Parallel(n)`/`Sequential()`
-  - [ ] TrySplit 递归分片至 n 份，goroutine 各跑管道，Collector.Combiner 合并
-  - [ ] Ordered 特征按分片序合并；短路终止竞速
-  - [ ] `go test -race ./...` 全绿 + 并行加速比 benchmark
-  - 依赖：阶段 1 的 TrySplit/特征位/Combiner/物化闭包签名已稳定
+# 后续 TODO（已随本 goal 完成）
+- [x] Task 8: 并行求值 `Parallel(n)`/`Sequential()`
+  - [x] TrySplit 递归分片至 n 份（类型擦除 splitN 闭包沿链传播），goroutine 各跑管道，Collector.Combiner 合并
+  - [x] Ordered 特征按分片序合并（物化回放保序）；短路终止族与物化/单遍有状态/双流算子后自动降级串行
+  - [x] `go test -race ./...` 全绿 + 并行加速比实测 ~3.3x（4 分片，CPU 密集）
+  - [x] spec 语义细化见「并行求值 v1」Requirement；README/docs 同步
+  - 依赖：阶段 1 的 TrySplit/特征位/Combiner/物化闭包签名已稳定（已复用）
 
 # Task Dependencies
 - [Task 2] depends on [Task 1]

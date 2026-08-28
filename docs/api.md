@@ -83,6 +83,22 @@ Err 变体（错误即值：回调返回错误 → 首错短路、部分结果�
 |---|---|
 | `Zip[U, R](other *Stream[U], f func(T, U) R) *Stream[R]` | 按位置配对，取短；两条流均被消费 |
 
+并行控制：
+
+| 方法 | 说明 |
+|---|---|
+| `Parallel(n int) *Stream[T]` | 声明后续求值最多 n 个分片并行（TrySplit 分片 + goroutine；短路终止与物化算子后自动降级串行） |
+| `Sequential() *Stream[T]` | 还原串行求值 |
+
+```go
+// 并行求值：结果与串行一致（按分片序合并）
+got := stream.FromSlice(bigData).
+    Parallel(runtime.NumCPU()).
+    Filter(expensive).
+    Map(heavy).
+    ToSlice()
+```
+
 ## 终止操作
 
 | 方法 | 说明 |

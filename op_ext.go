@@ -38,6 +38,7 @@ func (s *Stream[T]) Zip[U, R any](other *Stream[U], f func(T, U) R) *Stream[R] {
 			}
 		},
 		chars: chars,
+		// Zip 后台 goroutine 拉取式双流，不参与并行分片（splitN 降级为 nil）
 	}}
 }
 
@@ -95,21 +96,27 @@ func Distinct[T comparable](s *Stream[T]) *Stream[T] {
 //
 // 包级函数形态：Go 1.27 泛型方法返回 Stream[[]T]（T 的派生类型）会触发
 // 实例化循环（T → []T → [][]T → ...），只能以包级函数提供。
+// 有状态单遍（跨元素缓冲）→ 并行降级（splitN=nil）。
 func Chunk[T any](s *Stream[T], n int) *Stream[[]T] {
 	if n <= 0 {
 		panic("stream: Chunk 分组大小必须为正")
 	}
-	return newStateless(s, func(down Sink[[]T], _ *evalCtx) Sink[T] {
+	ns := newStateless(s, func(down Sink[[]T], _ *evalCtx) Sink[T] {
 		return &chunkSink[T]{down: down, n: n}
 	}, s.chars&^(SpSized|SpDistinct|SpSorted))
+	ns.splitN = nil
+	return ns
 }
 
 // Enumerate 为元素附加从 0 开始的索引，产出 KV[int, T]
 // （对应 Go for i, v := range 习惯）。
 //
 // 包级函数形态：同 Chunk，泛型方法返回 Stream[KV[int, T]] 触发实例化循环。
+// 有状态单遍（递增索引）→ 并行降级（splitN=nil）。
 func Enumerate[T any](s *Stream[T]) *Stream[KV[int, T]] {
-	return newStateless(s, func(down Sink[KV[int, T]], _ *evalCtx) Sink[T] {
+	ns := newStateless(s, func(down Sink[KV[int, T]], _ *evalCtx) Sink[T] {
 		return &enumerateSink[T]{down: down}
 	}, s.chars&^(SpSized|SpDistinct|SpSorted))
+	ns.splitN = nil
+	return ns
 }

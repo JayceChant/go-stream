@@ -9,7 +9,7 @@ import "iter"
 
 // Of 以可变参数构建流。
 func Of[T any](xs ...T) *Stream[T] {
-	return newHead(newSliceSp(xs, SpSized|SpOrdered))
+	return newHeadSplit(newSliceSp(xs, SpSized|SpOrdered))
 }
 
 // Empty 构建空流。
@@ -19,7 +19,7 @@ func Empty[T any]() *Stream[T] {
 
 // FromSlice 基于 slice 构建流（零拷贝，直接引用原切片）。
 func FromSlice[T any](s []T) *Stream[T] {
-	return newHead(newSliceSp(s, SpSized|SpOrdered))
+	return newHeadSplit(newSliceSp(s, SpSized|SpOrdered))
 }
 
 // FromSeq 基于 Go 1.23 push 迭代器构建流（一次性：seq 无法暂停复用）。
@@ -99,7 +99,15 @@ func Iterate[T any](seed T, next func(T) T) *Stream[T] {
 
 // Range 构建整数区间流 [start, stop)（左闭右开，步长 1）。
 func Range[I Integer](start, stop I) *Stream[I] {
-	return newHead(newRangeSp(start, stop, SpSized|SpOrdered))
+	return newHeadSplit(newRangeSp(start, stop, SpSized|SpOrdered))
+}
+
+// newHeadSplit 构造可分源的 Head：额外设置 splitN 分片闭包
+// （并行求值入口，见 parallel.go）。
+func newHeadSplit[T any](src Splitterator[T]) *Stream[T] {
+	s := newHead(src)
+	s.splitN = splitNOf(src)
+	return s
 }
 
 // Concat 串联两条流：先耗尽 a 再消费 b（a、b 均被标记消费）。
@@ -126,6 +134,7 @@ func Concat[T any](a, b *Stream[T]) *Stream[T] {
 			}
 		},
 		chars: chars,
+		// Concat 双源拼接不参与并行分片（splitN 降级为 nil）
 	}}
 }
 

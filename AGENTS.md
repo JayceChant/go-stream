@@ -28,20 +28,27 @@
   - `scope` 可选，常用：stream / pipeline / splitterator / collector / spec / docs 等
   - 示例：`feat(stream): 实现 Map/Filter 无状态算子`、`docs(spec): 修订错误处理模型`
 - 一次提交只做一件事；只 `git add` 与本任务相关的文件，**不得** 将用户未提交的无关改动混入。
-- 中文 message 的运行环境与编码规则（已实测验证）：
-  - **Linux / macOS**：无需特殊处理，任何 shell 均可直接用 `git commit -m`。
-  - **Windows**：优先在 **Git Bash**（本机为 `D:\dev\Git\bin\bash.exe`）中执行 git 命令，可安全使用 `git commit -m "中文"`（UTF-8 全链路）。
-    - 注意：`where bash` 找到的 `C:\windows\system32\bash.exe` 是 **WSL bash**，不是 Git Bash，勿混淆。
-    - 若无法使用 Git Bash（如仅 PowerShell 可用），回退方案：将 message 写入 **UTF-8 文件**，用 `git commit -F <file>` 提交，提交后用 `git log` 验证无乱码。临时 message 文件用后即删。
+- 中文 message：按第 3 节在 Git Bash 中执行时可直接 `git commit -m "中文"`（UTF-8 全链路，已实测验证）；**回退**到 PowerShell/cmd 时，必须将 message 写入 **UTF-8 文件**并用 `git commit -F <file>` 提交，提交后用 `git log` 验证无乱码。临时 message 文件用后即删。
 - 遵守常规 git 安全约定：禁止 force push、禁止未授权的历史改写（`reset --hard`/`checkout .`/`restore` 等）、禁止提交含密钥的文件。
 
-## 3. 语言与文档
+## 3. 命令执行环境（Shell 优先级，强制）
+
+所有命令行操作（git、go 工具链、脚本等）统一遵守以下执行环境规则，以提高兼容性（中文/UTF-8/POSIX 工具链）：
+
+- **Linux / macOS**：无需特殊处理，使用默认 shell 直接执行。
+- **Windows**：**优先使用 Git Bash**（本机为 `D:\dev\Git\bin\bash.exe`）执行命令。
+  - **仅当 Git Bash 不支持时**，才回退到 PowerShell 或 cmd（例如：需要 PowerShell 专属 cmdlet / `.ps1` 脚本、Windows 特有工具、COM/WMI 交互等场景）。
+  - 注意：`where bash` 可能解析到 `C:\windows\system32\bash.exe`，那是 **WSL bash**（Linux 子系统），不是 Git Bash，勿混淆；应显式使用 Git for Windows 的安装路径。
+  - 在 bash 中引用 Windows 路径时使用 `/d/...` 形式（如 `/d/jayce/code/go-workspace/go-stream`）。
+  - 回退到 PowerShell/cmd 时，警惕中文编码问题（控制台默认 GBK 代码页）；涉及中文输出/参数的操作，参考第 2 节的文件中转方案。
+
+## 4. 语言与文档
 
 - 所有文档（spec / README / docs）与代码注释使用**中文**。
 - 代码标识符（类型、函数、变量）使用英文，遵循 Go 官方命名惯例（驼峰、导出用大写起始、不滥用下划线）。
 - 新增或变更公开 API，必须同步更新中文 godoc；涉及用户可见行为时同步更新 `README.md` 与 `docs/api.md`。
 
-## 4. Go 语言规范
+## 5. Go 语言规范
 
 - 工具链 **go 1.27**；`go.mod` 声明 `go 1.27`。
 - 积极使用**泛型方法**（方法级类型参数，如 `Map[U any]`），但牢记约束：**接口方法不得声明类型参数**，因此对外 API 挂在具体类型 `*Stream[T]` 上。
@@ -53,9 +60,9 @@
 - 比较器统一 `func(a, b T) int`（对齐标准库 `slices.SortFunc` 惯例）。
 - 依赖最小化：v1 不引入第三方运行时依赖（测试工具除外）。
 
-## 5. 质量门槛（每次提交前必须全部通过）
+## 6. 质量门槛（每次提交前必须全部通过）
 
-```powershell
+```bash
 gofmt -l .            # 输出必须为空
 go vet ./...          # 无告警
 go test ./...         # 全绿
@@ -64,17 +71,17 @@ go test ./...         # 全绿
 - 性能敏感路径的改动需附 benchmark 数据（`go test -bench`），管道额外开销目标 <3x 手写循环。
 - 新功能必须带单测；修复 bug 先写复现用例再修复。
 
-## 6. 每次循环的标准流程
+## 7. 每次循环的标准流程
 
 1. 读 [`spec/tasks.md`](./spec/tasks.md)，选择下一个未完成任务（遵循 Task Dependencies 顺序）
 2. 阅读 spec 中相关章节，实现 + 单元测试
 3. 勾选 `tasks.md` / `checklist.md` 对应项
-3. 通过第 5 节质量门槛
-4. 等待用户接受
-5. 按第 2 节规范提交（中文 Conventional Commits）
-6. 回到第 1 步
+4. 通过第 6 节质量门槛
+5. 等待用户接受
+6. 按第 2 节规范提交（中文 Conventional Commits）
+7. 回到第 1 步
 
-## 7. 其它全局规则
+## 8. 其它全局规则
 
 - **不得回滚用户的手动修改**：工作区可能包含与当前任务无关的用户改动，保持原样、不带入提交。
 - 不过度设计：不实现 spec 未要求的功能（Tier C 明确不做清单见 spec）。

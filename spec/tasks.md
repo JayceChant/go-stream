@@ -10,13 +10,13 @@
   - [x] SubTask 1.5: 定义 `KV[K,V]`、`Number` 约束（Integer | Float）
   - [x] 验证：`go build ./...` 通过；接口定义不含方法级类型参数（Go 1.27 接口限制）
 
-- [ ] Task 2: 求值引擎（pipeline 核心 + 错误即值机制）
-  - [ ] SubTask 2.1: `newStateless(up, wrap func(down Sink[T]) Sink[T])`：仅记录 wrap 闭包，不遍历
-  - [ ] SubTask 2.2: `newStateful(up, materialize, wrap)`：求值时先驱动上游物化为 `[]T`，再以 slice splitterator 续段（物化闭包签名为并行 TODO 预留）
-  - [ ] SubTask 2.3: `evaluate`：从终止 sink 反向 wrapSink 逐级包装至源；`copyInto` 推动源；短路（Accept 返回 false）即停；错误槽记录首错并短路（与短路同路）
-  - [ ] SubTask 2.4: 一次性消费检查：中间操作链接上游时与终止求值时均置 consumed，重复使用 panic（信息清晰）
-  - [ ] SubTask 2.5: 错误槽写回"发起终止调用的 Stream 实例"，`Err()` 读取
-  - [ ] 验证：单测——空流、Filter 链只遍历一次（计数器探针）、重复消费 panic、Err 短路后部分结果保留
+- [x] Task 2: 求值引擎（pipeline 核心 + 错误即值机制）
+  - [x] SubTask 2.1: `newStateless(up, wrap func(down Sink[T], ec *evalCtx) Sink[T])`：构造期组合 drive 求值闭包（捕获上游），不遍历
+  - [x] SubTask 2.2: `newStateful(up, limit, process)`：求值时第一段驱动上游物化进 collectingSink（limit 可截断，支持无限源短路收集），第二段经 process 变换后单遍回放（原"materialize+wrap 双闭包"收敛为 limit+process 两点式，续段协议由引擎统一处理）
+  - [x] SubTask 2.3: `evaluate`：终止求值入口（一次性检查/创建 evalCtx/执行 drive/错误写回）；短路（Accept 返回 false）即停；错误槽记录首错并与短路同路（`ec.fail` 一并表达）
+  - [x] SubTask 2.4: 一次性消费检查：中间操作链接上游时与终止求值时均置 consumed，重复使用 panic（统一文案 errConsumed）
+  - [x] SubTask 2.5: 错误槽写回"发起终止调用的 Stream 实例"（`Err()` 读取在 Task 5 终止操作实现）
+  - [x] 验证：单测——基本流转 Begin/End 配对、Filter+Map 链单遍（计数器探针）、短路停止推动源、limit 截断、重复消费/重复链接 panic、Err 短路后部分结果与 End 收尾
 
 - [ ] Task 3: 构造函数与 Splitterator 实现
   - [ ] SubTask 3.1: `Of`/`FromSlice`(零拷贝)/`Empty`/`FromSeq`/`FromChannel`/`FromMap`(KV, Unordered)/`FromFunc(next func() (T, bool, error))`/`Generate`/`Iterate`/`Range[I Integer]`/`Concat`

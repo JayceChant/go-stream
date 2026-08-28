@@ -1,8 +1,3 @@
-// Package stream 提供基于 Go 1.27 泛型方法的 Java Stream 风格流式处理库。
-//
-// 流（Stream）不是数据结构，而是从数据源（slice、channel、迭代器、生成器等）
-// 到结果之间的惰性管道：中间操作仅追加管道阶段不触发遍历，终止操作触发一次
-// 单遍求值并返回新容器或聚合值。详细设计见项目 spec/spec.md。
 package stream
 
 // Sink 是推送式消费者接口，是求值期间元素流动的通道。

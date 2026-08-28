@@ -36,3 +36,36 @@ type pipeline[T any] struct {
 	// err 保存最近一次由本实例发起的终止求值的首错，供 Err() 读取。
 	err error
 }
+
+// newHead 构造持有数据源的 Head stage（流的起点）。
+func newHead[T any](src Splitterator[T]) *Stream[T] {
+	return &Stream[T]{pipeline[T]{
+		drive:  driveFromSource(src),
+		source: src,
+		chars:  src.Characteristics(),
+	}}
+}
+
+// driveFromSource 把数据源编译为 Head 段的求值闭包：单遍推动源推入 down，
+// 短路（Accept 返回 false）时立即停止遍历，End 恒在段末调用。
+// 源侧的可预期错误（FromFunc）由 Task 3 的专属 head 路径处理，不经此函数。
+func driveFromSource[T any](src Splitterator[T]) func(down Sink[T], ec *evalCtx) {
+	return func(down Sink[T], ec *evalCtx) {
+		down.Begin(src.EstimateSize())
+		src.ForEachRemaining(func(t T) bool {
+			return down.Accept(t)
+		})
+		down.End()
+	}
+}
+
+// evaluate 是全部终止操作的求值入口：一次性消费检查、创建求值上下文、
+// 执行 drive 链、错误写回本实例（供 Err() 读取）。
+// 参数 down 为终止 sink；返回 ec 以便调用方决定是否因错误提前退出。
+func (p *pipeline[T]) evaluate(down Sink[T]) *evalCtx {
+	p.checkLinked()
+	ec := &evalCtx{}
+	p.drive(down, ec)
+	p.err = ec.err
+	return ec
+}

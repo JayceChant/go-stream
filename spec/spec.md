@@ -57,7 +57,7 @@ Java Stream 的骨架是一棵**单继承类树**（`BaseStream` ← `AbstractPi
 | `abstract class AbstractPipeline` | 非导出 `pipeline[T]` struct（`drive` 求值闭包/source/chars/consumed/err 错误槽；**drive 在构造期捕获上游引用与 wrap 闭包**——Go 无 raw type，异构元素类型的上游无法存入同型字段，闭包组合是链表 stage 的类型安全等价物） | **嵌入组合**：`type Stream[T any] struct { pipeline[T] }`，公开方法定义在 `Stream` 上 |
 | `ReferencePipeline.Head` | 构造函数 `newHead(src Splitterator[T]) *Stream[T]` | 构造函数取代子类型 |
 | `abstract StatelessOp`（子类覆写 `opWrapSink`） | `newStateless(up *Stream[T], wrap func(down Sink[T]) Sink[T]) *Stream[T]` | **函数值取代模板方法**：`wrap` 闭包即 `opWrapSink` 的等价物；每个算子是"构造函数调用"，不是新类型 |
-| `abstract StatefulOp`（`opEvaluateParallel`/分段物化） | `newStateful(up *Stream[T], materialize func(upstream func(Sink[T])) []T, wrap func(down Sink[T]) Sink[T])` | 物化策略由闭包注入；闭包签名同时是后续并行扩展点 |
+| `abstract StatefulOp`（`opEvaluateParallel`/分段物化） | `newStateful(up *Stream[T], limit int64, process func(buf []T) []T, chars)`：第一段经 collectingSink 物化（limit 可截断），第二段 process 变换后单遍回放 | 物化策略由闭包注入；「limit+process 两点式」取代最初的双闭包设计（续段 Begin/End/短路协议由引擎统一处理），同时是后续并行扩展点 |
 | `interface Sink<T>` + `abstract ChainedReference<T,E_OUT>`（protected downstream 字段） | `Sink[T]` 接口 + 包内闭包 sink 适配器（捕获下游 sink 的函数/匿名 struct） | Go 无 protected 字段；下游 sink 由闭包捕获，`cancellationRequested` 融合为 `Accept` 的 bool 返回值 |
 | `abstract PipelineHelper<P_OUT>` | 删除独立类型 | 其 `wrapSink`/`copyInto` 能力直接作为 `pipeline[T]` 的方法存在，无需类层次即可复用 |
 | `TerminalOp` 实现类族（`ReduceOp`/`ForEachOp`/`FindOp`/`MatchOp`...） | 删除接口与类族 | 终止操作实现为 `*Stream[T]` 的导出方法，内部直接构造终止 sink；无用户侧多态扩展需求，**避免过度抽象**（简化点） |

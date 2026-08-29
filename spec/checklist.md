@@ -21,7 +21,7 @@
 - [x] 无状态中间操作齐全：Filter/Map/FlatMap/FlatMapSeq/Peek/TakeWhile/DropWhile + MapErr/FilterErr/FlatMapErr/PeekErr
 - [x] 有状态中间操作齐全：Limit/Skip/Sorted(稳定)/DistinctBy/Reverse + Scan/Chunk/Enumerate + Zip
 - [x] 终止操作齐全：ForEach/ForEachUntil/ToSlice/Count/Reduce/ReduceOpt/Collect/First/FindAny/AnyMatch/AllMatch/NoneMatch/Min/Max/Err
-- [x] Collector 与预置收集器齐全：ToSlice/ToSet/ToMap/ToMapMerge/GroupingBy/Joining/Counting/Reducing/Mapping（另有 Summing）
+- [x] Collector 与预置收集器齐全：ToSlice/ToSet/ToMap/ToMapMerge/GroupingBy/Joining/Counting/Reducing/Mapping（另有 Summing）；已迁移至低耦合子包 `collector`（零依赖叶子包），Summing 因依赖 Number 约束留根包
 - [x] 包级便捷函数齐全：Contains/Sorted/Min/Max/Sum/Avg/Distinct（泛型约束补偿设计）
 - [x] Splitterator 接口含 TryAdvance/ForEachRemaining/TrySplit/EstimateSize/Characteristics，特征位齐全且沿管道正确传播
 - [x] Map 操作类型迁移静态类型安全（编译期检查）
@@ -31,6 +31,11 @@
 - [x] Collector 含 Combiner 字段且全部预置收集器实现分片合并；newStateful 物化闭包签名已用于降级判断
 - [x] `Parallel(n)`/`Sequential()`：类型擦除 splitN 分片闭包沿链传播、每片独立 sink 链求值、分片序合并保序、降级规则（物化/单遍有状态/双流/短路终止族/不可分源自动串行）、错误分片语义与 panic re-panic
 - [x] README 路线图已更新为已实现（实测 4 分片加速比 ~3.3x）
+
+## 包结构（Task 9）
+- [x] 低耦合部分已拆分：`collector` 子包零非导出依赖、零引擎依赖（零依赖叶子包，无 import 环）
+- [x] 无法干净拆分的引擎/算子群未强行划分（三方循环互访、字段级裸访问等证据见 spec「包结构」）
+- [x] 子包独立单测（不依赖根包，验证叶子包性质）
 
 ## 文档（Markdown）
 - [x] README.md：简介/安装/快速上手/API 速览/与 Java 对照表/设计要点/路线图（并行已实现）

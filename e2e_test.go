@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strconv"
 	"testing"
+
+	"github.com/JayceChant/go-stream/collector"
 )
 
 // 场景 1：filter → map → collect（Java 最典型三段式）。
@@ -15,7 +17,7 @@ func TestE2E_FilterMapCollect(t *testing.T) {
 	got := Of(1, 2, 3, 4, 5, 6).
 		Filter(func(n int) bool { return n%2 == 0 }).
 		Map(strconv.Itoa).
-		Collect(ToSlice[string]())
+		Collect(collector.ToSlice[string]())
 	want := []string{"2", "4", "6"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
@@ -31,7 +33,7 @@ func TestE2E_GroupingBy(t *testing.T) {
 	ps := []person{
 		{"Alice", 30}, {"Bob", 25}, {"Carol", 30}, {"Dave", 25},
 	}
-	byAge := FromSlice(ps).Collect(GroupingBy(
+	byAge := FromSlice(ps).Collect(collector.GroupingBy(
 		func(p person) int { return p.age },
 		func(p person) string { return p.name },
 	))
@@ -98,7 +100,7 @@ func TestE2E_ZipAggregate(t *testing.T) {
 // 场景 7：文字统计——FromMap + FlatMap + Joining。
 func TestE2E_Joining(t *testing.T) {
 	got := Of(1, 2, 3).
-		Collect(Joining(strconv.Itoa, "-"))
+		Collect(collector.Joining(strconv.Itoa, "-"))
 	if got != "1-2-3" {
 		t.Fatalf("got %q", got)
 	}

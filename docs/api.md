@@ -128,39 +128,43 @@ got := stream.FromSlice(bigData).
 | `Contains[T comparable](s, target T) bool` *短路* | 包含判断 |
 | `Min[T cmp.Ordered](s) (T, bool)` / `Max[T cmp.Ordered](s)` | 自然序最值 |
 
-## Collector
+## Collector（子包 `stream/collector`）
+
+收集器族位于低耦合子包 `collector`（`github.com/JayceChant/go-stream/collector`，零依赖叶子包）；`Summing` 因依赖根包 `Number` 约束留在根包。
 
 ```go
+import "github.com/JayceChant/go-stream/collector"
+
 type Collector[T, A, R any] struct {
     Supplier    func() A              // 创建累积容器（建议指针类型）
     Accumulator func(A, T)            // 累积单元素
-    Combiner    func(A, A) A          // 合并两容器（并行分片预留）
+    Combiner    func(A, A) A          // 合并两容器（并行分片合并）
     Finisher    func(A) R             // 最终变换
 }
 ```
 
 | 预置收集器 | 说明 |
 |---|---|
-| `ToSlice[T]()` | 切片 |
-| `ToSet[T]()` | `map[T]struct{}` |
-| `ToMap[K, V, T](keyF, valF)` | map；键冲突 last-wins |
-| `ToMapMerge[K, V, T](keyF, valF, merge)` | map；键冲突以 merge(old, new) 合并 |
-| `GroupingBy[K, V, T](keyF, valF)` | `map[K][]V` 分组，组内保遇序 |
-| `Joining[T](strF, sep)` | 字符串拼接 |
-| `Counting[T]()` | 计数 |
-| `Reducing[T](identity, op)` | 折叠 |
-| `Mapping[T, U, A, R](f, downstream)` | 先变换再汇聚（组合子） |
-| `Summing[N Number]()` | 数值求和 |
+| `collector.ToSlice[T]()` | 切片 |
+| `collector.ToSet[T]()` | `map[T]struct{}` |
+| `collector.ToMap[K, V, T](keyF, valF)` | map；键冲突 last-wins |
+| `collector.ToMapMerge[K, V, T](keyF, valF, merge)` | map；键冲突以 merge(old, new) 合并 |
+| `collector.GroupingBy[K, V, T](keyF, valF)` | `map[K][]V` 分组，组内保遇序 |
+| `collector.Joining[T](strF, sep)` | 字符串拼接 |
+| `collector.Counting[T]()` | 计数 |
+| `collector.Reducing[T](identity, op)` | 折叠 |
+| `collector.Mapping[T, U, A, R](f, downstream)` | 先变换再汇聚（组合子） |
+| `stream.Summing[N Number]()` | 数值求和（根包，依赖 Number 约束） |
 
 ```go
 // Mapping 组合子：分组后求每组的和
-sums := stream.FromSlice(orders).Collect(stream.GroupingBy(
+sums := stream.FromSlice(orders).Collect(collector.GroupingBy(
     func(o Order) string { return o.Region },
     func(o Order) int { return o.Amount },
 ))
 
 // ToMapMerge：同键金额累加
-total := stream.FromSlice(orders).Collect(stream.ToMapMerge(
+total := stream.FromSlice(orders).Collect(collector.ToMapMerge(
     func(o Order) string { return o.Region },
     func(o Order) int { return o.Amount },
     func(old, new int) int { return old + new },

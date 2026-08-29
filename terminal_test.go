@@ -3,6 +3,8 @@ package stream
 import (
 	"errors"
 	"testing"
+
+	"github.com/JayceChant/go-stream/collector"
 )
 
 func TestTerminalBasics(t *testing.T) {
@@ -118,16 +120,16 @@ func TestErrQuery(t *testing.T) {
 
 func TestCollectAndCollectors(t *testing.T) {
 	// Collect + ToSlice
-	if got := Of(1, 2, 3).Collect(ToSlice[int]()); len(got) != 3 {
+	if got := Of(1, 2, 3).Collect(collector.ToSlice[int]()); len(got) != 3 {
 		t.Errorf("Collect(ToSlice) = %v", got)
 	}
 	// ToSet
-	set := Of(1, 2, 2, 3).Collect(ToSet[int]())
+	set := Of(1, 2, 2, 3).Collect(collector.ToSet[int]())
 	if len(set) != 3 {
 		t.Errorf("ToSet = %v, 期望 3 键", set)
 	}
 	// ToMap last-wins
-	m := Of("a", "b", "a2").Collect(ToMap(
+	m := Of("a", "b", "a2").Collect(collector.ToMap(
 		func(s string) rune { return []rune(s)[0] },
 		func(s string) int { return len(s) },
 	))
@@ -135,7 +137,7 @@ func TestCollectAndCollectors(t *testing.T) {
 		t.Errorf("ToMap last-wins: m['a'] = %d, 期望 2", m['a'])
 	}
 	// ToMapMerge
-	m2 := Of("a", "b", "a2").Collect(ToMapMerge(
+	m2 := Of("a", "b", "a2").Collect(collector.ToMapMerge(
 		func(s string) rune { return []rune(s)[0] },
 		func(s string) int { return len(s) },
 		func(old, new int) int { return old + new },
@@ -158,7 +160,7 @@ func TestGroupingByOrdering(t *testing.T) {
 		{"dev", "王五", 120},
 		{"ops", "赵六", 90},
 	}
-	g := FromSlice(emps).Collect(GroupingBy(
+	g := FromSlice(emps).Collect(collector.GroupingBy(
 		func(e emp) string { return e.dept },
 		func(e emp) string { return e.name },
 	))
@@ -171,16 +173,16 @@ func TestGroupingByOrdering(t *testing.T) {
 }
 
 func TestJoiningCountingReducing(t *testing.T) {
-	if got := Of(1, 2, 3).Collect(Joining(func(v int) string {
+	if got := Of(1, 2, 3).Collect(collector.Joining(func(v int) string {
 		digits := []string{"0", "1", "2", "3"}
 		return digits[v]
 	}, "-")); got != "1-2-3" {
 		t.Errorf("Joining = %q", got)
 	}
-	if n := Of(1, 2, 3).Collect(Counting[int]()); n != 3 {
+	if n := Of(1, 2, 3).Collect(collector.Counting[int]()); n != 3 {
 		t.Errorf("Counting = %d", n)
 	}
-	if got := Of(1, 2, 3, 4).Collect(Reducing(0, func(a, b int) int { return a + b })); got != 10 {
+	if got := Of(1, 2, 3, 4).Collect(collector.Reducing(0, func(a, b int) int { return a + b })); got != 10 {
 		t.Errorf("Reducing = %d", got)
 	}
 }
@@ -188,9 +190,9 @@ func TestJoiningCountingReducing(t *testing.T) {
 func TestMappingCombinator(t *testing.T) {
 	// Mapping + GroupingBy：按部门分组工资
 	emps := []emp{{"dev", "a", 1}, {"ops", "b", 2}, {"dev", "c", 3}}
-	g := FromSlice(emps).Collect(Mapping(
+	g := FromSlice(emps).Collect(collector.Mapping(
 		func(e emp) KV[string, int] { return KV[string, int]{e.dept, e.sal} },
-		GroupingBy(
+		collector.GroupingBy(
 			func(kv KV[string, int]) string { return kv.Key },
 			func(kv KV[string, int]) int { return kv.Value },
 		),

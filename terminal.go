@@ -1,5 +1,7 @@
 package stream
 
+import "github.com/JayceChant/go-stream/collector"
+
 // terminal.go：终止操作（触发一次求值，返回新容器或聚合值）。
 //
 // 短路终止（First/AnyMatch/AllMatch/NoneMatch）在条件满足时立即停止源遍历；
@@ -240,7 +242,8 @@ func (s *Stream[T]) Err() error {
 
 // Collect 以自定义收集器汇聚元素（泛型方法，支持 A→R 类型迁移）。
 // 并行流：片级独立累积，按分片序以 Combiner 合并，Finisher 收尾。
-func (s *Stream[T]) Collect[A, R any](c Collector[T, A, R]) R {
+// 收集器族见子包 collector（stream/collector）。
+func (s *Stream[T]) Collect[A, R any](c collector.Collector[T, A, R]) R {
 	a := c.Supplier()
 	var pt parallelTotal[T]
 	if c.Combiner != nil {

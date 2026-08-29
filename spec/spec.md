@@ -151,12 +151,34 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 ## What Changes
 
 - **BREAKING**：无（全新仓库）
-- 新建 Go module：`github.com/JayceChant/go-stream`，go 1.27，根包 `stream`
-- 核心类型：`Stream[T]`（嵌入 `pipeline[T]`）、`Sink[T]`、`Splitterator[T]`（嵌入 `baseSplitterator[T]`）、`Collector[T,A,R]`、`KV[K,V]`、`Number`/复用 `cmp.Ordered` 约束
+- 新建 Go module：`github.com/JayceChant/go-stream`，go 1.27，根包 `stream`；另含低耦合子包 `collector`（收集器族，见「包结构」）
+- 核心类型：`Stream[T]`（嵌入 `pipeline[T]`）、`Sink[T]`、`Splitterator[T]`（嵌入 `baseSplitterator[T]`）、`collector.Collector[T,A,R]`、`KV[K,V]`、`Number`/复用 `cmp.Ordered` 约束
 - 求值引擎：Sink 链反向包装、单遍融合、短路、有状态分段物化、一次性消费、错误即值短路；并行分片求值（parallel.go）
 - API：Tier A + Tier B 全量 + `Parallel(n)`/`Sequential()`
 - 测试：单测 + `example_test.go`（可运行示例）+ 基准（vs 手写 for 循环）+ 并行加速比
 - 文档（Markdown，任务化）：`README.md`、`docs/design.md`（架构与 Java 对照）、`docs/api.md`（API 参考）
+
+## 包结构（Task 9 修订：子包划分决策）
+
+原则：**只拆与入口包低耦合的部分，无法干净拆分的不强行划分**。
+
+### 已拆：`collector` 子包（`stream/collector`）
+
+- 内容：`Collector[T,A,R]` struct 与预置收集器 `ToSlice`/`ToSet`/`ToMap`/`ToMapMerge`/`GroupingBy`/`Joining`/`Counting`/`Reducing`/`Mapping`
+- 依据（耦合度实测）：对根包**零非导出依赖**、零引擎依赖（不触碰 `pipeline`/`Sink`/`evalCtx`）；根包反向仅 `Stream.Collect` 方法引用其导出类型与导出字段。子包仅依赖标准库 `strings`，为**零依赖叶子包**（无 import 环）
+- 例外：`Summing[N Number]` 依赖根包 `Number` 约束，为避免约束下沉成碎包或造成 import 环，留在根包 `numeric.go`（与 `Sum`/`Avg` 同属数值聚合族，语义一致）
+- 调用方式变更：`s.Collect(collector.GroupingBy(k, v))`（用户按需 import 子包）
+
+### 不拆：引擎与算子群（根包一体）
+
+依据（决定性耦合证据）：
+
+1. `op.go`/`pipeline.go`/`parallel.go` 三方非导出符号循环互访（`checkLinked` 是 `pipeline` 方法定义在 op.go；`evaluateNP` ↔ `evaluateParallel` 互调）
+2. `terminal.go` 的 4 个并行终端实现依赖 `parallelTotal` 非导出接口并直读 `collectingSink.buf`
+3. `op_ext.go`（Zip）与 `parallel.go` 对 `evalCtx` 存在字段级裸访问（`mu`/`panicVal`/`partSrc`）
+4. `op_ext.go` 复用 `ops_stateful.go` 的 `chunkSink`/`enumerateSink`；`construct.go` 经 `sources.go` 五个非导出工厂建源
+
+强行拆分须导出全部内部符号或整体下沉 `internal`（等价重做公共接口），违背低耦合初衷，收益低于成本——维持单包。
 
 ## Impact
 
@@ -164,8 +186,8 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - Affected code: 全部新增
   - `go.mod`、`stream.go`（Stream 类型/约束/KV）、`pipeline.go`（引擎+错误槽+consumed+newHead+evaluate+分片）、`sink.go`、`spliterator.go`、`op.go`（newStateless/newStateful）、`sources.go`（各源 Splitterator 实现）、`construct.go`（包级构造函数）
   - `ops_stateless.go`（含 Err 变体）、`ops_stateful.go`（含 Scan/Chunk）、`op_ext.go`（Zip/Enumerate）
-  - `terminal.go`（含 Err() 与并行终端）、`collector.go`、`numeric.go`（包级 Sum/Avg/Sorted/Min/Max/Contains/Distinct）、`parallel.go`（Parallel/Sequential/分片求值）
-  - `*_test.go`、`example_test.go`、`benchmark_test.go`、`parallel_test.go`
+  - `terminal.go`（含 Err() 与并行终端）、`collector/collector.go`（子包：Collector 与 9 个预置收集器）、`numeric.go`（包级 Sum/Avg/Sorted/Min/Max/Contains/Distinct + Summing）、`parallel.go`（Parallel/Sequential/分片求值）
+  - `*_test.go`、`example_test.go`、`benchmark_test.go`、`parallel_test.go`、`collector/collector_test.go`
   - `README.md`、`docs/design.md`、`docs/api.md`
 
 ## ADDED Requirements
@@ -214,10 +236,10 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - **THEN** 遇到 1 即返回 false，不遍历 8
 
 ### Requirement: Collector 汇聚抽象
-`Collector[T,A,R]` struct（Supplier/Accumulator/Combiner/Finisher + 特征 IdentityFinish/Unordered），预置：`ToSlice`/`ToSet`/`ToMap`（last-wins）/`ToMapMerge`/`GroupingBy`（保遇序）/`Joining`/`Counting`/`Reducing`/`Mapping`。
+`collector.Collector[T,A,R]` struct（Supplier/Accumulator/Combiner/Finisher + 特征 IdentityFinish/Unordered），位于低耦合子包 `stream/collector`（Task 9 修订：子包对根包零非导出依赖，为零依赖叶子包）；预置：`ToSlice`/`ToSet`/`ToMap`（last-wins）/`ToMapMerge`/`GroupingBy`（保遇序）/`Joining`/`Counting`/`Reducing`/`Mapping`；`Summing` 因依赖根包 `Number` 约束留在根包 `numeric.go`。
 
 #### Scenario: 分组保序
-- **WHEN** `Of(p1,p2,...).Collect(GroupingBy(p.Id, p.Name))`
+- **WHEN** `Of(p1,p2,...).Collect(collector.GroupingBy(p.Id, p.Name))`
 - **THEN** 返回 `map[ID][]string` 正确分组且组内保持遇序
 
 ### Requirement: Splitterator 抽象与特征位

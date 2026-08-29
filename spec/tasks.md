@@ -62,6 +62,13 @@
   - [x] spec 语义细化见「并行求值 v1」Requirement；README/docs 同步
   - 依赖：阶段 1 的 TrySplit/特征位/Combiner/物化闭包签名已稳定（已复用）
 
+- [x] Task 9: 子包划分（只拆低耦合部分，不强行划分）
+  - [x] 耦合度分析（证据见 spec「包结构」）：collector.go 零非导出依赖可拆；pipeline/op/parallel 等 12 文件循环互访不拆
+  - [x] 新建 `collector` 子包：Collector 类型 + 9 个预置收集器迁移（零依赖叶子包）；子包独立单测 collector_test.go
+  - [x] 例外处理：Summing 依赖根包 Number 约束，留根包 collector.go（与 Sum/Avg 数值族同置）
+  - [x] 根包适配：Stream.Collect 签名改 collector.Collector；全部测试改跨包调用
+  - [x] spec「包结构」章节 + README/docs/api.md/design.md 同步
+
 # Task Dependencies
 - [Task 2] depends on [Task 1]
 - [Task 3]、[Task 4]、[Task 5] depends on [Task 2]（三组可并行开发）

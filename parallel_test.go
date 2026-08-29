@@ -7,6 +7,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/JayceChant/go-stream/collector"
 )
 
 // 基础正确性：并行结果与串行一致（保序）。
@@ -36,7 +38,7 @@ func TestParallel_CountReduce(t *testing.T) {
 
 // Collect 并行：Combiner 合并（ToMapMerge 同键累加）。
 func TestParallel_CollectCombiner(t *testing.T) {
-	got := Range(0, 1000).Parallel(4).Collect(ToMapMerge(
+	got := Range(0, 1000).Parallel(4).Collect(collector.ToMapMerge(
 		func(v int) string {
 			if v%2 == 0 {
 				return "even"
@@ -53,11 +55,11 @@ func TestParallel_CollectCombiner(t *testing.T) {
 
 // GroupingBy 并行保序：组内顺序与串行一致。
 func TestParallel_GroupingByOrder(t *testing.T) {
-	ser := Range(0, 1000).Collect(GroupingBy(
+	ser := Range(0, 1000).Collect(collector.GroupingBy(
 		func(v int) int { return v % 7 },
 		func(v int) int { return v },
 	))
-	par := Range(0, 1000).Parallel(4).Collect(GroupingBy(
+	par := Range(0, 1000).Parallel(4).Collect(collector.GroupingBy(
 		func(v int) int { return v % 7 },
 		func(v int) int { return v },
 	))

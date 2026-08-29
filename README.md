@@ -32,7 +32,10 @@ go get github.com/JayceChant/go-stream
 ## 快速上手
 
 ```go
-import "github.com/JayceChant/go-stream"
+import (
+    "github.com/JayceChant/go-stream"
+    "github.com/JayceChant/go-stream/collector" // 收集器子包（按需）
+)
 
 // 1. 从容器构造（惰性，不触发遍历）
 s := stream.FromSlice(data)          // 零拷贝引用
@@ -46,7 +49,7 @@ s.Filter(p).Map(f).Sorted(cmp).Limit(10)
 s.ToSlice()
 s.Count()
 s.AnyMatch(p)
-s.Collect(stream.GroupingBy(keyOf, valOf))
+s.Collect(collector.GroupingBy(keyOf, valOf))
 ```
 
 更多示例见 [example_test.go](./example_test.go)（可运行，`go test` 即验证）。
@@ -63,7 +66,8 @@ s.Collect(stream.GroupingBy(keyOf, valOf))
 | 包级中间 | `Distinct` `Sorted`（自然序）`Chunk` `Enumerate` |
 | 双流 | `Zip` |
 | 终止 | `ForEach` `ForEachUntil` `ToSlice` `Count` `Reduce` `ReduceOpt` `Collect` `First` `FindAny` `AnyMatch` `AllMatch` `NoneMatch` `Min` `Max` `Err` |
-| 收集器 | `ToSlice` `ToSet` `ToMap` `ToMapMerge` `GroupingBy` `Joining` `Counting` `Reducing` `Mapping` `Summing` |
+| 收集器（子包 `collector`） | `ToSlice` `ToSet` `ToMap` `ToMapMerge` `GroupingBy` `Joining` `Counting` `Reducing` `Mapping` |
+| 收集器（根包） | `Summing`（依赖 Number 约束） |
 | 包级聚合 | `Sum` `Avg` `Contains` `Min` `Max` |
 
 完整参考与示例见 [docs/api.md](./docs/api.md)。
@@ -74,9 +78,9 @@ s.Collect(stream.GroupingBy(keyOf, valOf))
 |---|---|---|
 | `Stream<T>`（接口） | `*Stream[T]`（具体 struct） | Go 1.27 接口方法不能声明类型参数，泛型方法必须挂在具体类型上 |
 | `stream.of(...)` / `Arrays.stream` | `stream.Of(...)` / `stream.FromSlice` | |
-| `Collectors.toList()` | `stream.ToSlice[T]()` | |
-| `Collectors.toMap` | `stream.ToMap` / `ToMapMerge` | 键冲突 last-wins（对齐 Go map 惯例），自定义合并用 ToMapMerge |
-| `Collectors.groupingBy` | `stream.GroupingBy` | 组内保遇序 |
+| `Collectors.toList()` | `collector.ToSlice[T]()` | |
+| `Collectors.toMap` | `collector.ToMap` / `ToMapMerge` | 键冲突 last-wins（对齐 Go map 惯例），自定义合并用 ToMapMerge |
+| `Collectors.groupingBy` | `collector.GroupingBy` | 组内保遇序 |
 | `Comparator` | `func(a, b T) int` | 对齐标准库 `slices.SortFunc`/`cmp.Compare` 惯例 |
 | `IntStream` 特化族 | 泛型 + `Number`/`cmp.Ordered` 约束 | Go 泛型零装箱，无需特化 |
 | `stream.parallel()` | `Parallel(n)` / `Sequential()` | TrySplit 分片 + goroutine；短路终止与物化算子后自动降级串行 |

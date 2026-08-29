@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/JayceChant/go-stream"
+	"github.com/JayceChant/go-stream/collector"
 )
 
 // 基础链式：构造 → 中间操作 → 终止操作。
@@ -23,7 +24,7 @@ func ExampleOf() {
 func Example_mapTypeChange() {
 	got := stream.Of(1, 2, 3).
 		Map(strconv.Itoa).
-		Collect(stream.Joining(func(s string) string { return s }, "-"))
+		Collect(collector.Joining(func(s string) string { return s }, "-"))
 	fmt.Println(got)
 	// Output: 1-2-3
 }
@@ -37,7 +38,7 @@ func ExampleGroupingBy() {
 	byAge := stream.Of(
 		person{"Alice", 30}, person{"Bob", 25},
 		person{"Carol", 30}, person{"Dave", 25},
-	).Collect(stream.GroupingBy(
+	).Collect(collector.GroupingBy(
 		func(p person) int { return p.age },
 		func(p person) string { return p.name },
 	))

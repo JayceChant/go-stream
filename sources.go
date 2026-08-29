@@ -63,6 +63,9 @@ type rangeSp[I Integer] struct {
 }
 
 func newRangeSp[I Integer](cur, stop I, chars Characteristics) *rangeSp[I] {
+	if chars&SpSized != 0 {
+		chars |= SpSubSized // 子区间同样可精确报告大小（与 newSliceSp 对齐，Task 11 修正）
+	}
 	var n int64
 	if cur < stop {
 		n = int64(stop - cur)

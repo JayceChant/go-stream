@@ -115,25 +115,21 @@ func splitNOf[T any](src Splitterator[T]) func(n int) []any {
 	return func(n int) []any { return splitSrc(src, n) }
 }
 
-// splitSrc 递归二分源为（最多）n 个子源，返回按相遇序排列的子源切片
-// （nil 表示不可分或无需分）。TrySplit 语义：返回后半段、自身收缩为前半段。
+// splitSrc 递归二分源为（最多）n 个子源，返回按相遇序排列的子源切片。
+// TrySplit 语义：返回后半段、自身收缩为前半段。
+// 元素不丢失（Task 11 修复）：无需再分（n<2）或不可再分（TrySplit 返回
+// nil）的子源以自身为一份；完全不可分的顶层源返回单份，调用方
+// evaluateParallel 据份数 <2 降级串行（此时源未被消耗）。
 func splitSrc[T any](src Splitterator[T], n int) []any {
 	if n < 2 {
-		return nil
+		return []any{src} // 无需再分：整体一份
 	}
 	back := src.TrySplit()
 	if back == nil {
-		return nil
+		return []any{src} // 不可再分：整体一份
 	}
 	var out []any
-	if n == 2 {
-		out = append(out, src, back)
-		return out
-	}
-	// 前半段继续二分至 n/2 份，后半段至 n-n/2 份（保序拼接）
-	for _, part := range splitSrc(src, n/2) {
-		out = append(out, part)
-	}
+	out = append(out, splitSrc(src, n/2)...)
 	out = append(out, splitSrc(back, n-n/2)...)
 	return out
 }

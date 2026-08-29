@@ -269,7 +269,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 ### Requirement: 并行求值 v1（Task 8 实现）
 `Parallel(n)` 设置并行度、`Sequential()` 还原串行（均为中间操作语义：消费上游、返回携带标志的新流）。求值时满足以下条件才走并行路径，否则自动降级串行（正确性优先）：
 
-- **分片机制**：pipeline 携带类型擦除的 `splitN` 闭包（沿链传播，可穿越 Map 等异构 stage——Go 无 raw type，无法以同型字段存源）；仅可分源（slice/range，即 TrySplit 非 nil 的源）在构造时设置。求值时递归 `TrySplit` 至 n 份（保序：前/后半段递归）。
+- **分片机制**：pipeline 携带类型擦除的 `splitN` 闭包（沿链传播，可穿越 Map 等异构 stage——Go 无 raw type，无法以同型字段存源）；仅可分源（slice/range，即 TrySplit 非 nil 的源）在构造时设置。求值时递归 `TrySplit` 至 n 份（保序：前/后半段递归）。**Task 11 修订（bug 修复）**：递归中不可再分的子源以自身为一份（元素不丢失，份数可少于 n）；完全不可分返回单份，由 evaluateParallel 据份数 <2 降级串行。
 - **分片求值**：每片 goroutine 独立重入 `p.drive`（head 层经 `ec.partSrc` 覆盖源），**每片全新 sink 链 + 独立终端累积**（避免共享 sink 的数据竞争）；物化分片结果后按分片序回放进用户终端（Ordered 保序；无序流走先完成先推的流式合并——Task 10 已实现，见「生命周期与可重放」）。
 - **Collect 专属路径**：片级独立 `Supplier`+`Accumulator`，按分片序 `Combiner` 合并，`Finisher` 收尾。
 - **降级规则**（splitN 置 nil 或 evaluateNP）：物化型有状态算子（Limit/Skip/Sorted/DistinctBy/Reverse）之后、单遍有状态（Scan/Chunk/Enumerate/DropWhile）、双流（Zip/Concat）、短路终止族（First/FindAny/AnyMatch/AllMatch/NoneMatch/ForEachUntil——保持串行短路优势）、不可分源——均串行。
@@ -322,6 +322,7 @@ SHALL 交付：`README.md`（简介/安装/快速上手/API 速览/与 Java 对�
 
 ### Requirement: 质量保障
 全部公开 API 中文 godoc；`go vet`/`go test ./...` 全绿；benchmark：`Filter+Map+ToSlice` 相对手写 for 循环额外开销目标 <3x；并行求值 `go test -race` 全绿。
+**Task 11 增补**：白盒覆盖审计驱动的补缺（分片不变量、并行 panic 路径、错误路径的状态机、特征位传播矩阵、源级释放语义——缺口清单见 tasks.md Task 11）；引入 Fuzz 测试（`fuzz_test.go`）锁定核心不变量：分片并集==原集合且保序、随机算子组合与参考实现等价、并行与串行等价、Zip 取短；语料不随仓提交（`testdata/` 不入库，种子即测试内数据）。
 
 ## 非目标（Non-Goals）
 - ~~并行求值实现（阶段 1；接口预留）——后续 TODO 必做~~（已随 Task 8 交付）

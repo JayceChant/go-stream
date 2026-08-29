@@ -45,6 +45,12 @@
 - [x] FromMap 特征位修正：不再声明 SpOrdered（此前经 newSeqSp 误置，与 map 遍历序不确定的既定语义矛盾）
 - [x] `go test -race -count=1 ./...` 全绿（新增 lifecycle_test.go 17 项，含流式合并确定性早推验证）
 
+## 测试强化与 Fuzz（Task 11）
+- [x] 白盒补缺 26 项（whitebox_test.go）：splitSrc/splitNOf 全路径（含 n<2 恰一份/奇数/深递归/不可分单份/保序并集）、并行片内 panic re-panic 双路径、newStateful 错误路径 process 不执行、Concat 错误路径与段包装器直测、运行期并行降级与 nil splitN 包装、pushPart 取消直测、sliceTotal 回放短路、三源释放/短路/缓存语义、collectingSink 容量四边界、evalCtx 并发 fail 唯一性与 takePanic 一次性、特征位传播矩阵全覆盖（含 splitN 降级断言）、Collect 无 Combiner 降级、有序并行 Min/Max
+- [x] 随测试发现并修复 3 个真实 bug：splitSrc 深递归丢元素（小输入并行元素丢失）、sliceTotal.total 短路 break 仅断本片（取消语义破坏）、newRangeSp 漏置 SpSubSized
+- [x] Fuzz 7 目标（fuzz_test.go）：分片不变量、collectingSink 边界、管道等价（Filter/Map/Limit/Skip/Reverse vs 参考实现）、并行等价（有序逐元素/无序集合/Count/分组）、Zip 取短、Chunk/Enumerate、Cache 重放；各 10s 实跑零 crash；语料不入库
+- [x] 质量门槛全绿：gofmt 空 / vet 无告警 / `go test -race -count=1 ./...` 全绿
+
 ## 文档（Markdown）
 - [x] README.md：简介/安装/快速上手/API 速览/与 Java 对照表/设计要点/路线图（并行已实现）
 - [x] docs/design.md：架构原理（管道/Sink/Splitterator/分段求值/错误模型/组合替代继承映射表/并行求值/生命周期与可重放）

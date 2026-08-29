@@ -78,6 +78,34 @@
   - [x] 单测三项语义 + `go test -race` 全绿；README 路线图勾选、docs/api.md、spec/checklist.md 增项
   - 依赖：Task 8（并行求值）、Task 9（包结构稳定）
 
+# 后续 TODO（Task 11，随「测试强化 + 引入 fuzzy」goal 立项）
+- [x] Task 11: 测试强化（白盒补缺）+ 引入 Fuzz 测试
+  - [x] 白盒补缺（whitebox_test.go，按覆盖审计缺口）：
+    - [x] `splitSrc`/`splitNOf` 直接单测：n<2 整体一份、n==2 快路径、奇数 n 不对称递归、深递归（n 超可分能力返回少于 n 份）、不可分源单份、子源并集==原集合且保序
+    - [x] 并行片内 panic 捕获与 re-panic（有序 total / 无序流式两路径）
+    - [x] `newStateful` 错误路径：上游出错时 process 不执行、Begin(0)/End 仍配对
+    - [x] `Concat` a 段出错：b 段不驱动、End 恰一次、Err 为 a 侧首错；suppressEnd/skipBegin 直测
+    - [x] `evaluateParallel` 运行期降级（splitN 非 nil 但返回单份）与 `newFlagStage` nil splitN 包装（降级算子后再 Parallel）
+    - [x] `streamTotal.pushPart` 取消返回 false 路径白盒直测；`sliceTotal.total` 回放短路
+    - [x] 源级路径：seqSp 取消释放（stop 调用）、channelSp 短路不排空、funcSp 首错缓存早退
+    - [x] `collectingSink` 容量断言：size>0 预分配、limit<size 截断、size<=0 不分配、limit=0 首次即拒
+    - [x] `evalCtx` 并发：多 goroutine fail 首错唯一性；takePanic 一次性语义（二次调用 nil）
+    - [x] 特征位传播矩阵补全（Peek/FlatMapSeq/Err 变体/Skip 强制置位/DistinctBy/Reverse 透传/单遍有状态四算子/Concat/Zip/Parallel 透传/各源特征位）+ splitN 降级断言 + Collect 无 Combiner 并行降级 + 有序并行 Min/Max
+  - [x] 修复（审计与 fuzz 设计发现的真实 bug）：
+    - [x] `splitSrc` 递归深处不可再分子源被整段丢弃（[1,2,3].Parallel(4) 丢 [1]；2 元素 Parallel(4) 丢半）——修复为以自身为一份，元素不丢失
+    - [x] `sliceTotal.total` 回放短路 `break` 仅断本片继续下一片（取消语义破坏）——改 `return` 停止全部后续回放
+    - [x] `newRangeSp` 漏置 SpSubSized（与 newSliceSp 不一致）
+  - [x] Fuzz 测试（fuzz_test.go，7 目标锁定内部不变量与等价性；语料不入库）：
+    - [x] FuzzSplitSrcInvariant：子源并集==原集合且保序、份数边界（n<2 恰一份 / 可分源至少 2 份 / ≤n）
+    - [x] FuzzCollectingSinkBoundary：min(limit,count) 边界与元素按序保全
+    - [x] FuzzPipelineEquivalence：Filter→Map→Limit→Skip→条件 Reverse 与参考实现等价
+    - [x] FuzzParallelEquivalence：有序并行逐元素一致、无序集合一致、Count 一致、Collect 分组计数一致
+    - [x] FuzzZipShortest：min 长度与逐对配对
+    - [x] FuzzChunkEnumerate：定长分组尾组、展平复原、索引配对
+    - [x] FuzzCacheReplayEquivalence：只求值一次、三轮重放一致
+  - [x] 质量门槛：gofmt/vet/`go test -race -count=1 ./...` 全绿；7 个 fuzz 目标各 10s 实跑零 crash（FuzzSplitSrcInvariant 67 万次执行）
+  - 依赖：Task 8/10（并行与流式合并已稳定）
+
 # Task Dependencies
 - [Task 2] depends on [Task 1]
 - [Task 3]、[Task 4]、[Task 5] depends on [Task 2]（三组可并行开发）

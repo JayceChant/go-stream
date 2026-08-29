@@ -30,18 +30,18 @@ func (sliceTotal[T]) total(parts []Sink[T], down Sink[T], ec *evalCtx) {
 		}
 	}
 	down.Begin(int64(total))
+	defer down.End()
 	for _, ps := range parts {
 		cs, ok := ps.(*collectingSink[T])
 		if !ok {
 			continue
 		}
 		for _, v := range cs.buf {
-			if !down.Accept(v) { // 回放短路：停止后续片（物化已完成，无需广播）
-				break
+			if !down.Accept(v) { // 回放短路：停止全部后续回放（Task 11 修复：原 break 仅断本片）
+				return
 			}
 		}
 	}
-	down.End()
 }
 
 // pushPart 实现无序流式合并（streamTotal）：片完成即回放其缓冲元素。

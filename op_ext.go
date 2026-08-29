@@ -39,6 +39,7 @@ func (s *Stream[T]) Zip[U, R any](other *Stream[U], f func(T, U) R) *Stream[R] {
 		},
 		chars: chars,
 		// Zip 后台 goroutine 拉取式双流，不参与并行分片（splitN 降级为 nil）
+		closers: mergeClosers(s.closers, other.closers), // 双方回调链按本流先 other 后继承
 	}}
 }
 

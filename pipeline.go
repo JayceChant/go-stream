@@ -74,6 +74,27 @@ type pipeline[T any] struct {
 	// Head 段求值闭包经 ec.partSrc 断言恢复具体类型（构造拓扑保证一致）。
 	// 物化型有状态算子与双流算子将其置 nil（降级点）。
 	splitN func(n int) []any
+	// closers 为按注册序排列的清理回调链（OnClose 追加、各中间操作沿链
+	// 继承）：终止求值结束或显式 Close 时触发一次（幂等，见 runClosers）。
+	closers []func() error
+	// closed 标记回调链已触发（幂等：求值后再 Close、重复 Close 均不重复执行）。
+	closed bool
+	// closeErr 保存回调链触发时的首错（供 Close 返回并记入错误槽）。
+	closeErr error
+}
+
+// runClosers 按注册序触发清理回调链（幂等）：任一出错记首错、不 panic。
+// 由终止求值收尾（evaluateNP 的 defer，覆盖 panic 路径）与显式 Close 共用。
+func (p *pipeline[T]) runClosers() {
+	if p.closed {
+		return
+	}
+	p.closed = true
+	for _, f := range p.closers {
+		if err := f(); err != nil && p.closeErr == nil {
+			p.closeErr = err
+		}
+	}
 }
 
 // newHead 构造持有数据源的 Head stage（流的起点）。
@@ -148,11 +169,20 @@ func (p *pipeline[T]) evaluate(down Sink[T]) *evalCtx {
 func (p *pipeline[T]) evaluateNP(down Sink[T], parTotal parallelTotal[T]) *evalCtx {
 	p.checkLinked()
 	ec := &evalCtx{}
+	// 求值结束（正常耗尽/短路/错误值/回调 panic 路径均含）自动触发清理
+	// 回调链一次；回调错误并入错误槽（首错保留），随后统一写回本实例
+	// 供 Err() 读取。
+	defer func() {
+		p.runClosers()
+		if p.closeErr != nil {
+			ec.fail(p.closeErr)
+		}
+		p.err = ec.firstErr()
+	}()
 	if parTotal != nil && p.parN > 1 && p.splitN != nil {
 		evaluateParallel(p, down, ec, parTotal)
 	} else {
 		p.drive(down, ec)
 	}
-	p.err = ec.firstErr()
 	return ec
 }

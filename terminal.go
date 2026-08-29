@@ -7,7 +7,8 @@ import "github.com/JayceChant/go-stream/collector"
 // 短路终止（First/AnyMatch/AllMatch/NoneMatch）在条件满足时立即停止源遍历；
 // 出错时返回已累积的部分结果（错误即值模型），Err() 查询首错。
 
-// ForEach 对每个元素执行 f（并行流下仍按相遇序，f 在合并阶段串行调用）。
+// ForEach 对每个元素执行 f（并行流下按相遇序合并、f 在发起 goroutine
+// 串行调用；Unordered 流例外：按分片完成序推入，顺序不保证）。
 func (s *Stream[T]) ForEach(f func(T)) {
 	if f == nil {
 		panic("stream: ForEach 函数为 nil")
@@ -41,6 +42,20 @@ func (sliceTotal[T]) total(parts []Sink[T], down Sink[T], ec *evalCtx) {
 		}
 	}
 	down.End()
+}
+
+// pushPart 实现无序流式合并（streamTotal）：片完成即回放其缓冲元素。
+func (sliceTotal[T]) pushPart(i int, sinks []Sink[T], down Sink[T], _ *evalCtx) bool {
+	cs, ok := sinks[i].(*collectingSink[T])
+	if !ok {
+		return true
+	}
+	for _, v := range cs.buf {
+		if !down.Accept(v) {
+			return false // 用户终端取消：停止本片及后续推送
+		}
+	}
+	return true
 }
 
 // ForEachUntil 对每个元素执行 f；f 返回 false 时提前终止。
@@ -278,4 +293,12 @@ func (t *collectTotal[T, A]) total(_ []Sink[T], _ Sink[T], _ *evalCtx) {
 	for _, a := range t.partial {
 		*t.main = t.com(*t.main, a)
 	}
+}
+
+// pushPart 实现无序流式合并（streamTotal）：片完成即以 Combiner 并入
+// 主累积（完成序合并——无序流语义下顺序本就不保证）。
+// partial 与 sinks 同序登记（part() 在主 goroutine 串行创建），下标一致。
+func (t *collectTotal[T, A]) pushPart(i int, _ []Sink[T], _ Sink[T], _ *evalCtx) bool {
+	*t.main = t.com(*t.main, t.partial[i])
+	return true
 }

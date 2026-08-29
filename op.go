@@ -36,9 +36,10 @@ func newStateless[T, U any](
 		drive: func(down Sink[U], ec *evalCtx) {
 			ud(wrap(down, ec), ec)
 		},
-		chars:  chars,
-		parN:   up.parN,
-		splitN: up.splitN,
+		chars:   chars,
+		parN:    up.parN,
+		splitN:  up.splitN,
+		closers: up.closers,
 	}}
 }
 
@@ -104,7 +105,8 @@ func newStateful[T any](
 			}
 			down.End()
 		},
-		chars: chars,
-		parN:  up.parN, // 并行标志保留但 splitN 已降级，求值自动串行
+		chars:   chars,
+		parN:    up.parN, // 并行标志保留但 splitN 已降级，求值自动串行
+		closers: up.closers,
 	}}
 }

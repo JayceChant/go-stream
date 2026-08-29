@@ -37,10 +37,18 @@
 - [x] 无法干净拆分的引擎/算子群未强行划分（三方循环互访、字段级裸访问等证据见 spec「包结构」）
 - [x] 子包独立单测（不依赖根包，验证叶子包性质）
 
+## 生命周期与可重放（Task 10）
+- [x] `OnClose(f func() error)`/`Close() error`：回调链求值结束自动触发（耗尽/短路/错误值/回调 panic 路径均恰好一次）、显式关闭幂等、按注册序执行、出错记首错经 `Err()` 查询、nil 回调 panic
+- [x] 回调链沿中间操作继承，Concat/Zip 经 mergeClosers 合并双方（求值序），每物理回调 sync.Once 保证多路径触发恰好一次
+- [x] `Cache[T](s) func() *Stream[T]`：上游只求值一次（sync.Once 物化）、工厂产物为全新一次性流（FromSlice 零拷贝）、一次性模型不被破坏、物化期首错记忆（此后返回携带错误的空流，Err() 可查）、工厂未调用则原流仍可用
+- [x] `Unordered() *Stream[T]` 标志改写（清 SpOrdered）+ 并行无序流式合并：ToSlice/ForEach/Min/Max 元素级先完成先推（终端取消即停止推送）、Collect 片级 Combiner 完成序合并、Count/Reduce 仍片序聚合、结果集合与串行一致
+- [x] FromMap 特征位修正：不再声明 SpOrdered（此前经 newSeqSp 误置，与 map 遍历序不确定的既定语义矛盾）
+- [x] `go test -race -count=1 ./...` 全绿（新增 lifecycle_test.go 17 项，含流式合并确定性早推验证）
+
 ## 文档（Markdown）
 - [x] README.md：简介/安装/快速上手/API 速览/与 Java 对照表/设计要点/路线图（并行已实现）
-- [x] docs/design.md：架构原理（管道/Sink/Splitterator/分段求值/错误模型/组合替代继承映射表/并行求值）
-- [x] docs/api.md：分组 API 参考 + 示例（含并行控制）
+- [x] docs/design.md：架构原理（管道/Sink/Splitterator/分段求值/错误模型/组合替代继承映射表/并行求值/生命周期与可重放）
+- [x] docs/api.md：分组 API 参考 + 示例（含并行控制、生命周期与可重放）
 - [x] example_test.go 可运行示例（9 个 Example 全 PASS），与文档示例一致
 
 ## 质量验证

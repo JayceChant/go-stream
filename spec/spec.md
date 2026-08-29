@@ -42,7 +42,7 @@
 | `Distinct` 需要 comparable | equals/hashCode | 方法不能追加约束：提供 `DistinctBy(key func(T) any)`（键须可比较）方法 + 包级 `Distinct[T comparable]` 双形态（Go 的 comparable 仅可作约束不能作普通类型） |
 | 比较器 | `Comparator<T>`（int 返回） | 对齐 Go 1.21 `slices.SortFunc` 惯例：`func(a, b T) int`（`cmp.Compare` 风格） |
 | 错误处理 | unchecked 异常穿透 | **错误即值**（详案见下）：可预期错误走 error 值；不可恢复错误 panic（详案见下） |
-| 关闭资源 | onClose/BaseStream.close | 非目标（v1 不做）；channel 源自然耗尽 |
+| 关闭资源 | onClose/BaseStream.close | `OnClose(f)`/`Close()`（Task 10）：求值结束自动触发 + 显式幂等释放 |
 | 有状态算子物化 | Node.Builder 树 | 直接物化为 `[]T`（无并行时无需 Node 树） |
 
 ## 架构设计：组合替代继承（Java 抽象类 → Go 结构体）
@@ -132,8 +132,8 @@ Java Stream 的骨架是一棵**单继承类树**（`BaseStream` ← `AbstractPi
 ### Tier C：明确不做（v1，附理由）
 
 - 原始特化流（IntStream 等）：Go 泛型零装箱，无需求
-- `onClose`/资源管理流：channel 源自然耗尽；需要时后续加
-- 可重放/可缓存流（memoize）：与一次性消费模型冲突
+- ~~`onClose`/资源管理流：channel 源自然耗尽；需要时后续加~~（**Task 10 已实现**，见「生命周期与可重放」Requirement）
+- ~~可重放/可缓存流（memoize）：与一次性消费模型冲突~~（**Task 10 以 Cache 工厂形态实现**——不破坏一次性模型：物化一次、工厂每次产全新流，见「生命周期与可重放」Requirement）
 - Collector 错误化 Finisher：破坏组合简洁性
 - `flatMapToInt` 特化族、流上 `iterator()` 双向遍历：无场景
 - 限速/背压：channel 源天然具备，库层不掺和
@@ -186,14 +186,14 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - Affected code: 全部新增
   - `go.mod`、`stream.go`（Stream 类型/约束/KV）、`pipeline.go`（引擎+错误槽+consumed+newHead+evaluate+分片）、`sink.go`、`spliterator.go`、`op.go`（newStateless/newStateful）、`sources.go`（各源 Splitterator 实现）、`construct.go`（包级构造函数）
   - `ops_stateless.go`（含 Err 变体）、`ops_stateful.go`（含 Scan/Chunk）、`op_ext.go`（Zip/Enumerate）
-  - `terminal.go`（含 Err() 与并行终端）、`collector/collector.go`（子包：Collector 与 9 个预置收集器）、`numeric.go`（包级 Sum/Avg/Sorted/Min/Max/Contains/Distinct + Summing）、`parallel.go`（Parallel/Sequential/分片求值）
+  - `terminal.go`（含 Err() 与并行终端）、`collector/collector.go`（子包：Collector 与 9 个预置收集器）、`numeric.go`（包级 Sum/Avg/Sorted/Min/Max/Contains/Distinct + Summing）、`parallel.go`（Parallel/Sequential/Unordered/分片求值/无序流式合并）、`lifecycle.go`（Task 10：OnClose/Close/Cache）
   - `*_test.go`、`example_test.go`、`benchmark_test.go`、`parallel_test.go`、`collector/collector_test.go`
   - `README.md`、`docs/design.md`、`docs/api.md`
 
 ## ADDED Requirements
 
 ### Requirement: Stream 构造（源适配）
-系统 SHALL 提供包级构造函数，从多种容器/生成器类型构建 `*Stream[T]`，构造本身不触发任何遍历（惰性）：`Of`/`FromSlice`（零拷贝引用）/`FromSeq`/`FromChannel`/`FromMap`（产出 `KV[K,V]`，Unordered）/`FromFunc(next func() (T, bool, error))`（错误记录）/`Generate`（无限）/`Iterate`（无限）/`Range`（左闭右开）/`Concat`/`Empty`。
+系统 SHALL 提供包级构造函数，从多种容器/生成器类型构建 `*Stream[T]`，构造本身不触发任何遍历（惰性）：`Of`/`FromSlice`（零拷贝引用）/`FromSeq`/`FromChannel`/`FromMap`（产出 `KV[K,V]`，Unordered——Task 10 修正：源特征位不再声明 `SpOrdered`，此前经 `newSeqSp` 误置、与本源「遍历顺序不确定」的既定语义矛盾）/`FromFunc(next func() (T, bool, error))`（错误记录）/`Generate`（无限）/`Iterate`（无限）/`Range`（左闭右开）/`Concat`/`Empty`。
 
 #### Scenario: 从 slice 构造并终止求值
 - **WHEN** 用户执行 `FromSlice(s).Count()`
@@ -208,7 +208,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - **THEN** `ToSlice()` 返回前 2 个元素，`Err()` 返回该错误
 
 ### Requirement: 中间操作（惰性、返回新 Stream）
-无状态（StatelessOp，单遍融合）：`Filter`/`Map[U]`/`FlatMap[U]`/`FlatMapSeq[U]`/`Peek`/`TakeWhile`（短路）/`DropWhile`；Err 变体：`MapErr`/`FilterErr`/`FlatMapErr`/`PeekErr`。
+无状态（StatelessOp，单遍融合）：`Filter`/`Map[U]`/`FlatMap[U]`/`FlatMapSeq[U]`/`Peek`/`TakeWhile`（短路）/`DropWhile`；Err 变体：`MapErr`/`FilterErr`/`FlatMapErr`/`PeekErr`；标志改写：`Unordered()`（Task 10：清除 `SpOrdered`，声明后续求值不需保序——并行流式合并的门控；不改变元素流）。
 有状态（StatefulOp，物化上游段）：`Limit`（短路）/`Skip`/`Sorted`（稳定）/`DistinctBy`/`Reverse`；**单遍有状态**（不物化）：`Scan`；**包级单遍有状态**（实例化循环限制）：`Chunk`/`Enumerate`。
 双流：`Zip[U, R]`（取短，两条流均被消费）。
 
@@ -270,7 +270,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 `Parallel(n)` 设置并行度、`Sequential()` 还原串行（均为中间操作语义：消费上游、返回携带标志的新流）。求值时满足以下条件才走并行路径，否则自动降级串行（正确性优先）：
 
 - **分片机制**：pipeline 携带类型擦除的 `splitN` 闭包（沿链传播，可穿越 Map 等异构 stage——Go 无 raw type，无法以同型字段存源）；仅可分源（slice/range，即 TrySplit 非 nil 的源）在构造时设置。求值时递归 `TrySplit` 至 n 份（保序：前/后半段递归）。
-- **分片求值**：每片 goroutine 独立重入 `p.drive`（head 层经 `ec.partSrc` 覆盖源），**每片全新 sink 链 + 独立终端累积**（避免共享 sink 的数据竞争）；物化分片结果后按分片序回放进用户终端（Ordered 保序；Unordered 收益留待 v2 流式合并）。
+- **分片求值**：每片 goroutine 独立重入 `p.drive`（head 层经 `ec.partSrc` 覆盖源），**每片全新 sink 链 + 独立终端累积**（避免共享 sink 的数据竞争）；物化分片结果后按分片序回放进用户终端（Ordered 保序；无序流走先完成先推的流式合并——Task 10 已实现，见「生命周期与可重放」）。
 - **Collect 专属路径**：片级独立 `Supplier`+`Accumulator`，按分片序 `Combiner` 合并，`Finisher` 收尾。
 - **降级规则**（splitN 置 nil 或 evaluateNP）：物化型有状态算子（Limit/Skip/Sorted/DistinctBy/Reverse）之后、单遍有状态（Scan/Chunk/Enumerate/DropWhile）、双流（Zip/Concat）、短路终止族（First/FindAny/AnyMatch/AllMatch/NoneMatch/ForEachUntil——保持串行短路优势）、不可分源——均串行。
 - **错误与 panic**：片内首错按片序合并进主错误槽（部分结果保留）；片内回调 panic 捕获后由发起 goroutine 原样 re-panic。
@@ -284,6 +284,39 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - **WHEN** `FromSlice(xs).Parallel(4).Sorted(cmp).ToSlice()`
 - **THEN** 正确排序（串行求值），不 panic
 
+### Requirement: 生命周期与可重放（Task 10）
+三项原路线图遗留，从 Tier C 移出并实现：
+
+**1. OnClose/Close 资源管理**
+- `OnClose(f func() error) *Stream[T]`：注册清理回调（中间操作语义：消费上游、返回携带回调链的新流）；f 出错以 error 值记入错误槽（不 panic，可经 `Err()` 查询）；nil 回调 panic
+- `Close() error`：显式关闭（幂等，重复调用不重复触发；未求值流也可关闭）
+- 触发时机：**终止求值结束时自动触发一次**（正常耗尽/短路/错误路径均触发）；未求值即 Close 则自动触发不发生（以显式 Close 为准）
+- 多个回调按注册序执行；任一出错记首错
+
+**2. Cache 可重放工厂（不破坏一次性模型）**
+- `Cache[T any](s *Stream[T]) func() *Stream[T]`：首次调用工厂时求值上游一次并物化，此后每次调用返回**全新的独立流**（FromSlice 共享底层数组，零拷贝）
+- 一次性模型保持：原流被 Cache 消费；工厂产物每次也是一次性流
+- 错误语义：物化期上游出错 → 首错记录进工厂，此后每次调用返回携带该错误的空流（`Err()` 可查）
+
+**3. Unordered 流式合并（并行终端优化）**
+- 现状：并行终止求值分片物化后按片序回放（保序但需等全部片完成）
+- 优化：`SpOrdered` 特征位缺失（无序流）时，分片结果**先完成先推**（无序流式合并），降低端到端延迟
+- 门控：无序流 = 天然无序源（`FromMap`，Task 10 已修正其特征位）或经 `Unordered()` 显式声明（清除 SpOrdered 的标志改写中间操作，对应 Java `BaseStream.unordered()`）。注意 FromMap 源不可分（并行仍降级串行），流式合并实际生效路径为「可分源 + `Unordered()`」（如 `FromSlice(xs).Parallel(4).Unordered()`）
+- 适用终端：`ToSlice`/`ForEach`/`Min`/`Max`（元素级先完成先推，`down.Begin(-1)` 总量未知）与 `Collect`（片级 `Combiner` 按完成序合并，全部收集器可用——无序语义下顺序本就不保证）；`Count`/`Reduce` 无增量推入语义，仍按片序聚合（计数与可结合折叠的结果不受合并顺序影响，其中非交换 `op` 的 `Reduce` 结果顺序依片序，与既有并行语义一致）
+- 语义保证：无序流下结果集合与串行一致（顺序不保证——本就是 Unordered 语义）
+
+#### Scenario: 求值结束自动释放
+- **WHEN** `FromChannel(ch).OnClose(release).ToSlice()` 完成（含短路路径）
+- **THEN** release 被调用恰好一次
+
+#### Scenario: Cache 重放
+- **WHEN** `f := Cache(s)`; `f().Count()` 与 `f().Count()` 先后执行
+- **THEN** 上游只被求值一次，两次 Count 结果一致
+
+#### Scenario: Unordered 流式合并
+- **WHEN** `FromSlice(xs).Parallel(4).Unordered().Collect(c)`（可分源 + 显式 Unordered）
+- **THEN** 任一分片完成即可推入下游，不等待全部片；结果集合与串行一致
+
 ### Requirement: 文档（Markdown）
 SHALL 交付：`README.md`（简介/安装/快速上手/API 速览/与 Java 对照/设计要点/路线图）、`docs/design.md`（架构原理：管道/Sink/Splitterator/分段求值/错误模型/组合替代继承映射表/并行求值）、`docs/api.md`（分组 API 参考 + 示例）；`example_test.go` 提供可运行示例（与文档示例一致）。
 
@@ -292,7 +325,7 @@ SHALL 交付：`README.md`（简介/安装/快速上手/API 速览/与 Java 对�
 
 ## 非目标（Non-Goals）
 - ~~并行求值实现（阶段 1；接口预留）——后续 TODO 必做~~（已随 Task 8 交付）
-- Collector 错误化 Finisher；onClose/资源管理；可重放流；原始特化流；限速/背压（见 Tier C）
+- ~~Collector 错误化 Finisher；onClose/资源管理；可重放流~~（后两项已随 Task 10 交付，见「生命周期与可重放」）；原始特化流；限速/背压（见 Tier C）
 
 ## MODIFIED Requirements
 无（全新项目）。

@@ -69,6 +69,15 @@
   - [x] 根包适配：Stream.Collect 签名改 collector.Collector；全部测试改跨包调用
   - [x] spec「包结构」章节 + README/docs/api.md/design.md 同步
 
+# 后续 TODO（Task 10，随「实现路线图遗留项」goal 立项）
+- [x] Task 10: 路线图遗留项（OnClose/Cache/Unordered 流式合并）
+  - [x] `OnClose(f func() error) *Stream[T]` / `Close() error`：回调链求值结束自动触发（含短路/错误路径）、显式幂等、按注册序、出错记首错
+  - [x] `Cache[T any](s *Stream[T]) func() *Stream[T]` 可重放工厂：首次调用物化一次，此后 FromSlice 零拷贝全新流；物化期首错记忆，此后每次返回携带错误的空流
+  - [x] `Unordered() *Stream[T]` 标志改写中间操作（清 SpOrdered）+ 并行终端无序流式合并（先完成先推）：ToSlice/ForEach/Min/Max 元素级、Collect 片级 Combiner 按完成序；Count/Reduce 仍片序聚合
+  - [x] FromMap 特征位修正（不再声明 SpOrdered——此前经 newSeqSp 误置，与本源无序语义矛盾）
+  - [x] 单测三项语义 + `go test -race` 全绿；README 路线图勾选、docs/api.md、spec/checklist.md 增项
+  - 依赖：Task 8（并行求值）、Task 9（包结构稳定）
+
 # Task Dependencies
 - [Task 2] depends on [Task 1]
 - [Task 3]、[Task 4]、[Task 5] depends on [Task 2]（三组可并行开发）

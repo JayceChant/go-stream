@@ -89,6 +89,7 @@ Err 变体（错误即值：回调返回错误 → 首错短路、部分结果�
 |---|---|
 | `Parallel(n int) *Stream[T]` | 声明后续求值最多 n 个分片并行（TrySplit 分片 + goroutine；短路终止与物化算子后自动降级串行） |
 | `Sequential() *Stream[T]` | 还原串行求值 |
+| `Unordered() *Stream[T]` | 声明不依赖相遇顺序（清 SpOrdered；并行求值下分片结果先完成先推，降低端到端延迟） |
 
 ```go
 // 并行求值：结果与串行一致（按分片序合并）
@@ -97,6 +98,29 @@ got := stream.FromSlice(bigData).
     Filter(expensive).
     Map(heavy).
     ToSlice()
+```
+
+生命周期与可重放（Task 10）：
+
+| 方法/函数 | 说明 |
+|---|---|
+| `OnClose(f func() error) *Stream[T]` | 注册清理回调：终止求值结束自动触发（耗尽/短路/错误/panic 路径均触发）；按注册序执行，出错记首错经 `Err()` 查询 |
+| `Close() error` | 显式关闭（幂等；未求值流也可关闭）；返回回调链首错 |
+| `Cache[T](s *Stream[T]) func() *Stream[T]` | 可重放工厂：首次调用求值上游一次并物化，此后每次返回全新一次性流（FromSlice 零拷贝）；物化期首错记忆，此后返回携带错误的空流 |
+
+```go
+// 求值结束自动释放资源
+ch := make(chan int, 3)
+stream.FromChannel(ch).OnClose(func() error { return file.Close() }).ToSlice()
+
+// 无序流式合并：快分片完成即推入终端，不等慢分片
+set := stream.FromSlice(bigData).Parallel(4).Unordered().
+    Collect(collector.ToSet[int]())
+
+// 可重放：上游只求值一次
+f := stream.Cache(expensiveQuery())
+f().ForEach(use)   // 首次：物化
+f().ForEach(use)   // 重放：零拷贝
 ```
 
 ## 终止操作

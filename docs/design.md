@@ -130,7 +130,7 @@ type Splitterator[T any] interface {
 
 ## 7. 并行求值（Parallel v1）
 
-`Parallel(n)` 声明后续求值最多 n 个分片并行；`Sequential()` 还原串行。均为「纯标志 stage」：不改变元素流，仅改写 `pipeline.parN`。
+`Parallel(n)` 声明后续求值最多 n 个分片并行；`Sequential()` 还原串行；`Unordered()` 清除 SpOrdered（声明不依赖相遇顺序）。均为「纯标志 stage」：不改变元素流，仅改写 `pipeline.parN`/`chars`。
 
 ### 分片机制
 
@@ -145,6 +145,7 @@ Go 无 raw type，异构 stage 链（Map 前后元素类型不同）无法持有
 - **通用路径**（ToSlice/ForEach/Min/Max）：各片物化，按分片序回放进用户终端（Ordered 保序；回放中短路即广播取消）
 - **Collect 专属**：片级独立 Supplier+Accumulator，按分片序 `Combiner` 合并
 - **Count/Reduce**：片内聚合，total 求和/合并
+- **无序流式合并**（`Unordered()` 或天然无序源如 `FromMap`，SpOrdered 缺失）：片完成即推——通用路径按元素级先完成先推（终端实现 `pushPart`，`down.Begin(-1)` 总量未知，终端取消则停止后续推送）；Collect 按片级 Combiner 完成序合并。结果集合与串行一致，顺序不保证（无序语义）；Count/Reduce 无增量推入语义，仍片序聚合
 
 ### 降级规则（正确性优先）
 
@@ -163,3 +164,21 @@ Go 无 raw type，异构 stage 链（Map 前后元素类型不同）无法持有
 ### 实测
 
 CPU 密集场景（200k 元素 × 200 次循环体）4 分片加速比 ~3.3x（`TestParallel_Speedup` 可复现）。
+
+## 8. 生命周期与可重放（Task 10）
+
+### OnClose/Close 回调链
+
+`pipeline` 携带 `closers []func() error`（按注册序），中间操作沿链继承（`newStateless`/`newStateful`/`newFlagStage`），组合流经 `mergeClosers` 合并双方（Concat 按 a 先 b 后、Zip 按本流先 other 后——与求值序一致）。
+
+- **自动触发**：`evaluateNP` 以 defer 调 `runClosers`，覆盖正常耗尽、短路、错误值与回调 panic 展开路径；回调错误并入错误槽首错保留
+- **显式 Close**：幂等（`closed` 标志 + 每回调 `sync.Once` 双保险——多实例链/组合流触发也恰好一次）；未求值流可关闭，此后求值收尾不重复触发
+- **并行求值**：片 goroutine 重入 `p.drive` 不触发（closers 在 pipeline 实例上，仅收尾路径调用一次）
+
+### Cache 可重放工厂
+
+`Cache(s) func() *Stream[T]`：`sync.Once` 保证首次调用求值 s 一次并物化；此后每次 `FromSlice(buf)` 返回全新一次性流（共享底层数组零拷贝）。物化期首错记忆进工厂，此后每次返回 `emptyWithErr` 携带错误的空流（任何终止操作得空结果、`Err()` 可查）——一次性模型全程不被破坏：s 被消费一次，产物各一次性。
+
+### Unordered 流式合并
+
+见第 7 节「无序流式合并」条目：`streamTotal` 扩展协议（`pushPart` 返回 bool 支持取消），`evaluateParallelStream` 以完成序通道驱动，`down.Begin(-1)`（总量未知）先行、全部片处理完 `down.End()` 收尾。

@@ -62,9 +62,10 @@ s.Collect(collector.GroupingBy(keyOf, valOf))
 | 无状态中间 | `Filter` `Map` `FlatMap` `FlatMapSeq` `Peek` `TakeWhile` `DropWhile` |
 | Err 变体 | `MapErr` `FilterErr` `FlatMapErr` `PeekErr` |
 | 有状态中间 | `Limit` `Skip` `Sorted` `DistinctBy` `Reverse` `Scan` |
-| 并行控制 | `Parallel(n)` `Sequential()` |
+| 并行控制 | `Parallel(n)` `Sequential()` `Unordered()` |
 | 包级中间 | `Distinct` `Sorted`（自然序）`Chunk` `Enumerate` |
 | 双流 | `Zip` |
+| 生命周期 | `OnClose(f)` `Close()` `Cache(s)`（可重放工厂） |
 | 终止 | `ForEach` `ForEachUntil` `ToSlice` `Count` `Reduce` `ReduceOpt` `Collect` `First` `FindAny` `AnyMatch` `AllMatch` `NoneMatch` `Min` `Max` `Err` |
 | 收集器（子包 `collector`） | `ToSlice` `ToSet` `ToMap` `ToMapMerge` `GroupingBy` `Joining` `Counting` `Reducing` `Mapping` |
 | 收集器（根包） | `Summing`（依赖 Number 约束） |
@@ -84,6 +85,8 @@ s.Collect(collector.GroupingBy(keyOf, valOf))
 | `Comparator` | `func(a, b T) int` | 对齐标准库 `slices.SortFunc`/`cmp.Compare` 惯例 |
 | `IntStream` 特化族 | 泛型 + `Number`/`cmp.Ordered` 约束 | Go 泛型零装箱，无需特化 |
 | `stream.parallel()` | `Parallel(n)` / `Sequential()` | TrySplit 分片 + goroutine；短路终止与物化算子后自动降级串行 |
+| `stream.unordered()` | `Unordered()` | 清除 SpOrdered；并行下分片结果先完成先推（流式合并） |
+| `stream.onClose(f)` / `close()` | `OnClose(f)` / `Close()` | 求值结束（含短路/错误/panic 路径）自动触发；显式关闭幂等；回调出错经 `Err()` 查询 |
 | 异常穿透 | 错误即值（`Err()`/`MapErr` 族） | 对齐 Go 官方错误风格 |
 | `stream.distinct()` | `DistinctBy(key)` 方法 / `Distinct` 包级 | `comparable` 仅可作约束，方法无法追加约束故双形态 |
 
@@ -112,7 +115,7 @@ s.Collect(collector.GroupingBy(keyOf, valOf))
 
 - [x] v1 串行求值引擎、全量算子、Collector 体系、错误即值模型
 - [x] **并行求值 `Parallel(n)` / `Sequential()`**：TrySplit 递归分片 + goroutine 并行执行 + Collector.Combiner 合并；按分片序合并保序（Ordered）、短路终止族与物化算子后自动降级串行（正确性优先）；CPU 密集场景实测加速比 ~3.3x（4 分片）
-- [ ] v1.x：`onClose`/资源管理、可重放流（视需求）、Unordered 流式合并（当前物化回放）
+- [x] v1.x：**`onClose`/资源管理**（`OnClose(f)` 求值结束自动触发 + `Close()` 幂等显式释放）、**可重放流**（`Cache(s)` 工厂：物化一次、每次产全新一次性流，不破坏一次性模型）、**Unordered 流式合并**（`Unordered()` 清序标志，并行下分片先完成先推，降低端到端延迟）
 
 ## License
 

@@ -36,15 +36,18 @@ func FromChannel[T any](ch <-chan T) *Stream[T] {
 }
 
 // FromMap 基于 map 构建流，产出 KV 键值对元素。
-// map 遍历顺序不确定，故本源为 Unordered。
+// map 遍历顺序不确定，故本源为 Unordered（不声明 SpOrdered——
+// Task 10 修正：此前经 newSeqSp 误置 SpOrdered，与本源语义矛盾）。
 func FromMap[K comparable, V any](m map[K]V) *Stream[KV[K, V]] {
-	return newHead(newSeqSp(iter.Seq[KV[K, V]](func(yield func(KV[K, V]) bool) {
+	sp := newSeqSp(iter.Seq[KV[K, V]](func(yield func(KV[K, V]) bool) {
 		for k, v := range m {
 			if !yield(KV[K, V]{Key: k, Value: v}) {
 				return
 			}
 		}
-	})))
+	}))
+	sp.baseSplitterator.chars &^= SpOrdered // 遍历序不确定：Unordered
+	return newHead(sp)
 }
 
 // FromFunc 基于拉式函数构建流：next 返回 (元素, 是否还有, 错误)。
@@ -135,6 +138,7 @@ func Concat[T any](a, b *Stream[T]) *Stream[T] {
 		},
 		chars: chars,
 		// Concat 双源拼接不参与并行分片（splitN 降级为 nil）
+		closers: mergeClosers(a.closers, b.closers), // 双方回调链按 a 先 b 后继承
 	}}
 }
 

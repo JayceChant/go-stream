@@ -16,15 +16,16 @@ jobs:
     name: SonarCloud analysis
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         # 完整历史：Quality Gate 的新代码（new code）判定依赖提交历史
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: 'stable'
           check-latest: true
+          cache: false
 
       - name: Generate coverage
         run: go test -covermode=atomic -coverprofile=coverage.txt ./...

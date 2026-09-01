@@ -1,0 +1,64 @@
+# CI：多版本测试矩阵 + 代码风格检查
+# 测试矩阵：项目依赖 go 1.27 泛型方法特性，无法支持更早版本；
+# 'stable' 跟随最新稳定版（当前即 1.27.x），未来新版本发布后自动纳入测试。
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (go ${{ matrix.go }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: ['1.27.x', 'stable']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+          check-latest: true
+
+      - name: Verify formatting (gofmt)
+        run: test -z "$(gofmt -l .)"
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test (race detector)
+        run: go test -race -covermode=atomic -coverprofile=coverage.txt ./...
+
+      - name: Upload coverage to Codecov
+        # 仅在矩阵的一个版本上传，避免重复计数；公开仓库无 token 也可上传（有速率限制），
+        # 建议在仓库 secrets 配置 CODECOV_TOKEN 以获得更稳定的服务
+        if: matrix.go-version == 'stable'
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.txt
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+  lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          check-latest: true
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: latest

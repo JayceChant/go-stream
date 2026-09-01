@@ -1,0 +1,48 @@
+# OpenSSF Scorecard：自动化评估仓库安全实践（CI、依赖更新、发布等）
+# 结果可在 GitHub Security -> Code scanning 查看分项建议；
+# 公开仓库同时自动出现在 deps.dev / OSSF API 中。
+name: Scorecard supply-chain security
+
+on:
+  # 每周例行评估（与 OSSF 官方模板一致）
+  schedule:
+    - cron: '30 3 * * 6'
+  push:
+    branches: [master]
+
+permissions: read-all
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-latest
+    permissions:
+      # 发布结果到 GitHub code scanning（Security -> Code scanning alerts）
+      security-events: write
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Run analysis
+        uses: ossf/scorecard-action@v2
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          # 私有仓库需 OSSF_TOKEN；公开仓库使用 GitHub App token 由 action 自动处理
+          publish_results: true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SARIF file
+          path: results.sarif
+          retention-days: 5
+
+      - name: Upload to code-scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif

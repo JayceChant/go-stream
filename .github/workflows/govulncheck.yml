@@ -1,0 +1,31 @@
+# 依赖漏洞扫描：Go 官方 govulncheck（基于 Go Vulnerability Database）
+# 免注册、免 token；只报告实际被代码调用到的漏洞，误报噪音低。
+name: govulncheck
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  schedule:
+    # 每日例行扫描：新漏洞披露后即使代码未变也能发现
+    - cron: '18 15 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Dependency vulnerability scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          check-latest: true
+
+      - uses: golang/govulncheck-action@v1
+        with:
+          go-version-input: 'stable'

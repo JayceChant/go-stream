@@ -189,6 +189,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
   - `terminal.go`（含 Err() 与并行终端）、`collector/collector.go`（子包：Collector 与 9 个预置收集器）、`numeric.go`（包级 Sum/Avg/Sorted/Min/Max/Contains/Distinct + Summing）、`parallel.go`（Parallel/Sequential/Unordered/分片求值/无序流式合并）、`lifecycle.go`（Task 10：OnClose/Close/Cache）
   - `*_test.go`、`example_test.go`、`benchmark_test.go`、`parallel_test.go`、`collector/collector_test.go`
   - `README.md`、`docs/design.md`、`docs/api.md`
+  - `.github/workflows/{ci,govulncheck,scorecard}.yml`、`codecov.yml`（在线质量服务：Actions 测试矩阵 + lint、Codecov 覆盖率、官方 govulncheck 漏洞扫描、OpenSSF Scorecard）
 
 ## ADDED Requirements
 

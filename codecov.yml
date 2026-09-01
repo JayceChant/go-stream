@@ -1,0 +1,21 @@
+# Codecov 配置：公开仓库免注册即可上传（有速率限制），
+# 在 Codecov 登录该仓库并在 GitHub secrets 配置 CODECOV_TOKEN 后服务更稳定。
+codecov:
+  # 允许上游 bot 提交（如依赖升级 PR）不因覆盖率失败
+  notify:
+    after_n_builds: 1
+
+coverage:
+  status:
+    project:
+      default:
+        # 总覆盖率允许小幅波动，避免噪音性失败
+        threshold: 1%
+    patch:
+      default:
+        informational: true
+
+comment:
+  layout: "reach, diff, flags, files"
+  behavior: default
+  require_changes: true

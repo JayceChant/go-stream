@@ -53,7 +53,7 @@ func TestFlatMapAndSeq(t *testing.T) {
 	// FlatMapSeq：惰性子序列
 	seqOf := func(n int) iter.Seq[int] {
 		return func(yield func(int) bool) {
-			for i := 0; i < n; i++ {
+			for i := range n {
 				if !yield(i) {
 					return
 				}

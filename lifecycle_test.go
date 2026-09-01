@@ -149,11 +149,11 @@ func TestOnCloseParallelFiresOnce(t *testing.T) {
 
 func TestCacheReplay(t *testing.T) {
 	// 上游只求值一次；两次消费结果一致；产物为一次性流。
-	var evals int32
+	var evals atomic.Int32
 	items := []int{1, 2, 3}
 	idx := 0
 	up := FromFunc(func() (int, bool, error) {
-		atomic.AddInt32(&evals, 1)
+		evals.Add(1)
 		if idx >= len(items) {
 			return 0, false, nil
 		}
@@ -168,7 +168,7 @@ func TestCacheReplay(t *testing.T) {
 	if n2 := f().Count(); n2 != 3 {
 		t.Fatalf("重放 Count = %d, 期望 3", n2)
 	}
-	if got := atomic.LoadInt32(&evals); got != int32(len(items))+1 {
+	if got := evals.Load(); got != int32(len(items))+1 {
 		t.Errorf("上游 next 调用 %d 次, 期望 %d（只求值一次：3 元素 + 1 次耗尽）", got, len(items)+1)
 	}
 	// 产物为一次性流：重复消费 panic
@@ -197,7 +197,7 @@ func TestCacheErrMemorized(t *testing.T) {
 	// 物化期上游出错：首错记忆，此后每次调用返回携带错误的空流。
 	wantErr := errors.New("io")
 	f := Cache(FromFunc(func() (int, bool, error) { return 0, false, wantErr }))
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		s := f()
 		if got := s.ToSlice(); len(got) != 0 {
 			t.Errorf("第 %d 次 ToSlice = %v, 期望空", i+1, got)

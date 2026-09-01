@@ -375,7 +375,7 @@ func TestSeqSpCancelReleases(t *testing.T) {
 	released := false
 	seq := func(yield func(int) bool) {
 		defer func() { released = true }()
-		for i := 0; i < 100; i++ {
+		for i := range 100 {
 			if !yield(i) {
 				return
 			}
@@ -619,7 +619,7 @@ func TestCharsMatrixSources(t *testing.T) {
 // seqIntsOf 是特征位矩阵测试用的 iter.Seq 辅助。
 func seqIntsOf(n int) func(yield func(int) bool) {
 	return func(yield func(int) bool) {
-		for i := 0; i < n; i++ {
+		for i := range n {
 			if !yield(i) {
 				return
 			}

@@ -158,7 +158,7 @@ func TestParallel_Speedup(t *testing.T) {
 	}
 	heavy := func(v int) int {
 		sum := 0
-		for i := 0; i < 200; i++ {
+		for i := range 200 {
 			sum += v * i % 7
 		}
 		return sum

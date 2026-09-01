@@ -293,7 +293,7 @@ func FuzzCacheReplayEquivalence(f *testing.F) {
 		evals := 0
 		src := FromSlice(data).Peek(func(byte) { evals++ })
 		factory := Cache(src)
-		for round := 0; round < 3; round++ {
+		for round := range 3 {
 			if got := factory().ToSlice(); !slices.Equal(got, data) {
 				t.Fatalf("第 %d 轮重放 = %v, 期望 %v", round+1, got, data)
 			}

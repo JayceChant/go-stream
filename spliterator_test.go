@@ -25,8 +25,8 @@ func (t *testSplitterator[T]) ForEachRemaining(f func(T) bool) {
 
 func TestBaseSplitteratorEmbedding(t *testing.T) {
 	sp := &testSplitterator[int]{
-		baseSplitterator: baseSplitterator[int]{estSize: 3, chars: SpSized | SpOrdered},
-		items:            []int{1, 2, 3},
+		estSize: 3, chars: SpSized | SpOrdered,
+		items: []int{1, 2, 3},
 	}
 
 	// 编译期断言：嵌入基座后即满足 Splitterator 接口（组合生效）
@@ -55,8 +55,8 @@ func TestBaseSplitteratorEmbedding(t *testing.T) {
 
 	// 短路语义：f 返回 false 时停止推进
 	sp2 := &testSplitterator[int]{
-		baseSplitterator: baseSplitterator[int]{estSize: 3, chars: SpSized | SpOrdered},
-		items:            []int{1, 2, 3},
+		estSize: 3, chars: SpSized | SpOrdered,
+		items: []int{1, 2, 3},
 	}
 	count := 0
 	sp2.ForEachRemaining(func(v int) bool {

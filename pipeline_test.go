@@ -25,11 +25,9 @@ func (c *countingSplitterator[T]) ForEachRemaining(f func(T) bool) {
 // 这里通过 evalCtx.fail 直接模拟算子报错来测试引擎行为。
 func newTestStream[T any](items ...T) *Stream[T] {
 	return newHead(&testSplitterator[T]{
-		baseSplitterator: baseSplitterator[T]{
-			estSize: int64(len(items)),
-			chars:   SpSized | SpOrdered | SpSubSized,
-		},
-		items: items,
+		estSize: int64(len(items)),
+		chars:   SpSized | SpOrdered | SpSubSized,
+		items:   items,
 	})
 }
 

@@ -34,8 +34,8 @@ func TestSinkFunc(t *testing.T) {
 
 func TestStreamStructEmbedding(t *testing.T) {
 	sp := &testSplitterator[int]{
-		baseSplitterator: baseSplitterator[int]{estSize: 2, chars: SpSized | SpOrdered},
-		items:            []int{7, 8},
+		estSize: 2, chars: SpSized | SpOrdered,
+		items: []int{7, 8},
 	}
 	// 编译期断言：pipeline 被 Stream 嵌入组合（未导出字段由包内构造路径使用）
 	s := &Stream[int]{pipeline[int]{

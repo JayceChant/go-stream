@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/JayceChant/go-stream/actions/workflows/ci.yml/badge.svg)](https://github.com/JayceChant/go-stream/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/JayceChant/go-stream/branch/master/graph/badge.svg)](https://codecov.io/gh/JayceChant/go-stream)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=jaycechant_go-stream&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=jaycechant_go-stream)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=JayceChant_go-stream&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=JayceChant_go-stream)
 [![govulncheck](https://github.com/JayceChant/go-stream/actions/workflows/govulncheck.yml/badge.svg)](https://github.com/JayceChant/go-stream/actions/workflows/govulncheck.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/JayceChant/go-stream/badge)](https://api.scorecard.dev/projects/github.com/JayceChant/go-stream)
 [![Go Reference](https://pkg.go.dev/badge/github.com/JayceChant/go-stream.svg)](https://pkg.go.dev/github.com/JayceChant/go-stream)

@@ -71,7 +71,10 @@
 gofmt -l .            # 输出必须为空
 go vet ./...          # 无告警
 go test ./...         # 全绿
+golangci-lint run     # 无告警（配置见 .golangci.yml）
 ```
+
+- **每次代码修改后、提交前，必须完整通过上述全部检查**（含 golangci-lint），任一失败不得提交。
 
 - 性能敏感路径的改动需附 benchmark 数据（`go test -bench`），管道额外开销目标 <3x 手写循环。
 - 新功能必须带单测；修复 bug 先写复现用例再修复。

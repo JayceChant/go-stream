@@ -258,10 +258,10 @@ func TestErrorShortCircuit(t *testing.T) {
 		accept: func(int) bool { return true },
 		onEnd:  func() { endCalled = true },
 	})
-	if ec.err != boom {
+	if !errors.Is(ec.err, boom) {
 		t.Errorf("ec.err = %v, 期望 boom", ec.err)
 	}
-	if s2.pipeline.err != boom {
+	if !errors.Is(s2.pipeline.err, boom) {
 		t.Errorf("Stream.err 未写回首错: %v", s2.pipeline.err)
 	}
 	if src.advanced != 2 {

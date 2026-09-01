@@ -54,11 +54,11 @@ func ToSet[T comparable]() Collector[T, *map[T]struct{}, map[T]struct{}] {
 
 // ToMap 收集为 map；键冲突 last-wins（对齐 Go map 赋值惯例）。
 func ToMap[K comparable, V, T any](keyF func(T) K, valF func(T) V) Collector[T, *map[K]V, map[K]V] {
-	return ToMapMerge(keyF, valF, func(old, new V) V { return new })
+	return ToMapMerge(keyF, valF, func(oldV, newV V) V { return newV })
 }
 
-// ToMapMerge 与 ToMap 相同，但键冲突以 merge 合并（old 为已存在值，new 为新值）。
-func ToMapMerge[K comparable, V, T any](keyF func(T) K, valF func(T) V, merge func(old, new V) V) Collector[T, *map[K]V, map[K]V] {
+// ToMapMerge 与 ToMap 相同，但键冲突以 merge 合并（oldV 为已存在值，newV 为新值）。
+func ToMapMerge[K comparable, V, T any](keyF func(T) K, valF func(T) V, merge func(oldV, newV V) V) Collector[T, *map[K]V, map[K]V] {
 	return Collector[T, *map[K]V, map[K]V]{
 		Supplier: func() *map[K]V {
 			m := make(map[K]V)

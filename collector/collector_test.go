@@ -9,7 +9,7 @@ import (
 )
 
 func TestToSliceAndToSet(t *testing.T) {
-	got := Collector[int, *[]int, []int](ToSlice[int]())
+	got := ToSlice[int]()
 	a := got.Supplier()
 	for _, v := range []int{1, 2, 3} {
 		got.Accumulator(a, v)
@@ -48,7 +48,7 @@ func TestToMapLastWinsAndMerge(t *testing.T) {
 	cm := ToMapMerge(
 		func(s string) rune { return []rune(s)[0] },
 		func(s string) int { return len(s) },
-		func(old, new int) int { return old + new },
+		func(oldV, newV int) int { return oldV + newV },
 	)
 	ma := cm.Supplier()
 	for _, s := range []string{"a", "b", "a2"} {

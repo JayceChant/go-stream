@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"errors"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -53,7 +54,7 @@ func TestZipErrPropagation(t *testing.T) {
 	if len(got) != 0 {
 		t.Errorf("Zip 出错时部分结果 = %v, 期望空", got)
 	}
-	if s.pipeline.err != boom {
+	if !errors.Is(s.pipeline.err, boom) {
 		t.Errorf("Zip err = %v, 期望 boom", s.pipeline.err)
 	}
 }

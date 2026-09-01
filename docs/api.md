@@ -191,7 +191,7 @@ sums := stream.FromSlice(orders).Collect(collector.GroupingBy(
 total := stream.FromSlice(orders).Collect(collector.ToMapMerge(
     func(o Order) string { return o.Region },
     func(o Order) int { return o.Amount },
-    func(old, new int) int { return old + new },
+    func(oldV, newV int) int { return oldV + newV },
 ))
 ```
 

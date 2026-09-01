@@ -1,6 +1,9 @@
 package stream
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestSinkFunc(t *testing.T) {
 	var got []int
@@ -79,7 +82,7 @@ func TestEvalCtxFail(t *testing.T) {
 	if ec.fail(e2) { // 第二次仅短路，不覆盖首错
 		t.Error("fail 应恒返回 false")
 	}
-	if ec.err != e1 {
+	if !errors.Is(ec.err, e1) {
 		t.Errorf("evalCtx.err = %v, 期望保留首错 %v", ec.err, e1)
 	}
 }

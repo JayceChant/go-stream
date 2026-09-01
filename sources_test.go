@@ -125,10 +125,10 @@ func TestFromFuncError(t *testing.T) {
 	if len(got) != 2 {
 		t.Errorf("部分结果 = %v, 期望前 2 个", got)
 	}
-	if ec.err != boom {
+	if !errors.Is(ec.err, boom) {
 		t.Errorf("ec.err = %v, 期望 boom", ec.err)
 	}
-	if s.pipeline.err != boom {
+	if !errors.Is(s.pipeline.err, boom) {
 		t.Errorf("错误未写回流实例: %v", s.pipeline.err)
 	}
 	if !endCalled {

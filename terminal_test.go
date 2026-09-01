@@ -110,7 +110,7 @@ func TestErrQuery(t *testing.T) {
 		return 1, nil
 	})
 	s.ToSlice() // 部分结果
-	if s.Err() != boom {
+	if !errors.Is(s.Err(), boom) {
 		t.Errorf("Err() = %v, 期望 boom", s.Err())
 	}
 	if e := Of(1, 2).Err(); e != nil {
@@ -140,7 +140,7 @@ func TestCollectAndCollectors(t *testing.T) {
 	m2 := Of("a", "b", "a2").Collect(collector.ToMapMerge(
 		func(s string) rune { return []rune(s)[0] },
 		func(s string) int { return len(s) },
-		func(old, new int) int { return old + new },
+		func(oldV, newV int) int { return oldV + newV },
 	))
 	if m2['a'] != 3 { // 1+2
 		t.Errorf("ToMapMerge: m2['a'] = %d, 期望 3", m2['a'])

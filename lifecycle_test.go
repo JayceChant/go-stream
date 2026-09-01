@@ -92,7 +92,7 @@ func TestCloseReturnsFirstErr(t *testing.T) {
 	if err := s.Close(); err == nil || err.Error() != "cleanup" {
 		t.Fatalf("Close() = %v, 期望 cleanup", err)
 	}
-	if s.Err() != s.Close() { // 二次调用仍返回同一错误
+	if !errors.Is(s.Err(), s.Close()) { // 二次调用仍返回同一错误
 		t.Errorf("重复 Close 返回值不一致: %v vs %v", s.Err(), s.Close())
 	}
 }
@@ -202,7 +202,7 @@ func TestCacheErrMemorized(t *testing.T) {
 		if got := s.ToSlice(); len(got) != 0 {
 			t.Errorf("第 %d 次 ToSlice = %v, 期望空", i+1, got)
 		}
-		if s.Err() != wantErr {
+		if !errors.Is(s.Err(), wantErr) {
 			t.Errorf("第 %d 次 Err() = %v, 期望 %v", i+1, s.Err(), wantErr)
 		}
 	}

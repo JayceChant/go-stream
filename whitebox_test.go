@@ -100,7 +100,7 @@ func TestSplitSrcUnsplittableSinglePart(t *testing.T) {
 func TestParallelSmallInputNoLoss(t *testing.T) {
 	// 回归（Task 11 修复）：小输入 + 深并行分片不丢元素——
 	// 修复前 splitSrc 递归深处不可再分的子源被整段丢弃
-	//（如 [1,2,3].Parallel(4) 丢 [1]、[1,2].Parallel(4) 只剩 [1]）。
+	// （如 [1,2,3].Parallel(4) 丢 [1]、[1,2].Parallel(4) 只剩 [1]）。
 	for _, size := range []int{1, 2, 3, 4, 5, 6, 7} {
 		for _, n := range []int{2, 3, 4, 8} {
 			data := make([]int, size)
@@ -237,7 +237,7 @@ func TestConcatErrSkipsB(t *testing.T) {
 	if endCnt != 1 {
 		t.Errorf("End 调用 %d 次, 期望 1", endCnt)
 	}
-	if s.Err() != aErr {
+	if !errors.Is(s.Err(), aErr) {
 		t.Errorf("Err() = %v, 期望 %v", s.Err(), aErr)
 	}
 }
@@ -616,9 +616,7 @@ func TestCharsMatrixSources(t *testing.T) {
 	}
 }
 
-// seqInts / seqIntsOf 是特征位矩阵测试用的 iter.Seq 辅助。
-type seqInts = func(yield func(int) bool) // 恒等别名（FlatMapSeq 返回类型占位）
-
+// seqIntsOf 是特征位矩阵测试用的 iter.Seq 辅助。
 func seqIntsOf(n int) func(yield func(int) bool) {
 	return func(yield func(int) bool) {
 		for i := 0; i < n; i++ {

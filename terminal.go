@@ -208,7 +208,7 @@ func (s *Stream[T]) NoneMatch(p func(T) bool) bool {
 
 // match 是 match 族终止操作的公共实现。
 // stopOn 为 true：谓词结果等于 expect 时短路返回；否则谓词结果不等于 expect 时短路。
-func (s *Stream[T]) match(p func(T) bool, stopOn bool, expect bool) bool {
+func (s *Stream[T]) match(p func(T) bool, stopOn, expect bool) bool {
 	result := expect // 空流返回值
 	s.pipeline.evaluate(sinkFunc[T](func(v T) bool {
 		if p(v) == stopOn {

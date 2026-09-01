@@ -16,9 +16,9 @@ import (
 // fuzz 参数仅允许基本类型与 []byte：整数序列以 []byte 供给再转 int。
 
 // fuzzData 截断 fuzz 输入规模并克隆（避免与引擎内部共享底层数组）。
-func fuzzData[T any](data []T, max int) []T {
-	if len(data) > max {
-		data = data[:max]
+func fuzzData[T any](data []T, maxN int) []T {
+	if len(data) > maxN {
+		data = data[:maxN]
 	}
 	return slices.Clone(data)
 }

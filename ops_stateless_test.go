@@ -101,7 +101,7 @@ func TestMapErrShortCircuit(t *testing.T) {
 	if len(got) != 2 {
 		t.Errorf("部分结果 = %v, 期望 [1 2]", got)
 	}
-	if ec.firstErr() != boom {
+	if !errors.Is(ec.firstErr(), boom) {
 		t.Errorf("首错 = %v, 期望 boom", ec.firstErr())
 	}
 	if calls != 3 {
@@ -111,7 +111,7 @@ func TestMapErrShortCircuit(t *testing.T) {
 		t.Error("End 应被调用")
 	}
 	// Err 写回实例
-	if s.pipeline.err != boom {
+	if !errors.Is(s.pipeline.err, boom) {
 		t.Errorf("实例 err = %v", s.pipeline.err)
 	}
 }
@@ -136,14 +136,14 @@ func TestFilterErrPeekErrFlatMapErr(t *testing.T) {
 		return true, nil
 	})
 	got := collectViaProbe(s)
-	if len(got) != 1 || s.pipeline.err != boom {
+	if len(got) != 1 || !errors.Is(s.pipeline.err, boom) {
 		t.Errorf("FilterErr = %v, err = %v", got, s.pipeline.err)
 	}
 
 	// PeekErr
 	s2 := Of(1, 2).PeekErr(func(int) error { return boom })
 	collectViaProbe(s2)
-	if s2.pipeline.err != boom {
+	if !errors.Is(s2.pipeline.err, boom) {
 		t.Errorf("PeekErr err = %v", s2.pipeline.err)
 	}
 
@@ -155,7 +155,7 @@ func TestFilterErrPeekErrFlatMapErr(t *testing.T) {
 		return []int{v}, nil
 	})
 	got3 := collectViaProbe(s3)
-	if len(got3) != 0 || s3.pipeline.err != boom {
+	if len(got3) != 0 || !errors.Is(s3.pipeline.err, boom) {
 		t.Errorf("FlatMapErr = %v, err = %v", got3, s3.pipeline.err)
 	}
 }

@@ -3,6 +3,7 @@ package stream
 // parallel_test.go：Parallel(n)/Sequential() 并行求值测试。
 
 import (
+	"errors"
 	"slices"
 	"sync/atomic"
 	"testing"
@@ -46,7 +47,7 @@ func TestParallel_CollectCombiner(t *testing.T) {
 			return "odd"
 		},
 		func(v int) int { return 1 },
-		func(old, new int) int { return old + new },
+		func(oldV, newV int) int { return oldV + newV },
 	))
 	if got["even"] != 500 || got["odd"] != 500 {
 		t.Fatalf("分组计数错误: %v", got)
@@ -135,7 +136,7 @@ func TestParallel_ErrorPropagation(t *testing.T) {
 		return v, nil
 	})
 	got := s.ToSlice()
-	if s.Err() != errForTest {
+	if !errors.Is(s.Err(), errForTest) {
 		t.Fatalf("并行 Err() = %v", s.Err())
 	}
 	if len(got) != 750 { // 片 0/1/3 各 250 个完整保留；出错片 [500,750) 截断为空

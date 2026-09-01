@@ -118,3 +118,84 @@ func TestJoiningCountingReducingMapping(t *testing.T) {
 		t.Fatalf("Mapping = %v", got)
 	}
 }
+
+// ---- Combiner（并行合并路径）补测：此前仅 ToSlice 的 Combiner 被覆盖 ----
+
+type combkv struct {
+	k string
+	v int
+}
+
+func TestCombiners(t *testing.T) {
+	// ToSet：并集去重。
+	setC := ToSet[int]()
+	sa, sb := setC.Supplier(), setC.Supplier()
+	setC.Accumulator(sa, 1)
+	setC.Accumulator(sa, 2)
+	setC.Accumulator(sb, 2)
+	setC.Accumulator(sb, 3)
+	if m := setC.Finisher(setC.Combiner(sa, sb)); len(m) != 3 {
+		t.Fatalf("ToSet Combiner = %v, 期望 3 个键", m)
+	}
+
+	// ToMapMerge：冲突键经 merge 合并、新增键直接并入。
+	mc := ToMapMerge(
+		func(s string) rune { return []rune(s)[0] },
+		func(s string) int { return len(s) },
+		func(oldV, newV int) int { return oldV + newV },
+	)
+	ka, kb := mc.Supplier(), mc.Supplier()
+	mc.Accumulator(ka, "aa") // 键 'a'
+	mc.Accumulator(kb, "ab") // 键 'a'（冲突）
+	mc.Accumulator(kb, "b")  // 键 'b'
+	mm := *mc.Combiner(ka, kb)
+	if mm['a'] != 4 || mm['b'] != 1 {
+		t.Fatalf("ToMapMerge Combiner = %v, 期望 a=4 b=1", mm)
+	}
+
+	// GroupingBy：同键组内按合并序拼接。
+	gc := GroupingBy(
+		func(x combkv) string { return x.k },
+		func(x combkv) int { return x.v },
+	)
+	ga, gb := gc.Supplier(), gc.Supplier()
+	gc.Accumulator(ga, combkv{"a", 1})
+	gc.Accumulator(gb, combkv{"a", 2})
+	gc.Accumulator(gb, combkv{"b", 3})
+	gm := *gc.Combiner(ga, gb)
+	if !reflect.DeepEqual(gm["a"], []int{1, 2}) || !reflect.DeepEqual(gm["b"], []int{3}) {
+		t.Fatalf("GroupingBy Combiner = %v", gm)
+	}
+
+	// Joining：左侧非空以 sep 连接；左侧为空不加分隔符。
+	j := Joining(func(v int) string { return strings.Repeat("x", v) }, "-")
+	ja, jb := j.Supplier(), j.Supplier()
+	j.Accumulator(ja, 1)
+	j.Accumulator(jb, 2)
+	if got := j.Finisher(j.Combiner(ja, jb)); got != "x-xx" {
+		t.Fatalf("Joining Combiner = %q, 期望 x-xx", got)
+	}
+	je := j.Supplier()
+	if got := j.Finisher(j.Combiner(je, jb)); got != "xx" {
+		t.Fatalf("Joining 空侧 Combiner = %q, 期望 xx（无分隔符）", got)
+	}
+
+	// Counting：两侧计数相加。
+	cn := Counting[int]()
+	na, nb := cn.Supplier(), cn.Supplier()
+	cn.Accumulator(na, 1)
+	cn.Accumulator(nb, 1)
+	cn.Accumulator(nb, 2)
+	if n := cn.Finisher(cn.Combiner(na, nb)); n != 3 {
+		t.Fatalf("Counting Combiner = %d, 期望 3", n)
+	}
+
+	// Reducing：以 op 合并两侧部分聚合值。
+	r := Reducing(0, func(a, b int) int { return a + b })
+	va, vb := r.Supplier(), r.Supplier()
+	r.Accumulator(va, 1)
+	r.Accumulator(vb, 2)
+	if got := r.Finisher(r.Combiner(va, vb)); got != 3 {
+		t.Fatalf("Reducing Combiner = %d, 期望 3", got)
+	}
+}

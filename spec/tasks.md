@@ -119,3 +119,17 @@
 - [Task 6] depends on [Task 3][Task 4][Task 5]
 - [Task 7] depends on [Task 5]（API 稳定后编写），可与 [Task 6] 并行
 - [Task 8（后续）] depends on [Task 6][Task 7]（整体稳定后另立 spec）
+
+# 后续 TODO（Task 13，随「提高测试覆盖率」goal 立项）
+- [x] Task 13: 语句覆盖率提升至 100%
+  - [x] 覆盖审计：以 coverprofile 0 计数块为缺口清单（根包 91.9%→100%、collector 子包 70.3%→100%，0 计数块清零）
+  - [x] collector 子包（collector_test.go 增补 TestCombiners）：ToSet/ToMapMerge/GroupingBy/Joining/Counting/Reducing 的 Combiner 并行合并路径（含 Joining 空侧无分隔符分支）
+  - [x] 根包新增 coverage_extra_test.go：
+    - nil 参数 panic 矩阵 20 项（ForEach/ForEachUntil/Reduce/ReduceOpt/FindAny/AnyMatch/AllMatch/NoneMatch/Min/Max/FlatMapSeq/FilterErr/FlatMapErr/PeekErr/Skip 负参/Sorted/DistinctBy/Scan/Zip 双参）
+    - 边界与 nil 容错：Avg 空流、Contains/Sorted/Min/Max/Distinct nil 流、FromSeq(nil)、Concat 单侧 nil、FromMap 短路、Parallel n<=1
+    - 源级 TryAdvance 边界：sliceSp/rangeSp（推进/取消/耗尽/剩余遍历）、rangeSp 不可分裂、seqSp done 早退、channelSp 耗尽与 ForEachRemaining 取消
+    - 短路穿透：物化回放（Sorted+First）、Scan 种子、FlatMap/FlatMapErr 展开中途取消
+    - Err 变体：FilterErr 谓词 false 不短路 + 出错短路、FlatMapErr 正常展开/短路、PeekErr 部分结果
+    - 并行收集器：Summing Combiner 并行 Collect；Concat 单侧回调 mergeClosers；sliceTotal total/pushPart 非 collectingSink 容错与取消
+  - [x] 质量门槛：gofmt 空 / vet 无告警 / `go test -count=1 ./...` 全绿 / `go test -race -count=1 ./...` 全绿（Linux 侧工具链无 cgo，-race 经 Windows 侧 go.exe 验证）
+  - 依赖：无

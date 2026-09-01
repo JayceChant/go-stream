@@ -63,3 +63,10 @@
 - [x] `go test -race ./...` 全绿（含空流、单元素、超界参数、短路计数探针、TrySplit 不重叠并集完整、稳定排序、DistinctBy 首见保留、重复消费 panic、Err 短路部分结果、FromFunc 错误、ToMap last-wins、Scan/Chunk/Zip 语义、并行 11 项）
 - [x] benchmark 产出：Filter+Map+ToSlice 相对手写 for 循环额外开销 <3x（实测 1e2=2.7x / 1e4=1.8x / 1e6=1.6x）
 - [x] 全部公开 API 具备中文 godoc 注释
+
+## 覆盖率提升至 100%（Task 13）
+- [x] 覆盖审计：以 coverprofile 0 计数块为缺口清单（此前根包 91.9%、collector 子包 70.3%）
+- [x] collector 子包补齐全部 Combiner 并行合并路径（ToSet/ToMapMerge/GroupingBy/Joining/Counting/Reducing，含 Joining 空侧分支）——100%
+- [x] 根包新增 coverage_extra_test.go：nil 参数 panic 矩阵 20 项、便捷函数 nil/空流边界、源级 TryAdvance 边界（slice/range/seq/channel）、短路穿透物化回放与 Scan 种子、Err 变体全路径、并行 Summing、mergeClosers 单侧、sliceTotal 类型容错与取消——100%
+- [x] 质量门槛全绿：gofmt 空 / vet 无告警 / `go test -count=1 ./...` 全绿 / `go test -race -count=1 ./...` 全绿
+- [x] `go tool cover -func` 总计 100%（根包与 collector 子包均 100%，0 计数块清零）

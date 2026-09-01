@@ -324,6 +324,7 @@ SHALL 交付：`README.md`（简介/安装/快速上手/API 速览/与 Java 对�
 ### Requirement: 质量保障
 全部公开 API 中文 godoc；`go vet`/`go test ./...` 全绿；benchmark：`Filter+Map+ToSlice` 相对手写 for 循环额外开销目标 <3x；并行求值 `go test -race` 全绿。
 **Task 11 增补**：白盒覆盖审计驱动的补缺（分片不变量、并行 panic 路径、错误路径的状态机、特征位传播矩阵、源级释放语义——缺口清单见 tasks.md Task 11）；引入 Fuzz 测试（`fuzz_test.go`）锁定核心不变量：分片并集==原集合且保序、随机算子组合与参考实现等价、并行与串行等价、Zip 取短；语料不随仓提交（`testdata/` 不入库，种子即测试内数据）。
+**Task 13 增补**：语句覆盖率提升至 100%（根包与 collector 子包均为 100%，`go tool cover -func` 总计 100%）；新增 `coverage_extra_test.go`（nil 参数 panic 矩阵、源 TryAdvance 边界、Err 变体路径、并行收集器等）；collector 子包补齐 Combiner 并行合并路径测试。
 
 ## 非目标（Non-Goals）
 - ~~并行求值实现（阶段 1；接口预留）——后续 TODO 必做~~（已随 Task 8 交付）

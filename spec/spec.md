@@ -82,7 +82,7 @@ Java Stream 的骨架是一棵**单继承类树**（`BaseStream` ← `AbstractPi
 | 可预期、可恢复 | 拉式源失败（IO/解析）、`MapErr` 回调返回错误 | **error 值传播**：求值短路终止，`Err()` 返回错误 |
 | 编程 bug、不可恢复 | 重复消费已消费的流、传入 nil 回调 | **panic**（类似标准库对 nil 参数的行为），信息明确 |
 | 用户回调自身 panic | 任意算子回调内部 panic | **原样传播**（不吞不包装语义，可附加求值阶段信息） |
-| 语义策略问题 | `ToMap` 键冲突 | 非错误：**last-wins**（对齐 Go map 赋值惯例），文档明示；需要自定义时提供 `ToMapMerge(merge func(old, new V) V)` |
+| 语义策略问题 | `ToMap` 键冲突 | 非错误：**last-wins**（对齐 Go map 赋值惯例），文档明示；需要自定义时提供 `ToMapMerge(merge func(oldV, newV V) V)` |
 
 ### 机制（Scanner 模式，Go 官方迭代器错误惯例）
 

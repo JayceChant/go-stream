@@ -1,0 +1,63 @@
+# golangci-lint v2 配置 —— 平衡质量与维护开销
+# 原则：默认启用器（errcheck/govet/ineffassign/staticcheck/unused）为主，
+# 追加少量高信噪比的正确性/风格 linter；不做规则级大规模豁免，
+# 例外在代码处以 //nolint 注释显式标注，避免配置腐化。
+version: "2"
+
+run:
+  timeout: 5m
+
+formatters:
+  # gofmt 为项目质量门槛之一，保持与 `gofmt -l .` 一致
+  gofmt:
+    rewrite-rules:
+      - pattern: "interface{}"
+        replacement: "any"
+
+linters:
+  default: standard
+  enable:
+    # 正确性
+    - copyloopvar   # Go 1.22+ 循环变量自动捕获，删除冗余拷贝
+    - errorlint     # %w / errors.As/Is 使用正确性
+    - rowserrcheck  # database/sql Rows.Err 检查（通用正确性习惯）
+    - sqlclosecheck # sql.Rows/Stmt/Conn 未关闭
+    - bodyclose     # HTTP body 未关闭
+    - noctx         # HTTP 请求缺 context
+    # 风格与可读性（低误报、无需频繁调整）
+    - misspell      # 拼写
+    - unconvert     # 冗余类型转换
+    - unparam       # 未使用的函数参数
+    - wastedassign  # 无效赋值
+    - predeclared   # 遮蔽内置标识符
+    - revive        # 导出符号注释等基础规范（替代已废弃的 golint）
+    - gocritic      # 惯用法与可疑构造（默认 checker 集，不加激进项）
+    - nolintlint    # 保证 //nolint 注释本身规范、可追溯
+    - gochecknoinits # 禁止 init()，库项目避免隐式初始化副作用
+  settings:
+    revive:
+      rules:
+        # 只保留高价值规则，避免噪音
+        - name: exported
+    gocritic:
+      enabled-checks:
+        # 显式列出默认集之外、对库代码有价值的检查器
+        - paramTypeCombine
+    staticcheck:
+      checks:
+        - all
+        # QF1008（建议移除内嵌字段限定符）：本库刻意保留 s.pipeline. /
+        # sp.baseSplitterator. 显式限定，标明访问的是内嵌核心机而非
+        # Stream 自身方法（见 pipeline.go 的嵌入设计说明），不采纳。
+        - -QF1008
+  exclusions:
+    rules:
+      # 测试代码放宽：允许未检查的返回值与魔法数
+      - path: _test\.go
+        linters:
+          - errcheck
+          - dupl
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

@@ -67,14 +67,18 @@
 
 ## 6. 质量门槛（每次提交前必须全部通过）
 
+**每次有代码改动，提交之前必须先跑 `go fix` 和 `golangci-lint`**，随后完成以下全部检查：
+
 ```bash
-gofmt -l .            # 输出必须为空
-go vet ./...          # 无告警
-go test ./...         # 全绿
-golangci-lint run     # 无告警（配置见 .golangci.yml）
+go fix ./...         # 先跑：自动应用工具链现代化改写（见第 5 节）
+gofmt -l .           # 输出必须为空
+go vet ./...         # 无告警
+go test ./...        # 全绿
+golangci-lint run    # 无告警（配置见 .golangci.yml）
 ```
 
-- **每次代码修改后、提交前，必须完整通过上述全部检查**（含 golangci-lint），任一失败不得提交。
+- **每次代码修改后、提交前，必须完整通过上述全部检查**（含 `go fix` 与 golangci-lint），任一失败不得提交。
+- `go fix` 产生的改写若改变了代码，需随本次任务一并纳入提交。
 
 - 性能敏感路径的改动需附 benchmark 数据（`go test -bench`），管道额外开销目标 <3x 手写循环。
 - 新功能必须带单测；修复 bug 先写复现用例再修复。

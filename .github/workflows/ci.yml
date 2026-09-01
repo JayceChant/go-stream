@@ -21,9 +21,9 @@ jobs:
       matrix:
         go-version: ['1.27.x', 'stable']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: ${{ matrix.go-version }}
           check-latest: true
@@ -41,7 +41,7 @@ jobs:
         # 仅在矩阵的一个版本上传，避免重复计数；公开仓库无 token 也可上传（有速率限制），
         # 建议在仓库 secrets 配置 CODECOV_TOKEN 以获得更稳定的服务
         if: matrix.go-version == 'stable'
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
         with:
           files: coverage.txt
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -51,15 +51,15 @@ jobs:
     name: golangci-lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version: 'stable'
           check-latest: true
           cache: false
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v9
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9
         with:
           version: latest

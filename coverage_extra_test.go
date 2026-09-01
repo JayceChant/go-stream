@@ -39,7 +39,6 @@ func TestNilArgumentPanics(t *testing.T) {
 		{"Zip-f", func() { Of(1).Zip[int, int](Of(1), nil) }},
 	}
 	for _, c := range cases {
-		c := c
 		t.Run(c.name, func(t *testing.T) {
 			defer func() {
 				if recover() == nil {

@@ -1,6 +1,8 @@
 # go-stream
 
-Java Stream API 的 Go 1.27 泛型实现——基于新落地的**泛型方法**特性，第一次用原生 Go 写出自然的链式流式处理：
+English | [简体中文](./README_CN.md)
+
+A Go 1.27 generics implementation of the Java Stream API — built on the newly introduced **generic methods** feature, enabling natural, fluent stream processing in native Go for the first time:
 
 ```go
 stream.Of(1, 2, 3, 4, 5).
@@ -9,113 +11,113 @@ stream.Of(1, 2, 3, 4, 5).
     ToSlice() // [1 9 25]
 ```
 
-Go 1.27 之前方法不能声明自有类型参数，`Map[U]` 这类链式 API 只能用包级函数（`stream.Map(s, f)`），链式手感全无；泛型方法落地后，`Stream[T]` 上的方法可以自带类型参数，实现完整的链式声明与编译期类型迁移。
+Before Go 1.27, methods could not declare their own type parameters, so chained APIs like `Map[U]` could only be written as package-level functions (`stream.Map(s, f)`) with no fluent chaining. With generic methods, methods on `Stream[T]` can carry their own type parameters, enabling fully chained declarations with static type migration along the pipeline.
 
-## 特性
+## Features
 
-- **惰性管道**：中间操作仅声明管道不触发遍历，终止操作触发一次单遍融合求值
-- **泛型方法**：`Map[U]`/`Zip[U, R]`/`Collect[A, R]` 等方法级类型参数，元素类型沿管道静态迁移
-- **单遍融合**：无状态算子求值时融合为单遍（Sink 链），有状态算子分段物化
-- **短路求值**：`Limit`/`First`/`AnyMatch`/`TakeWhile` 等满足条件即停止源遍历（无限流安全）
-- **错误即值**：可预期错误（IO 源失败、`MapErr` 族回调错误）以 `error` 值传播——首错短路、部分结果保留、`Err()` 查询；不可恢复错误（重复消费、nil 回调）panic
-- **组合替代继承**：Java 的抽象类层次（AbstractPipeline/StatelessOp/StatefulOp）转换为「结构体嵌入 + 构造函数 + 函数值注入」，无模拟继承
-- **零第三方依赖**：v1 运行时无第三方依赖
+- **Lazy pipelines**: intermediate operations only declare the pipeline without triggering traversal; a terminal operation triggers a single fused evaluation pass
+- **Generic methods**: method-level type parameters such as `Map[U]`/`Zip[U, R]`/`Collect[A, R]` let element types migrate statically along the pipeline
+- **Single-pass fusion**: stateless operators fuse into a single pass (Sink chain) at evaluation time; stateful operators materialize in segments
+- **Short-circuit evaluation**: `Limit`/`First`/`AnyMatch`/`TakeWhile` and friends stop source traversal as soon as the condition is met (safe for infinite streams)
+- **Errors as values**: expected errors (IO source failures, `MapErr` family callback errors) propagate as `error` values — first error short-circuits, partial results are preserved, query via `Err()`; unrecoverable misuses (double consumption, nil callbacks) panic
+- **Composition over inheritance**: Java's abstract class hierarchy (AbstractPipeline/StatelessOp/StatefulOp) is translated into "struct embedding + constructors + injected function values" with no simulated inheritance
+- **Zero third-party dependencies**: no third-party runtime dependencies in v1
 
-## 安装
+## Installation
 
 ```bash
 go get github.com/JayceChant/go-stream
 ```
 
-要求 go 1.27+（依赖泛型方法特性）。
+Requires go 1.27+ (relies on the generic methods feature).
 
-## 快速上手
+## Quick Start
 
 ```go
 import (
     "github.com/JayceChant/go-stream"
-    "github.com/JayceChant/go-stream/collector" // 收集器子包（按需）
+    "github.com/JayceChant/go-stream/collector" // collector subpackage (as needed)
 )
 
-// 1. 从容器构造（惰性，不触发遍历）
-s := stream.FromSlice(data)          // 零拷贝引用
-r := stream.Range(0, 100)            // [0, 100) 整数区间
-g := stream.Generate(func() int { return 42 }) // 无限生成器
+// 1. Build from containers (lazy, no traversal yet)
+s := stream.FromSlice(data)          // zero-copy reference
+r := stream.Range(0, 100)            // integer range [0, 100)
+g := stream.Generate(func() int { return 42 }) // infinite generator
 
-// 2. 中间操作（返回新 Stream，链式）
+// 2. Intermediate operations (return a new Stream, chainable)
 s.Filter(p).Map(f).Sorted(cmp).Limit(10)
 
-// 3. 终止操作（触发一次求值，消费流）
+// 3. Terminal operations (trigger a single evaluation, consume the stream)
 s.ToSlice()
 s.Count()
 s.AnyMatch(p)
 s.Collect(collector.GroupingBy(keyOf, valOf))
 ```
 
-更多示例见 [example_test.go](./example_test.go)（可运行，`go test` 即验证）。
+See [example_test.go](./example_test.go) for more runnable examples (verified by `go test`).
 
-## API 速览
+## API Overview
 
-| 类别 | API |
+| Category | APIs |
 |---|---|
-| 构造 | `Of` `FromSlice` `FromSeq` `FromChannel` `FromMap` `FromFunc` `Generate` `Iterate` `Range` `Concat` `Empty` |
-| 无状态中间 | `Filter` `Map` `FlatMap` `FlatMapSeq` `Peek` `TakeWhile` `DropWhile` |
-| Err 变体 | `MapErr` `FilterErr` `FlatMapErr` `PeekErr` |
-| 有状态中间 | `Limit` `Skip` `Sorted` `DistinctBy` `Reverse` `Scan` |
-| 并行控制 | `Parallel(n)` `Sequential()` `Unordered()` |
-| 包级中间 | `Distinct` `Sorted`（自然序）`Chunk` `Enumerate` |
-| 双流 | `Zip` |
-| 生命周期 | `OnClose(f)` `Close()` `Cache(s)`（可重放工厂） |
-| 终止 | `ForEach` `ForEachUntil` `ToSlice` `Count` `Reduce` `ReduceOpt` `Collect` `First` `FindAny` `AnyMatch` `AllMatch` `NoneMatch` `Min` `Max` `Err` |
-| 收集器（子包 `collector`） | `ToSlice` `ToSet` `ToMap` `ToMapMerge` `GroupingBy` `Joining` `Counting` `Reducing` `Mapping` |
-| 收集器（根包） | `Summing`（依赖 Number 约束） |
-| 包级聚合 | `Sum` `Avg` `Contains` `Min` `Max` |
+| Construction | `Of` `FromSlice` `FromSeq` `FromChannel` `FromMap` `FromFunc` `Generate` `Iterate` `Range` `Concat` `Empty` |
+| Stateless intermediate | `Filter` `Map` `FlatMap` `FlatMapSeq` `Peek` `TakeWhile` `DropWhile` |
+| Err variants | `MapErr` `FilterErr` `FlatMapErr` `PeekErr` |
+| Stateful intermediate | `Limit` `Skip` `Sorted` `DistinctBy` `Reverse` `Scan` |
+| Parallelism control | `Parallel(n)` `Sequential()` `Unordered()` |
+| Package-level intermediate | `Distinct` `Sorted` (natural order) `Chunk` `Enumerate` |
+| Two-stream | `Zip` |
+| Lifecycle | `OnClose(f)` `Close()` `Cache(s)` (replayable factory) |
+| Terminal | `ForEach` `ForEachUntil` `ToSlice` `Count` `Reduce` `ReduceOpt` `Collect` `First` `FindAny` `AnyMatch` `AllMatch` `NoneMatch` `Min` `Max` `Err` |
+| Collectors (subpackage `collector`) | `ToSlice` `ToSet` `ToMap` `ToMapMerge` `GroupingBy` `Joining` `Counting` `Reducing` `Mapping` |
+| Collectors (root package) | `Summing` (relies on the `Number` constraint) |
+| Package-level aggregation | `Sum` `Avg` `Contains` `Min` `Max` |
 
-完整参考与示例见 [docs/api.md](./docs/api.md)。
+For the full reference and examples, see [docs/api.md](./docs/api.md).
 
-## 与 Java Stream 对照
+## Comparison with Java Stream
 
-| Java | go-stream | 差异说明 |
+| Java | go-stream | Notes |
 |---|---|---|
-| `Stream<T>`（接口） | `*Stream[T]`（具体 struct） | Go 1.27 接口方法不能声明类型参数，泛型方法必须挂在具体类型上 |
+| `Stream<T>` (interface) | `*Stream[T]` (concrete struct) | In Go 1.27 interface methods cannot declare type parameters; generic methods must live on concrete types |
 | `stream.of(...)` / `Arrays.stream` | `stream.Of(...)` / `stream.FromSlice` | |
 | `Collectors.toList()` | `collector.ToSlice[T]()` | |
-| `Collectors.toMap` | `collector.ToMap` / `ToMapMerge` | 键冲突 last-wins（对齐 Go map 惯例），自定义合并用 ToMapMerge |
-| `Collectors.groupingBy` | `collector.GroupingBy` | 组内保遇序 |
-| `Comparator` | `func(a, b T) int` | 对齐标准库 `slices.SortFunc`/`cmp.Compare` 惯例 |
-| `IntStream` 特化族 | 泛型 + `Number`/`cmp.Ordered` 约束 | Go 泛型零装箱，无需特化 |
-| `stream.parallel()` | `Parallel(n)` / `Sequential()` | TrySplit 分片 + goroutine；短路终止与物化算子后自动降级串行 |
-| `stream.unordered()` | `Unordered()` | 清除 SpOrdered；并行下分片结果先完成先推（流式合并） |
-| `stream.onClose(f)` / `close()` | `OnClose(f)` / `Close()` | 求值结束（含短路/错误/panic 路径）自动触发；显式关闭幂等；回调出错经 `Err()` 查询 |
-| 异常穿透 | 错误即值（`Err()`/`MapErr` 族） | 对齐 Go 官方错误风格 |
-| `stream.distinct()` | `DistinctBy(key)` 方法 / `Distinct` 包级 | `comparable` 仅可作约束，方法无法追加约束故双形态 |
+| `Collectors.toMap` | `collector.ToMap` / `ToMapMerge` | Key conflicts: last-wins (aligned with Go map conventions); use ToMapMerge for custom merging |
+| `Collectors.groupingBy` | `collector.GroupingBy` | Preserves encounter order within groups |
+| `Comparator` | `func(a, b T) int` | Aligned with the standard library's `slices.SortFunc`/`cmp.Compare` conventions |
+| `IntStream` specializations | Generics + `Number`/`cmp.Ordered` constraints | Go generics have zero boxing; no specialization needed |
+| `stream.parallel()` | `Parallel(n)` / `Sequential()` | TrySplit splitting + goroutines; automatically falls back to sequential after short-circuit terminals or materializing operators |
+| `stream.unordered()` | `Unordered()` | Clears the SpOrdered flag; under parallelism, shard results are pushed as they complete (streaming merge) |
+| `stream.onClose(f)` / `close()` | `OnClose(f)` / `Close()` | Triggered automatically at the end of evaluation (including short-circuit/error/panic paths); explicit close is idempotent; callback errors are queryable via `Err()` |
+| Exception propagation | Errors as values (`Err()`/`MapErr` family) | Aligned with Go's official error style |
+| `stream.distinct()` | `DistinctBy(key)` method / `Distinct` package-level | `comparable` can only be used as a constraint and methods cannot add constraints, hence the dual form |
 
-## 设计要点
+## Design Highlights
 
-- **Sink 推送链**：求值时从终止操作出发反向包装 Sink（`Accept(t) bool` 返回值融合 Java 的 `cancellationRequested`），数据源单遍推动元素流过整条链
-- **分段求值**：`Sorted`/`Skip` 等有状态算子先驱动上游物化为 `[]T` 再变换回放；`Limit` 支持无限源短路收集
-- **特征位传播**：`SpSized`/`SpOrdered`/`SpSorted`/`SpDistinct` 沿管道传播（如 Map 1:1 保留 Sized 使下游预分配），为并行拆分提供决策依据
-- **错误模型**：参照 `bufio.Scanner.Err()` 惯例——出错时终止操作返回已累积的部分结果，`Err()` 返回首错
+- **Sink push chain**: at evaluation time, sinks are wrapped in reverse starting from the terminal operation (`Accept(t) bool` merges Java's `cancellationRequested`); the data source pushes elements through the entire chain in a single pass
+- **Segmented evaluation**: stateful operators such as `Sorted`/`Skip` first drive upstream to materialize `[]T`, then transform and replay; `Limit` supports short-circuit collection from infinite sources
+- **Flag propagation**: `SpSized`/`SpOrdered`/`SpSorted`/`SpDistinct` propagate along the pipeline (e.g. Map preserves Sized 1:1 so downstream can preallocate), informing parallel splitting decisions
+- **Error model**: modeled after the `bufio.Scanner.Err()` convention — on error, terminal operations return the accumulated partial results, and `Err()` returns the first error
 
-架构详情见 [docs/design.md](./docs/design.md)。
+See [docs/design.md](./docs/design.md) for architecture details.
 
-## 性能
+## Performance
 
-`Filter+Map+ToSlice` 相对手写 for 循环（含 `strconv.Itoa` 的真实场景）：
+`Filter+Map+ToSlice` vs. a hand-written for loop (a realistic scenario including `strconv.Itoa`):
 
-| 规模 | 管道 | 手写 for | 开销倍数 |
+| Scale | Pipeline | Hand-written for | Overhead |
 |---|---|---|---|
 | 1e2 | ~2.8 μs | ~1.0 μs | 2.8x |
 | 1e4 | ~0.48 ms | ~0.18 ms | 2.6x |
 | 1e6 | ~35 ms | ~22 ms | 1.6x |
 
-目标 <3x 达标（AMD Ryzen 5 7535U，benchtime 300ms；复现：`go test -bench . -run '^$'`）。
+Target of <3x met (AMD Ryzen 5 7535U, benchtime 300ms; reproduce with `go test -bench . -run '^$'`).
 
-## 路线图
+## Roadmap
 
-- [x] v1 串行求值引擎、全量算子、Collector 体系、错误即值模型
-- [x] **并行求值 `Parallel(n)` / `Sequential()`**：TrySplit 递归分片 + goroutine 并行执行 + Collector.Combiner 合并；按分片序合并保序（Ordered）、短路终止族与物化算子后自动降级串行（正确性优先）；CPU 密集场景实测加速比 ~3.3x（4 分片）
-- [x] v1.x：**`onClose`/资源管理**（`OnClose(f)` 求值结束自动触发 + `Close()` 幂等显式释放）、**可重放流**（`Cache(s)` 工厂：物化一次、每次产全新一次性流，不破坏一次性模型）、**Unordered 流式合并**（`Unordered()` 清序标志，并行下分片先完成先推，降低端到端延迟）
+- [x] v1 sequential evaluation engine, full operator set, Collector system, errors-as-values model
+- [x] **Parallel evaluation `Parallel(n)` / `Sequential()`**: recursive TrySplit splitting + goroutine-parallel execution + `Collector.Combiner` merging; order-preserving merge by shard order (Ordered); automatic fallback to sequential after short-circuit terminals or materializing operators (correctness first); measured speedup of ~3.3x (4 shards) on CPU-bound workloads
+- [x] v1.x: **`onClose`/resource management** (`OnClose(f)` triggered automatically at end of evaluation + idempotent explicit `Close()`), **replayable streams** (`Cache(s)` factory: materialize once, produce a brand-new one-shot stream each time without breaking the one-shot model), **Unordered streaming merge** (`Unordered()` clears the order flag; under parallelism shards push results as they complete, reducing end-to-end latency)
 
 ## License
 

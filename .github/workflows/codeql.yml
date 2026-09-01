@@ -1,0 +1,42 @@
+# CodeQL 静态安全分析：GitHub 官方代码扫描（安全扩展性查询套件）
+# 徽章：README 中的 CodeQL badge 依赖本 workflow 产出 code-scanning 结果
+name: CodeQL
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  schedule:
+    # 每日例行扫描：新披露的漏洞模式即使代码未变也能发现
+    - cron: '32 3 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (Go)
+    runs-on: ubuntu-latest
+    permissions:
+      # code-scanning 结果上传需要
+      security-events: write
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: 'stable'
+          check-latest: true
+          cache: false
+
+      # 官方 action：自动完成构建追踪与数据库分析（Go 为无构建语言，编译自动完成）
+      - uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
+        with:
+          languages: go
+
+      - uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
+        with:
+          category: '/language:go'

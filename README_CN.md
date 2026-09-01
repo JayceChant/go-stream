@@ -5,6 +5,8 @@
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=JayceChant_go-stream&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=JayceChant_go-stream)
 [![govulncheck](https://github.com/JayceChant/go-stream/actions/workflows/govulncheck.yml/badge.svg)](https://github.com/JayceChant/go-stream/actions/workflows/govulncheck.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/JayceChant/go-stream/badge)](https://api.scorecard.dev/projects/github.com/JayceChant/go-stream)
+[![CodeQL](https://github.com/JayceChant/go-stream/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/JayceChant/go-stream/actions/workflows/github-code-scanning/codeql)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Go Reference](https://pkg.go.dev/badge/github.com/JayceChant/go-stream.svg)](https://pkg.go.dev/github.com/JayceChant/go-stream)
 
 [English](./README.md) | 简体中文

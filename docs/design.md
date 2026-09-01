@@ -58,6 +58,38 @@ type Sink[T any] interface {
 }
 ```
 
+#### 三个顺序：构造、包装与数据流
+
+drive/wrap/down 的协作涉及三个**方向不一致**的顺序，是理解求值引擎的关键：
+
+| 阶段 | 方向 | 发生时机 | 内容 |
+|---|---|---|---|
+| 链接（构造期） | 源 → 终端（正向） | `.Map().Filter()` 调用时 | 闭包洋葱式嵌套，**惰性**：wrap 仅被捕获、一次不执行；越后链接的 stage 其 drive 越靠外层（封装整段链） |
+| 包装（求值期第一步） | 终端 → 源（**反向**） | 终端操作触发 evaluate 后 | 从终止 sink 出发逐级调用 wrap，把 down 包装成本级 sink，自外向内完成 Sink 链装配 |
+| 数据流（求值期第二步） | 源 → 终端（正向） | Sink 链装配完成后 | Head 段驱动源单遍推元素，穿过整条 Sink 链抵达终端 |
+
+以 `FromSlice(xs).Map(f).Filter(p).Collect(...)` 为例，求值时序：
+
+```text
+① 反向包装（wrap 调用序）：drive₃(term)
+     Filter.wrap(term) → filterSink{down: term}
+     → drive₂(filterSink)
+         Map.wrap(filterSink) → mapSink{down: filterSink}
+         → drive₁(mapSink)                     // 抵达 Head
+② 正向推送（数据流序）：drive₁ 遍历源
+     t → mapSink.Accept → f(t) → filterSink.Accept → p(u) → term.Accept
+```
+
+核心一行 `ud(wrap(down, ec), ec)`（见第 2 节）的读法：**先用 wrap 把 down 包装成本级 sink，再交给上游 drive 驱动**——wrap 必须先于上游执行（管道先建成，数据才能流过）；down 是 wrap 的入参而非出参（本级变换是"装饰下游"）；ud 是构造期捕获的上游闭包（递归回溯到源头才开始推数据）。
+
+常见误读与纠正：
+
+- **误**：`.Map(f)` 的变换逻辑应该在"处理上游输出"的代码里。**正**：它写在"包装下游"的装饰器里——`mapSink.Accept` 收到元素即刻变换并转交已持有的 down（装饰器视角，非数据视角）。
+- **误**：drive 是"执行本 stage 一级"。**正**：drive 语义是"驱动从源到本 stage 的整段"，故越晚链接的 stage 拥有越大的 drive。
+- **误**：构造链时数据已流动。**正**：链接仅组合闭包，全部元素流动发生在终端操作的 evaluate 内。
+
+记忆口诀：**wrap 逆流而上建管道，数据顺流而下过管道**。
+
 ### 短路取消
 
 `Accept` 返回 false 即短路：源立即停止遍历，`End()` 恒被调用（终端 sink 观察到配对完整的协议）。`Limit`/`First`/`AnyMatch`/`TakeWhile` 等由此实现无限流安全。

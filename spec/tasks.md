@@ -106,6 +106,13 @@
   - [x] 质量门槛：gofmt/vet/`go test -race -count=1 ./...` 全绿；7 个 fuzz 目标各 10s 实跑零 crash（FuzzSplitSrcInvariant 67 万次执行）
   - 依赖：Task 8/10（并行与流式合并已稳定）
 
+# 后续 TODO（Task 12，随「引擎命名可读性优化」goal 立项）
+- [x] Task 12: drive 链可读性优化（不改语义与求值表示，评估「结构体 + 指针」方案后维持闭包组合）
+  - [x] 引入命名类型 `driveFunc[T]`：stage 求值闭包告别裸 func 签名；`driveFromSource`/`driveFuncErr`/`pullFromDrive` 签名同步
+  - [x] 算子构造局部变量弃缩写（ud/sd/ad/bd → driveUpstream/driveSelf/driveA/driveB）
+  - [x] 补充「后级包前级的类型必然性」洞察（调用方持有最后一级 Stream[R] ⇒ drive 元素类型被 R 锁死 ⇒ 包裹方向不可反转）：design.md §2 / pipeline.go 注释 / spec.md AbstractPipeline 映射行
+  - 依赖：无（纯可读性改动）
+
 # Task Dependencies
 - [Task 2] depends on [Task 1]
 - [Task 3]、[Task 4]、[Task 5] depends on [Task 2]（三组可并行开发）

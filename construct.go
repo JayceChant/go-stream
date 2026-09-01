@@ -66,7 +66,7 @@ func FromFunc[T any](next func() (T, bool, error)) *Stream[T] {
 
 // driveFuncErr 编译 funcSp 源的 Head 段求值闭包：
 // 遍历结束后把源首错转入 evalCtx（与算子错误同路，供 Err() 读取）。
-func driveFuncErr[T any](sp *funcSp[T]) func(down Sink[T], ec *evalCtx) {
+func driveFuncErr[T any](sp *funcSp[T]) driveFunc[T] {
 	return func(down Sink[T], ec *evalCtx) {
 		down.Begin(sp.EstimateSize())
 		sp.ForEachRemaining(func(t T) bool { return down.Accept(t) })
@@ -125,13 +125,13 @@ func Concat[T any](a, b *Stream[T]) *Stream[T] {
 	}
 	a.checkLinked()
 	b.checkLinked()
-	ad, bd := a.drive, b.drive
+	driveA, driveB := a.drive, b.drive
 	chars := (a.chars | b.chars) & ^SpSized // 长度不再精确
 	return &Stream[T]{pipeline[T]{
 		drive: func(down Sink[T], ec *evalCtx) {
-			ad(suppressEnd[T]{down}, ec) // a 段：Begin 下传、End 吞掉
+			driveA(suppressEnd[T]{down}, ec) // a 段：Begin 下传、End 吞掉
 			if ec.firstErr() == nil {
-				bd(skipBegin[T]{down}, ec) // b 段：Begin 吞掉、End 下传
+				driveB(skipBegin[T]{down}, ec) // b 段：Begin 吞掉、End 下传
 			} else {
 				down.End() // 错误路径也保证 End 收尾
 			}

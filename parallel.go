@@ -47,9 +47,9 @@ func (s *Stream[T]) Unordered() *Stream[T] {
 // 即自动降级）。
 func (s *Stream[T]) newFlagStage(n int) *Stream[T] {
 	s.checkLinked()
-	ud := s.drive
+	driveUpstream := s.drive
 	return &Stream[T]{pipeline[T]{
-		drive: func(down Sink[T], ec *evalCtx) { ud(down, ec) },
+		drive: func(down Sink[T], ec *evalCtx) { driveUpstream(down, ec) },
 		chars: s.chars,
 		parN:  n,
 		splitN: func(k int) []any {

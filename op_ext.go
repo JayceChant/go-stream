@@ -18,7 +18,7 @@ func (s *Stream[T]) Zip[U, R any](other *Stream[U], f func(T, U) R) *Stream[R] {
 	}
 	s.checkLinked()
 	other.checkLinked()
-	sd := s.drive
+	driveSelf := s.drive
 	chars := s.chars & other.chars &^ (SpSized | SpSorted | SpDistinct)
 	return &Stream[R]{pipeline[R]{
 		drive: func(down Sink[R], ec *evalCtx) {
@@ -26,7 +26,7 @@ func (s *Stream[T]) Zip[U, R any](other *Stream[U], f func(T, U) R) *Stream[R] {
 			// 本流在当前 goroutine 驱动，逐元素配对（取短）。
 			next, stop := pullFromDrive(other.drive, ec)
 			defer stop() // 本流先耗尽/短路时停止后台，防 goroutine 泄漏
-			sd(sinkFunc[T](func(t T) bool {
+			driveSelf(sinkFunc[T](func(t T) bool {
 				u, ok := next()
 				if !ok {
 					return false // other 耗尽：本流随之终止（取短）
@@ -48,7 +48,7 @@ func (s *Stream[T]) Zip[U, R any](other *Stream[U], f func(T, U) R) *Stream[R] {
 //
 // 后台 goroutine 中的用户回调 panic 被 recover 后暂存 ec.panicVal，
 // 由发起侧在求值收尾处重新 panic（原样传播语义）。
-func pullFromDrive[T any](drive func(Sink[T], *evalCtx), ec *evalCtx) (next func() (T, bool), stop func()) {
+func pullFromDrive[T any](drive driveFunc[T], ec *evalCtx) (next func() (T, bool), stop func()) {
 	ch := make(chan T)
 	done := make(chan struct{})
 	var once sync.Once

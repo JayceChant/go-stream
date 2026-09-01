@@ -32,10 +32,10 @@ Go 无 raw type：`Map` 前后元素类型不同（`Stream[T]` → `Stream[U]`�
 
 ```go
 func newStateless[T, U any](up *Stream[T], wrap ..., chars) *Stream[U] {
-    ud := up.drive // 构造期捕获上游求值闭包
+    driveUpstream := up.drive // 构造期捕获上游求值闭包
     return &Stream[U]{pipeline[U]{
         drive: func(down Sink[U], ec *evalCtx) {
-            ud(wrap(down, ec), ec) // 求值时先包装下游再驱动上游
+            driveUpstream(wrap(down, ec), ec) // 求值时先包装下游再驱动上游
         },
         chars: chars,
     }}
@@ -43,6 +43,8 @@ func newStateless[T, U any](up *Stream[T], wrap ..., chars) *Stream[U] {
 ```
 
 每个 stage 的 `drive` 闭包封装「源 → … → 上游 → 本 stage」整段求值语义；链接即组合闭包，全程编译期类型安全——这是 Java 链表式 AbstractPipeline 的类型安全等价物。
+
+**为什么必然「后级包前级」**：调用方拿到的返回值永远是最后一级操作的 `*Stream[R]`，其 `drive` 的元素类型被 `R` 锁死；沿捕获链向内回溯，元素类型逐级回退为更早操作的输出，直至 Head 的源类型。包裹方向由这条元素类型链锁死，无法反转——即便改用结构体链表示 stage，异构邻居也只能以类型擦除 + 运行期断言相连（Java 的 raw type 逃生门 Go 没有）。既然包裹不可避免，闭包嵌套就是最简表示：包裹关系与元素类型全部交给编译器校验，无运行期代价。
 
 ## 3. 求值引擎
 
@@ -80,7 +82,7 @@ drive/wrap/down 的协作涉及三个**方向不一致**的顺序，是理解求
      t → mapSink.Accept → f(t) → filterSink.Accept → p(u) → term.Accept
 ```
 
-核心一行 `ud(wrap(down, ec), ec)`（见第 2 节）的读法：**先用 wrap 把 down 包装成本级 sink，再交给上游 drive 驱动**——wrap 必须先于上游执行（管道先建成，数据才能流过）；down 是 wrap 的入参而非出参（本级变换是"装饰下游"）；ud 是构造期捕获的上游闭包（递归回溯到源头才开始推数据）。
+核心一行 `driveUpstream(wrap(down, ec), ec)`（见第 2 节）的读法：**先用 wrap 把 down 包装成本级 sink，再交给上游 drive 驱动**——wrap 必须先于上游执行（管道先建成，数据才能流过）；down 是 wrap 的入参而非出参（本级变换是"装饰下游"）；driveUpstream 是构造期捕获的上游闭包（递归回溯到源头才开始推数据）。
 
 常见误读与纠正：
 

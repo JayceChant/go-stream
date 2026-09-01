@@ -31,10 +31,10 @@ func newStateless[T, U any](
 	chars Characteristics,
 ) *Stream[U] {
 	up.checkLinked()
-	ud := up.drive
+	driveUpstream := up.drive
 	return &Stream[U]{pipeline[U]{
 		drive: func(down Sink[U], ec *evalCtx) {
-			ud(wrap(down, ec), ec)
+			driveUpstream(wrap(down, ec), ec)
 		},
 		chars:   chars,
 		parN:    up.parN,
@@ -88,11 +88,11 @@ func newStateful[T any](
 	chars Characteristics,
 ) *Stream[T] {
 	up.checkLinked()
-	ud := up.drive
+	driveUpstream := up.drive
 	return &Stream[T]{pipeline[T]{
 		drive: func(down Sink[T], ec *evalCtx) {
 			cs := &collectingSink[T]{limit: limit}
-			ud(cs, ec) // 第一段：物化，collectingSink 为该段终端
+			driveUpstream(cs, ec) // 第一段：物化，collectingSink 为该段终端
 			var out []T
 			if ec.firstErr() == nil {
 				out = process(cs.buf)

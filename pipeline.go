@@ -45,16 +45,31 @@ func (ec *evalCtx) takePanic() any {
 	return p
 }
 
+// driveFunc 是 stage 求值闭包的命名类型：驱动「源 → … → 上游 → 本 stage」
+// 整段，把本 stage 的输出逐个推入 down（Accept 返回 false 请求短路），
+// ec 为共享求值上下文（首错 / panic 暂存 / 并行分片源）。
+// 命名为独立类型而非裸 func 签名，便于在算子构造、并行重入、双流拉取等
+// 场景阅读与传播（捕获它的局部变量可写全称，如 driveUpstream）。
+type driveFunc[T any] func(down Sink[T], ec *evalCtx)
+
 // pipeline 是流的核心求值机，被 Stream 嵌入组合（Java AbstractPipeline 的 Go 化）。
 //
 // 与 Java 的链表式 AbstractPipeline 不同：Go 无 raw type，无法把异构元素类型的
 // 上游（如 Map 阶段前 T 后 U）存入同型 upstream 字段，因此采用闭包组合——
 // 每个 stage 在构造时把上游引用与 wrap 包装闭包捕获进自身的 drive 求值闭包。
 // drive 的语义：驱动「源 → … → 上游 → 本 stage」整段，把本 stage 的输出推入 down。
+//
+// 包裹方向由元素类型链锁死（为什么必然「后级包前级」）：调用方持有的返回值
+// 永远是最后一级操作的 *Stream[R]，其 drive 的元素类型被 R 锁死；沿捕获链向内
+// 回溯，元素类型逐级回退为更早操作的输出，直至 Head 的源类型。因此无论以
+// 闭包还是结构体链表示 stage，包裹方向都无法反转——结构体异构链只能靠
+// 运行期类型擦除 + 断言（Java 的 raw type 逃生门 Go 没有）；闭包嵌套则把
+// 包裹关系与元素类型全部交给编译器校验。
 type pipeline[T any] struct {
-	// drive 为本 stage 的求值闭包；Head stage 的 drive 为遍历 source 推入 down。
-	// nil 仅出现在尚未接入引擎的中间状态，正常构造路径不会暴露给用户。
-	drive func(down Sink[T], ec *evalCtx)
+	// drive 为本 stage 的求值闭包（类型见 driveFunc）；Head stage 的 drive 为
+	// 遍历 source 推入 down。nil 仅出现在尚未接入引擎的中间状态，正常构造
+	// 路径不会暴露给用户。
+	drive driveFunc[T]
 	// source 为数据源，仅 Head stage 非空：供特征位查询与并行求值分片。
 	source Splitterator[T]
 	// chars 为本 stage 的输出特征位（沿管道由各算子按传播规则改写）。
@@ -138,7 +153,7 @@ func splitSrc[T any](src Splitterator[T], n int) []any {
 // 短路（Accept 返回 false）时立即停止遍历，End 恒在段末调用。
 // 求值时若 ec.partSrc 携带分片源（并行求值），以分片源替代原源遍历。
 // 源侧的可预期错误（FromFunc）由 construct.go 的专属 head 路径处理，不经此函数。
-func driveFromSource[T any](src Splitterator[T]) func(down Sink[T], ec *evalCtx) {
+func driveFromSource[T any](src Splitterator[T]) driveFunc[T] {
 	return func(down Sink[T], ec *evalCtx) {
 		cur := src
 		if part, ok := ec.partSrc.(Splitterator[T]); ok && part != nil {

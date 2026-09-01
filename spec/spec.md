@@ -54,7 +54,7 @@ Java Stream 的骨架是一棵**单继承类树**（`BaseStream` ← `AbstractPi
 | Java 元素（抽象类/接口） | Go 等价物 | 转换手法 |
 |---|---|---|
 | `interface BaseStream<T,S>`（自类型递归 `S extends BaseStream<T,S>`） | 删除 | 单一具体类型 `*Stream[T]`，无需自类型泛型递归 |
-| `abstract class AbstractPipeline` | 非导出 `pipeline[T]` struct（`drive` 求值闭包/source/chars/consumed/err 错误槽；**drive 在构造期捕获上游引用与 wrap 闭包**——Go 无 raw type，异构元素类型的上游无法存入同型字段，闭包组合是链表 stage 的类型安全等价物） | **嵌入组合**：`type Stream[T any] struct { pipeline[T] }`，公开方法定义在 `Stream` 上 |
+| `abstract class AbstractPipeline` | 非导出 `pipeline[T]` struct（`drive driveFunc[T]` 求值闭包/source/chars/consumed/err 错误槽；**drive 在构造期捕获上游引用与 wrap 闭包**——Go 无 raw type，异构元素类型的上游无法存入同型字段，闭包组合是链表 stage 的类型安全等价物。包裹方向由元素类型链锁死：调用方持有的返回值恒为最后一级操作的 `*Stream[R]`，沿捕获链向内元素类型逐级回退至源类型，故「后级包前级」不可避免；结构体异构链只能以类型擦除 + 运行期断言实现，闭包嵌套则全程编译期校验） | **嵌入组合**：`type Stream[T any] struct { pipeline[T] }`，公开方法定义在 `Stream` 上 |
 | `ReferencePipeline.Head` | 构造函数 `newHead(src Splitterator[T]) *Stream[T]` | 构造函数取代子类型 |
 | `abstract StatelessOp`（子类覆写 `opWrapSink`） | `newStateless(up *Stream[T], wrap func(down Sink[T]) Sink[T]) *Stream[T]` | **函数值取代模板方法**：`wrap` 闭包即 `opWrapSink` 的等价物；每个算子是"构造函数调用"，不是新类型 |
 | `abstract StatefulOp`（`opEvaluateParallel`/分段物化） | `newStateful(up *Stream[T], limit int64, process func(buf []T) []T, chars)`：第一段经 collectingSink 物化（limit 可截断），第二段 process 变换后单遍回放 | 物化策略由闭包注入；「limit+process 两点式」取代最初的双闭包设计（续段 Begin/End/短路协议由引擎统一处理），同时是后续并行扩展点 |

@@ -88,7 +88,7 @@ func TestDistinctByAndDistinct(t *testing.T) {
 		val string
 	}
 	got := collectViaProbe(Of(item{1, "a"}, item{2, "b"}, item{1, "c"}).
-		DistinctBy(func(x item) any { return x.id }))
+		DistinctBy(func(x item) int { return x.id }))
 	if len(got) != 2 || got[0].val != "a" || got[1].val != "b" {
 		t.Errorf("DistinctBy = %v, 期望保首见 [a b]", got)
 	}

@@ -90,7 +90,7 @@ func Distinct[T comparable](s *Stream[T]) *Stream[T] {
 	if s == nil {
 		return nil
 	}
-	return s.DistinctBy(func(t T) any { return t })
+	return s.DistinctBy(func(t T) T { return t })
 }
 
 // Chunk 把连续元素切分为定长分组（尾组可能不足 n）。n <= 0 panic。

@@ -99,7 +99,7 @@ For the full reference and examples, see [docs/api.md](./docs/api.md).
 | `stream.unordered()` | `Unordered()` | Clears the SpOrdered flag; under parallelism, shard results are pushed as they complete (streaming merge) |
 | `stream.onClose(f)` / `close()` | `OnClose(f)` / `Close()` | Triggered automatically at the end of evaluation (including short-circuit/error/panic paths); explicit close is idempotent; callback errors are queryable via `Err()` |
 | Exception propagation | Errors as values (`Err()`/`MapErr` family) | Aligned with Go's official error style |
-| `stream.distinct()` | `DistinctBy(key)` method / `Distinct` package-level | `comparable` can only be used as a constraint and methods cannot add constraints, hence the dual form |
+| `stream.distinct()` | `DistinctBy[K comparable](key)` method / `Distinct` package-level | A method's own type parameters may carry the `comparable` constraint (keys are compile-time comparable, zero boxing); `Distinct` constrains the element `T` itself, and methods cannot constrain the receiver's `T`, so it stays package-level |
 
 ## Design Highlights
 

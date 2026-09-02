@@ -555,7 +555,7 @@ func TestCharsMatrixStateful(t *testing.T) {
 	if c := sizedSource().Sorted(func(a, b int) int { return a - b }).chars; c&SpSorted == 0 || c&SpSized == 0 {
 		t.Errorf("Sorted 后特征位 = %b, SpSorted 置位、SpSized 保留", c)
 	}
-	if c := sizedSource().DistinctBy(func(v int) any { return v }).chars; c&SpDistinct == 0 || c&SpSorted != 0 {
+	if c := sizedSource().DistinctBy(func(v int) int { return v }).chars; c&SpDistinct == 0 || c&SpSorted != 0 {
 		t.Errorf("DistinctBy 后特征位 = %b, SpDistinct 置位、SpSorted 清除", c)
 	}
 	if c := sizedSource().Reverse().chars; c != sizedSource().chars {

@@ -76,7 +76,7 @@ func TestE2E_ErrorPipeline(t *testing.T) {
 func TestE2E_SortDistinctPage(t *testing.T) {
 	got := Of(5, 3, 1, 3, 5, 2, 1).
 		Sorted(func(a, b int) int { return a - b }).
-		DistinctBy(func(n int) any { return n }).
+		DistinctBy(func(n int) int { return n }).
 		Skip(1).
 		Limit(3).
 		ToSlice()

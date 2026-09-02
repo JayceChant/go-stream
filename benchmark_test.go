@@ -84,12 +84,61 @@ func benchManualInt(b *testing.B, n int) {
 	}
 }
 
-// sinkInt 防止手写循环被死代码消除。
-var sinkInt int
+// sinkInt/sinkInt64 防止手写循环被死代码消除。
+var (
+	sinkInt   int
+	sinkInt64 int64
+)
 
 func BenchmarkPipelineIntVsManual(b *testing.B) {
 	for _, n := range benchSizes {
 		b.Run(fmt.Sprintf("Pipeline_%d", n), func(b *testing.B) { benchPipelineInt(b, n) })
 		b.Run(fmt.Sprintf("Manual_%d", n), func(b *testing.B) { benchManualInt(b, n) })
+	}
+}
+
+// DistinctBy 键类型对比：类型化键（K=int，map[int] 零装箱）vs any 键
+// （K 推断为 any，逐元素装箱）vs 手写 map[int] 循环基线。
+// 键取 v%1000，考察重复键场景下的去重开销。
+func benchDistinctTyped(b *testing.B, n int) {
+	data := makeBenchData(n)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		sinkInt64 = FromSlice(data).DistinctBy(func(v int) int { return v % 1000 }).Count()
+	}
+}
+
+func benchDistinctAny(b *testing.B, n int) {
+	data := makeBenchData(n)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		sinkInt64 = FromSlice(data).DistinctBy(func(v int) any { return v % 1000 }).Count()
+	}
+}
+
+func benchDistinctManual(b *testing.B, n int) {
+	data := makeBenchData(n)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		seen := make(map[int]struct{}, 1000)
+		cnt := 0
+		for _, v := range data {
+			if _, dup := seen[v%1000]; !dup {
+				seen[v%1000] = struct{}{}
+				cnt++
+			}
+		}
+		sinkInt = cnt
+	}
+}
+
+func BenchmarkDistinctByKeyType(b *testing.B) {
+	for _, n := range benchSizes {
+		b.Run(fmt.Sprintf("Typed_%d", n), func(b *testing.B) { benchDistinctTyped(b, n) })
+		b.Run(fmt.Sprintf("Any_%d", n), func(b *testing.B) { benchDistinctAny(b, n) })
+		b.Run(fmt.Sprintf("Manual_%d", n), func(b *testing.B) { benchDistinctManual(b, n) })
 	}
 }

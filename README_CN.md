@@ -99,7 +99,7 @@ s.Collect(collector.GroupingBy(keyOf, valOf))
 | `stream.unordered()` | `Unordered()` | 清除 SpOrdered；并行下分片结果先完成先推（流式合并） |
 | `stream.onClose(f)` / `close()` | `OnClose(f)` / `Close()` | 求值结束（含短路/错误/panic 路径）自动触发；显式关闭幂等；回调出错经 `Err()` 查询 |
 | 异常穿透 | 错误即值（`Err()`/`MapErr` 族） | 对齐 Go 官方错误风格 |
-| `stream.distinct()` | `DistinctBy(key)` 方法 / `Distinct` 包级 | `comparable` 仅可作约束，方法无法追加约束故双形态 |
+| `stream.distinct()` | `DistinctBy[K comparable](key)` 方法 / `Distinct` 包级 | 方法自有类型参数可带 `comparable` 约束（键类型编译期可比较、零装箱）；`Distinct` 约束的是元素 `T` 本身，方法不能约束接收者的 `T`，故仍为包级 |
 
 ## 设计要点
 

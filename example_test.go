@@ -91,7 +91,7 @@ func Example_errorAsValue() {
 func Example_sortedDistinctPage() {
 	got := stream.Of(5, 3, 1, 3, 5, 2, 1).
 		Sorted(func(a, b int) int { return a - b }).
-		DistinctBy(func(n int) any { return n }).
+		DistinctBy(func(n int) int { return n }).
 		Skip(1).
 		Limit(3).
 		ToSlice()

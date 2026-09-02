@@ -52,13 +52,15 @@ func (s *Stream[T]) Sorted(cmp func(a, b T) int) *Stream[T] {
 }
 
 // DistinctBy 依据 key 函数去重：每组同 key 仅保留首个遇到的元素（保遇序）。
-// key 返回值必须可比较（作为 map 键）；不可比较的键在求值时 panic（用户契约）。
-func (s *Stream[T]) DistinctBy(key func(T) any) *Stream[T] {
+// K 须满足 comparable：键为具体不可比较类型（slice/map/func 等）时编译期即报错。
+// 逃生口：K 显式取 any（接口满足 comparable）仍可编译，动态类型不可比较时
+// 在求值时 panic（用户契约，同 map 键语义）。
+func (s *Stream[T]) DistinctBy[K comparable](key func(T) K) *Stream[T] {
 	if key == nil {
 		panic("stream: DistinctBy 键函数为 nil")
 	}
 	return newStateful(s, -1, func(buf []T) []T {
-		seen := make(map[any]struct{}, len(buf))
+		seen := make(map[K]struct{}, len(buf))
 		out := make([]T, 0, len(buf))
 		for _, v := range buf {
 			k := key(v)

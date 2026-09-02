@@ -47,7 +47,7 @@
 | 数据源 | Spliterator（数组/Collection/IO/生成器） | `Splitterator[T]` 接口 + Go 原生源：slice、map、channel、`iter.Seq[T]`、生成器函数 |
 | 原始类型特化 | IntStream/LongStream/DoubleStream 避免装箱 | **不需要**：Go 泛型值类型天然零装箱，用 `cmp.Ordered`/`Number` 约束即可 |
 | 并行 | ForkJoinPool + trySplit | `Parallel(n)`/`Sequential()`（Task 8 已实现）：TrySplit 分片 + goroutine；短路终止与物化算子后自动降级串行（见「并行求值 v1」） |
-| `Distinct` 需要 comparable | equals/hashCode | 方法不能追加约束：提供 `DistinctBy(key func(T) any)`（键须可比较）方法 + 包级 `Distinct[T comparable]` 双形态（Go 的 comparable 仅可作约束不能作普通类型） |
+| `Distinct` 需要 comparable | equals/hashCode | 双形态：方法 `DistinctBy[K comparable](key func(T) K)`（方法自有类型参数可带约束，键类型编译期可比较、map[K] 零装箱；K 显式取 `any` 时动态类型不可比较仍在求值时 panic）+ 包级 `Distinct[T comparable]`（约束元素 `T` 本身——方法不能约束接收者的 `T`，只能包级；Go 的 comparable 仅可作约束不能作普通类型）。**修订**：原 `DistinctBy(key func(T) any)` 系对泛型方法约束能力的误判（把"不能约束接收者 T"误作"方法不能带约束"），已按「关键约束」第 2/4 条改正 |
 | 比较器 | `Comparator<T>`（int 返回） | 对齐 Go 1.21 `slices.SortFunc` 惯例：`func(a, b T) int`（`cmp.Compare` 风格） |
 | 错误处理 | unchecked 异常穿透 | **错误即值**（详案见下）：可预期错误走 error 值；不可恢复错误 panic（详案见下） |
 | 关闭资源 | onClose/BaseStream.close | `OnClose(f)`/`Close()`（Task 10）：求值结束自动触发 + 显式幂等释放 |

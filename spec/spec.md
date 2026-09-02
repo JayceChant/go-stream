@@ -25,10 +25,18 @@
 
 ### Go 1.27 泛型方法的关键约束（决定架构）
 
-1. 方法可以声明自己的类型参数：`func (s *Stream[T]) Map[U any](f func(T) U) *Stream[U]` ✅
-2. **接口方法不能声明类型参数**，泛型方法也不能实现接口方法 ❌
+以下能力与限制均已在 go1.27.0 实测验证：
+
+1. ✅ 方法可以声明自己的类型参数：`func (s *Stream[T]) Map[U any](f func(T) U) *Stream[U]`
+2. ✅ 方法**自有**类型参数可带 `any` 以外的约束（含 `comparable`）：如 `func (s *Stream[T]) Group[K comparable](key func(T) K) map[K][]T` 合法，调用处按实参推断 K。**不得**以"方法不能带约束"为由退回 `any` 擦除签名。
+   - 注意：`any` 满足 `comparable`（Go 1.20+ 接口类型满足该约束），故键函数显式返回 `any` 仍能编译——约束只排除**具体不可比较类型**的键（编译期报错），不能根除动态类型不可比较时的运行时 map panic。
+3. ❌ **接口方法不能声明类型参数**，泛型方法也不能实现接口方法
    - ⇒ `Stream` 必须是**具体泛型 struct**，不能像 Java 那样以接口形态公开 API。
    - ⇒ 内部异构 stage 链（不同 E_IN/E_OUT）不能通过"接口 + 泛型方法"表达，采用**函数组合**（wrapSink 闭包）+ 上游引用链接，而非 Java 的类继承链。
+4. ❌ **方法不能约束接收者已有的类型参数**：`func (s *Stream[T comparable]) …` 语法错误（missing ',' in type argument list）⇒ 需要约束 `T` 本身的 API（`Distinct`/`Contains`）只能以包级函数提供。
+5. ❌ **方法返回 T 的派生类型触发实例化循环**：`func (s *Stream[T]) Chunk(n int) *Stream[[]T]` 报 instantiation cycle（T → []T → [][]T → …）⇒ `Chunk`/`Enumerate` 只能以包级函数提供。
+
+判定口诀：方法**新增**类型参数（任意约束）均可；一旦要**动 T 本身**——约束它、或让其以派生类型出现在返回值——就必须降级为包级函数。
 
 ### 针对 Go 的优化取舍
 

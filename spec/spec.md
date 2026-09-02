@@ -106,7 +106,7 @@ Java Stream 的骨架是一棵**单继承类树**（`BaseStream` ← `AbstractPi
 
 **无状态中间**：`Filter`/`Map[U]`/`FlatMap[U]`/`FlatMapSeq[U]`/`Peek`/`TakeWhile`/`DropWhile`
 
-**有状态中间**：`Limit(n)`/`Skip(n)`/`Sorted(cmp func(a,b T) int)`（稳定排序，对齐 `slices.SortFunc`）/`DistinctBy(key)`/`Reverse`
+**有状态中间**：`Limit(n)`/`Skip(n)`/`Sorted(cmp func(a,b T) int)`（稳定排序，对齐 `slices.SortFunc`）/`DistinctBy(key)`/`Reverse`。**修订**：`Skip(0)` 恒等返回原流（不新增物化层、特征位透传、不触发并行降级；`Skip` 负参仍 panic，`n==0` 为唯一 no-op 特例，语义与 JDK `skip(0) returns this` 一致）
 
 **终止**：`ForEach`/`ForEachUntil(f func(T) bool)`/`ToSlice`/`Count`/`Reduce(identity, op)`/`ReduceOpt(op) (T, bool)`/`Collect[A,R]`/`First`/`FindAny`（顺序下同 First）/`AnyMatch`/`AllMatch`/`NoneMatch`/`Min(cmp)`/`Max(cmp)`/`Err()`
 
@@ -273,7 +273,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - **分片机制**：pipeline 携带类型擦除的 `splitN` 闭包（沿链传播，可穿越 Map 等异构 stage——Go 无 raw type，无法以同型字段存源）；仅可分源（slice/range，即 TrySplit 非 nil 的源）在构造时设置。求值时递归 `TrySplit` 至 n 份（保序：前/后半段递归）。**Task 11 修订（bug 修复）**：递归中不可再分的子源以自身为一份（元素不丢失，份数可少于 n）；完全不可分返回单份，由 evaluateParallel 据份数 <2 降级串行。
 - **分片求值**：每片 goroutine 独立重入 `p.drive`（head 层经 `ec.partSrc` 覆盖源），**每片全新 sink 链 + 独立终端累积**（避免共享 sink 的数据竞争）；物化分片结果后按分片序回放进用户终端（Ordered 保序；无序流走先完成先推的流式合并——Task 10 已实现，见「生命周期与可重放」）。
 - **Collect 专属路径**：片级独立 `Supplier`+`Accumulator`，按分片序 `Combiner` 合并，`Finisher` 收尾。
-- **降级规则**（splitN 置 nil 或 evaluateNP）：物化型有状态算子（Limit/Skip/Sorted/DistinctBy/Reverse）之后、单遍有状态（Scan/Chunk/Enumerate/DropWhile）、双流（Zip/Concat）、短路终止族（First/FindAny/AnyMatch/AllMatch/NoneMatch/ForEachUntil——保持串行短路优势）、不可分源——均串行。
+- **降级规则**（splitN 置 nil 或 evaluateNP）：物化型有状态算子（Limit/Skip/Sorted/DistinctBy/Reverse）之后、单遍有状态（Scan/Chunk/Enumerate/DropWhile）、双流（Zip/Concat）、短路终止族（First/FindAny/AnyMatch/AllMatch/NoneMatch/ForEachUntil——保持串行短路优势）、不可分源——均串行。**修订**：`Skip(0)` 恒等返回原流，不构成物化层，不触发降级（splitN 保留）。
 - **错误与 panic**：片内首错按片序合并进主错误槽（部分结果保留）；片内回调 panic 捕获后由发起 goroutine 原样 re-panic。
 - **验证**：`go test -race` 全绿；CPU 密集场景并行加速比 benchmark > 1.5x。
 

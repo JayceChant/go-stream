@@ -41,6 +41,22 @@ func TestSkip(t *testing.T) {
 	if got := collectViaProbe(Of(1, 2).Skip(0)); len(got) != 2 {
 		t.Errorf("Skip(0) = %v, 期望 2 个", got)
 	}
+	// n=0：恒等返回原流（同一对象），原流未被标记 consumed 仍可继续链接
+	s := Of(1, 2, 3)
+	if id := s.Skip(0); id != s {
+		t.Error("Skip(0) 应恒等返回原流")
+	}
+	if got := collectViaProbe(s.Map(func(v int) int { return v * 10 })); len(got) != 3 || got[0] != 10 {
+		t.Errorf("Skip(0) 后原流应仍可链接，got = %v", got)
+	}
+	// n=0：不物化——短路终端（First）只拉首元素，源不被驱动到耗尽
+	pulls := 0
+	if v, ok := Generate(func() int { pulls++; return pulls }).Skip(0).First(); !ok || v != 1 {
+		t.Errorf("Skip(0)+First = (%v, %v), 期望 (1, true)", v, ok)
+	}
+	if pulls != 1 {
+		t.Errorf("Skip(0)+First 应只拉 1 个元素，实际拉了 %d 个（物化未豁免）", pulls)
+	}
 }
 
 type rec struct {

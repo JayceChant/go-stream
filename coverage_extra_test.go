@@ -146,7 +146,7 @@ func TestRangeSpTrySplitUnsplittable(t *testing.T) {
 
 func TestSeqSpTryAdvanceAfterDone(t *testing.T) {
 	// 耗尽置 done 后再次 TryAdvance：首次走耗尽分支，其后走 done 早退恒 false。
-	sp := newSeqSp(seqIntsOf(1))
+	sp := newSeqSp(seqIntsOf1())
 	if !sp.TryAdvance(func(int) bool { return true }) {
 		t.Fatal("唯一元素 TryAdvance 应返回 true")
 	}

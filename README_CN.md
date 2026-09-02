@@ -104,7 +104,7 @@ s.Collect(collector.GroupingBy(keyOf, valOf))
 ## 设计要点
 
 - **Sink 推送链**：求值时从终止操作出发反向包装 Sink（`Accept(t) bool` 返回值融合 Java 的 `cancellationRequested`），数据源单遍推动元素流过整条链
-- **分段求值**：`Sorted`/`Skip` 等有状态算子先驱动上游物化为 `[]T` 再变换回放；`Limit` 支持无限源短路收集
+- **分段求值**：`Sorted`/`Skip` 等有状态算子先驱动上游物化为 `[]T` 再变换回放；`Limit` 支持无限源短路收集；`Skip(0)` 恒等返回原流（真正 no-op：不物化、特征位透传）
 - **特征位传播**：`SpSized`/`SpOrdered`/`SpSorted`/`SpDistinct` 沿管道传播（如 Map 1:1 保留 Sized 使下游预分配），为并行拆分提供决策依据
 - **错误模型**：参照 `bufio.Scanner.Err()` 惯例——出错时终止操作返回已累积的部分结果，`Err()` 返回首错
 

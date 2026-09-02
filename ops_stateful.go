@@ -13,7 +13,7 @@ import "slices"
 // 物化后特征位统一规则：SpOrdered 保留；SpSized 保留（缓冲长度已知）并置
 // SpSubSized；SpSorted/SpDistinct 由各算子按语义设置。
 
-// Limit 截取前 n 个元素（n <= 0 得空流；无限源可借此终止）。
+// Limit 截取前 n 个元素（n == 0 得空流；无限源可借此终止；n < 0 panic）。
 func (s *Stream[T]) Limit(n int64) *Stream[T] {
 	if n < 0 {
 		panic("stream: Limit 参数为负")
@@ -22,10 +22,14 @@ func (s *Stream[T]) Limit(n int64) *Stream[T] {
 		(s.chars|SpSized|SpSubSized)&^SpSorted)
 }
 
-// Skip 跳过前 n 个元素，输出其余（n <= 0 等价于原样透传）。
+// Skip 跳过前 n 个元素，输出其余（n == 0 恒等返回原流，不物化、特征位透传；
+// n < 0 panic）。恒等返回时不标记上游 consumed，原流仍可继续链接。
 func (s *Stream[T]) Skip(n int64) *Stream[T] {
 	if n < 0 {
 		panic("stream: Skip 参数为负")
+	}
+	if n == 0 { // no-op 特例：免物化/免降级，语义同 JDK skip(0) returns this
+		return s
 	}
 	return newStateful(s, -1, func(buf []T) []T {
 		if int64(len(buf)) <= n {
@@ -126,6 +130,7 @@ func (w *chunkSink[T]) Begin(int64) {
 	w.down.Begin(-1)
 	w.cur = make([]T, 0, w.n)
 }
+
 func (w *chunkSink[T]) Accept(v T) bool {
 	w.cur = append(w.cur, v)
 	if len(w.cur) == w.n {
@@ -135,6 +140,7 @@ func (w *chunkSink[T]) Accept(v T) bool {
 	}
 	return true
 }
+
 func (w *chunkSink[T]) End() {
 	if len(w.cur) > 0 { // 尾组
 		w.down.Accept(w.cur)

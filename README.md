@@ -104,7 +104,7 @@ For the full reference and examples, see [docs/api.md](./docs/api.md).
 ## Design Highlights
 
 - **Sink push chain**: at evaluation time, sinks are wrapped in reverse starting from the terminal operation (`Accept(t) bool` merges Java's `cancellationRequested`); the data source pushes elements through the entire chain in a single pass
-- **Segmented evaluation**: stateful operators such as `Sorted`/`Skip` first drive upstream to materialize `[]T`, then transform and replay; `Limit` supports short-circuit collection from infinite sources
+- **Segmented evaluation**: stateful operators such as `Sorted`/`Skip` first drive upstream to materialize `[]T`, then transform and replay; `Limit` supports short-circuit collection from infinite sources; `Skip(0)` returns the original stream as a true no-op (no materialization, flags passthrough)
 - **Flag propagation**: `SpSized`/`SpOrdered`/`SpSorted`/`SpDistinct` propagate along the pipeline (e.g. Map preserves Sized 1:1 so downstream can preallocate), informing parallel splitting decisions
 - **Error model**: modeled after the `bufio.Scanner.Err()` convention — on error, terminal operations return the accumulated partial results, and `Err()` returns the first error
 

@@ -56,8 +56,8 @@ Err 变体（错误即值：回调返回错误 → 首错短路、部分结果�
 
 | 方法 | 说明 |
 |---|---|
-| `Limit(n int) *Stream[T]` *短路* | 截取前 n（无限源安全） |
-| `Skip(n int) *Stream[T]` | 跳过前 n |
+| `Limit(n int64) *Stream[T]` *短路* | 截取前 n（n==0 空流；无限源安全；n<0 panic） |
+| `Skip(n int64) *Stream[T]` | 跳过前 n（n==0 恒等返回原流，不物化、特征位透传；n<0 panic） |
 | `Sorted(cmp func(a, b T) int) *Stream[T]` | 稳定排序（对齐 `slices.SortFunc`） |
 | `DistinctBy(key func(T) any) *Stream[T]` | 按键去重（保留首见；键须可比较） |
 | `Reverse() *Stream[T]` | 反转 |

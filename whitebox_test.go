@@ -536,8 +536,18 @@ func TestCharsMatrixStateful(t *testing.T) {
 		t.Errorf("Skip 后特征位 = %b, SpSized/SpSubSized 应置位", c)
 	}
 	// 无 sized 上游（FromSeq 仅 SpOrdered）：Skip 仍强制置 SpSized|SpSubSized。
-	if c := FromSeq(seqIntsOf(1)).Skip(1).chars; c&SpSized == 0 || c&SpSubSized == 0 {
+	if c := FromSeq(seqIntsOf1()).Skip(1).chars; c&SpSized == 0 || c&SpSubSized == 0 {
 		t.Errorf("无 sized 上游 Skip 后特征位 = %b, SpSized/SpSubSized 仍应强制置位", c)
+	}
+	// Skip(0) 恒等返回：特征位透传（无 sized 上游不虚标 SpSized），splitN 不降级。
+	if c := FromSeq(seqIntsOf1()).Skip(0).chars; c&SpSized != 0 {
+		t.Errorf("Skip(0) 后特征位 = %b, 无 sized 上游不应虚标 SpSized（应透传）", c)
+	}
+	if s := sizedSource().Skip(0); s.splitN == nil {
+		t.Error("Skip(0) 后 splitN 不应为 nil（恒等返回不触发并行降级）")
+	}
+	if s := sizedSource().Skip(1); s.splitN != nil {
+		t.Error("Skip(1) 后 splitN 应为 nil（物化型降级）")
 	}
 	if c := sizedSource().Limit(2).chars; c&(SpSized|SpSubSized) != SpSized|SpSubSized || c&SpSorted != 0 {
 		t.Errorf("Limit 后特征位 = %b, SpSized/SpSubSized 置位、SpSorted 清除", c)
@@ -599,7 +609,7 @@ func TestCharsMatrixComposite(t *testing.T) {
 
 func TestCharsMatrixSources(t *testing.T) {
 	// 生成器型源仅 SpOrdered；Of/Range 含 SpSized|SpSubSized；FromMap 无 SpOrdered。
-	if c := FromSeq(seqIntsOf(1)).chars; c != SpOrdered {
+	if c := FromSeq(seqIntsOf1()).chars; c != SpOrdered {
 		t.Errorf("FromSeq 源特征位 = %b, 期望仅 SpOrdered", c)
 	}
 	if c := FromChannel(make(chan int)).chars; c != SpOrdered {
@@ -616,15 +626,9 @@ func TestCharsMatrixSources(t *testing.T) {
 	}
 }
 
-// seqIntsOf 是特征位矩阵测试用的 iter.Seq 辅助。
-func seqIntsOf(n int) func(yield func(int) bool) {
-	return func(yield func(int) bool) {
-		for i := range n {
-			if !yield(i) {
-				return
-			}
-		}
-	}
+// seqIntsOf1 是特征位矩阵测试用的单元素 iter.Seq 辅助。
+func seqIntsOf1() func(yield func(int) bool) {
+	return func(yield func(int) bool) { yield(0) }
 }
 
 // ---- 有序并行 Min/Max 与 Collect 无 Combiner 降级 ----

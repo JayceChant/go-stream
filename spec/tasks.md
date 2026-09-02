@@ -133,3 +133,11 @@
     - 并行收集器：Summing Combiner 并行 Collect；Concat 单侧回调 mergeClosers；sliceTotal total/pushPart 非 collectingSink 容错与取消
   - [x] 质量门槛：gofmt 空 / vet 无告警 / `go test -count=1 ./...` 全绿 / `go test -race -count=1 ./...` 全绿（Linux 侧工具链无 cgo，-race 经 Windows 侧 go.exe 验证）
   - 依赖：无
+
+# 后续 TODO（Task 14，随「Skip(0) 恒等返回」修订立项）
+- [x] Task 14: `Skip(0)` 恒等返回原流
+  - [x] 动机：`Skip(0)` 语义为 no-op，原实现走 `newStateful(limit=-1)` 全量物化路径——求值时白付 O(n) 缓冲拷贝、破坏下游短路（如 `Skip(0)+First` 驱动源到耗尽）、并将并行流降级为串行（splitN 置 nil）。负参语义维持 panic 不变（对齐 Google C++ Style Guide「用断言而非无符号类型表达非负」与 JDK fail-fast；uint64 方案因 Go int 生态的 cast wrap 风险被否决）
+  - [x] 实现：`Skip(n)` 在 `n==0` 时直接 `return s`（不调 checkLinked，s 保持可链接；重复链接的 panic 时机从链接时推迟到二次消费时，与 JDK 行为一致）；`n>0` 路径不变；Limit/Skip godoc 修正（"n <= 0" → "n == 0"，负参 panic）
+  - [x] 测试：Skip(0) 特征位透传、splitN 不降级、Skip(0)+短路终端只拉首元素、Skip(0) 后原流仍可继续链接
+  - [x] 文档：docs/api.md（签名 int64 误记 int 一并修正）、docs/design.md、README.md
+  - 依赖：无

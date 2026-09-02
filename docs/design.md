@@ -98,10 +98,12 @@ drive/wrap/down 的协作涉及三个**方向不一致**的顺序，是理解求
 
 ### 分段求值（有状态算子）
 
-`Sorted`/`Skip`/`DistinctBy`/`Reverse` 等需全量信息，采用**两点式物化**：
+`Sorted`/`Skip(n>0)`/`DistinctBy`/`Reverse` 等需全量信息，采用**两点式物化**：
 
 1. **第一段**：驱动上游把元素收集进 `collectingSink`（`limit` 可截断，支持 `Limit` 对无限源的短路收集）
 2. **第二段**：`process` 纯切片变换（排序/去重/跳过等）后单遍回放，续段 Begin/End/短路协议由引擎统一处理
+
+`Skip(0)` 恒等返回原流，不构成物化层（特征位透传、并行不降级、短路终端免全量驱动），同 JDK `skip(0) returns this`。
 
 ```go
 func newStateful[T any](up *Stream[T], limit int64, process func([]T) []T, chars) *Stream[T]

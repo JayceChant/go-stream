@@ -76,6 +76,86 @@ go -C example run ./lifecycle   # OnClose/Close 资源管理、Cache 可重放
 
 `example/` 为独立 Go 模块（不参与库的测试与覆盖率统计），每个文件都可直接复制进你的项目改用。
 
+## 实现对比
+
+### 风格
+
+同一个任务——筛出正数金额、降序排序、取前三、格式化为价格字符串。`Sorted` 与 `Limit` 都是有状态算子，强制管道在中途物化一次，且顺序敏感：排序必须在 `Limit` 之前（取的是排序后的前三），格式化必须在其后。手写代码别无选择，只能拆成两个循环：
+
+**无依赖纯 Go：**
+
+```go
+// 纯 Go：一次性循环最直接，但有状态步骤会把管道
+// 拆成两个循环加一次就地排序，管道结构在代码里消失。
+var amounts []int
+for _, n := range orders { // 循环 1：只装得下无状态的 Filter
+    if n > 0 {
+        amounts = append(amounts, n)
+    }
+}
+slices.SortFunc(amounts, func(a, b int) int { return b - a }) // 物化点：必须等全部元素就位
+var top []string
+for i, n := range amounts { // 循环 2：取前三与格式化只能等在这里
+    if i >= 3 {
+        break
+    }
+    top = append(top, fmt.Sprintf("$%d", n))
+}
+```
+
+**函数式流式操作（Go 1.27 前，无泛型方法）：**
+
+```go
+// 包级函数：类型安全、可组合，但调用层层嵌套、由内向外读——
+// 数据源被埋在最里层，阅读顺序与执行顺序完全相反。
+result := stream.ToSlice( // 5. 最后执行，却写在最外层
+    stream.Map( // 4. 格式化前三名
+        stream.Limit( // 3. 取排序结果的前三
+            stream.Sorted( // 2. 降序排序，强制物化
+                stream.Filter(stream.FromSlice(orders), // 1. 数据源，最先读
+                    func(n int) bool { return n > 0 }),
+                func(a, b int) int { return b - a },
+            ),
+            3,
+        ),
+        func(n int) string { return fmt.Sprintf("$%d", n) },
+    ),
+)
+```
+
+**当前实现（泛型方法）：**
+
+```go
+// 泛型方法：按管道顺序自上而下阅读，元素类型沿链迁移（int → string），
+// 有状态步骤无缝插入链中。
+result := stream.FromSlice(orders).
+    Filter(func(n int) bool { return n > 0 }).
+    Sorted(func(a, b int) int { return b - a }). // 有状态：物化后排序
+    Limit(3). // 有状态：取排序结果的前三
+    Map(func(n int) string { return fmt.Sprintf("$%d", n) }).
+    ToSlice()
+```
+
+| 风格 | 优点 | 缺点 |
+|---|---|---|
+| 无依赖纯 Go | 零开销、零依赖 | 有状态步骤强制两个循环 + 就地排序；惰性、短路、错误传播、并行都要手写；阶段越多，循环体越混作一团 |
+| 包级函数（1.27 前） | 类型安全、惰性、可组合 | 嵌套调用由内向外读，链式手感全无——管道越长越明显 |
+| 泛型方法（当前实现） | 自上而下阅读、类型沿链迁移；有状态步骤无缝插入链中；惰性/短路/并行开箱即得 | 运行时开销——有状态算子的物化成本 + 分发开销，量化见下方「性能」 |
+
+可读性只是故事的一半；下方「性能」小节量化这套抽象的运行时代价，供你按场景权衡取舍。
+
+### 性能
+
+`Filter+Map+ToSlice` 相对手写 for 循环（含 `strconv.Itoa` 的真实场景）：
+
+| 规模 | 管道 | 手写 for | 开销倍数 |
+|---|---|---|---|
+| 1e2 | ~2.8 μs | ~1.0 μs | 2.8x |
+| 1e4 | ~0.48 ms | ~0.18 ms | 2.6x |
+| 1e6 | ~35 ms | ~22 ms | 1.6x |
+
+目标 <3x 达标（AMD Ryzen 5 7535U，benchtime 300ms；复现：`go test -bench . -run '^$'`）。
+
 ## API 速览
 
 | 类别 | API |
@@ -120,18 +200,6 @@ go -C example run ./lifecycle   # OnClose/Close 资源管理、Cache 可重放
 - **错误模型**：参照 `bufio.Scanner.Err()` 惯例——出错时终止操作返回已累积的部分结果，`Err()` 返回首错
 
 架构详情见 [docs/design.md](./docs/design.md)。
-
-## 性能
-
-`Filter+Map+ToSlice` 相对手写 for 循环（含 `strconv.Itoa` 的真实场景）：
-
-| 规模 | 管道 | 手写 for | 开销倍数 |
-|---|---|---|---|
-| 1e2 | ~2.8 μs | ~1.0 μs | 2.8x |
-| 1e4 | ~0.48 ms | ~0.18 ms | 2.6x |
-| 1e6 | ~35 ms | ~22 ms | 1.6x |
-
-目标 <3x 达标（AMD Ryzen 5 7535U，benchtime 300ms；复现：`go test -bench . -run '^$'`）。
 
 ## 路线图
 

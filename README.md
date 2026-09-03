@@ -76,6 +76,87 @@ go -C example run ./lifecycle   # OnClose/Close resource management, Cache repla
 
 `example/` is a separate Go module (not part of the library's tests or coverage) so each file can be copied into your project as-is.
 
+## Implementation Comparison
+
+### Style
+
+The same task — keep the positive amounts, sort them in descending order, take the top 3, and format them as price strings. `Sorted` and `Limit` are stateful operators that force a materialization point mid-pipeline, and the order is significant: sorting must precede `Limit` (the top 3 of a sorted sequence), formatting must follow it. Hand-rolled code has no choice but to split into two loops:
+
+**Plain Go, no library:**
+
+```go
+// Plain Go: fine for a one-off loop, but the stateful steps dissolve the
+// pipeline into two loops plus an in-place sort.
+var amounts []int
+for _, n := range orders { // loop 1: only the stateless Filter fits here
+    if n > 0 {
+        amounts = append(amounts, n)
+    }
+}
+slices.SortFunc(amounts, func(a, b int) int { return b - a }) // materialization point: needs every element
+var top []string
+for i, n := range amounts { // loop 2: top 3 and formatting can only wait here
+    if i >= 3 {
+        break
+    }
+    top = append(top, fmt.Sprintf("$%d", n))
+}
+```
+
+**Functional stream, pre-Go 1.27 (no generic methods):**
+
+```go
+// Pre-1.27: type-safe and composable, but calls nest and read inside-out —
+// the data source ends up buried at the center, reading order opposed to
+// execution order.
+result := stream.ToSlice( // 5. executed last, written outermost
+    stream.Map( // 4. format the top 3
+        stream.Limit( // 3. top 3 of the sorted result
+            stream.Sorted( // 2. descending sort, forces materialization
+                stream.Filter(stream.FromSlice(orders), // 1. the source, read first
+                    func(n int) bool { return n > 0 }),
+                func(a, b int) int { return b - a },
+            ),
+            3,
+        ),
+        func(n int) string { return fmt.Sprintf("$%d", n) },
+    ),
+)
+```
+
+**This library (generic methods):**
+
+```go
+// Generic methods: reads top-down in pipeline order, element types migrate
+// along the chain (int → string), stateful steps slot in seamlessly.
+result := stream.FromSlice(orders).
+    Filter(func(n int) bool { return n > 0 }).
+    Sorted(func(a, b int) int { return b - a }). // stateful: materialize, then sort
+    Limit(3). // stateful: top 3 of the sorted result
+    Map(func(n int) string { return fmt.Sprintf("$%d", n) }).
+    ToSlice()
+```
+
+| Style | Pros | Cons |
+|---|---|---|
+| Plain Go | Zero overhead, zero dependencies | The stateful steps force two loops plus an in-place sort; laziness, short-circuiting, error propagation, parallelism all hand-rolled; the more stages, the more the loop bodies blur together |
+| Package-level functions (pre-1.27) | Type-safe, lazy, composable | Nested calls read inside-out, fluent feel lost — the longer the pipeline, the worse |
+| Generic methods (this library) | Top-down readability, types flow through the chain; stateful steps slot into the chain seamlessly; laziness/short-circuit/parallelism out of the box | Runtime overhead — materialization cost of stateful operators plus dispatch, quantified in Performance below |
+
+Readability is half the story; the Performance subsection below quantifies the runtime cost so you can weigh the trade-off for your workload.
+
+### Performance
+
+`Filter+Map+ToSlice` vs. a hand-written for loop (a realistic scenario including `strconv.Itoa`):
+
+| Scale | Pipeline | Hand-written for | Overhead |
+|---|---|---|---|
+| 1e2 | ~2.8 μs | ~1.0 μs | 2.8x |
+| 1e4 | ~0.48 ms | ~0.18 ms | 2.6x |
+| 1e6 | ~35 ms | ~22 ms | 1.6x |
+
+Target of <3x met (AMD Ryzen 5 7535U, benchtime 300ms; reproduce with `go test -bench . -run '^$'`).
+
 ## API Overview
 
 | Category | APIs |
@@ -120,18 +201,6 @@ For the full reference and examples, see [docs/api.md](./docs/api.md).
 - **Error model**: modeled after the `bufio.Scanner.Err()` convention — on error, terminal operations return the accumulated partial results, and `Err()` returns the first error
 
 See [docs/design.md](./docs/design.md) for architecture details.
-
-## Performance
-
-`Filter+Map+ToSlice` vs. a hand-written for loop (a realistic scenario including `strconv.Itoa`):
-
-| Scale | Pipeline | Hand-written for | Overhead |
-|---|---|---|---|
-| 1e2 | ~2.8 μs | ~1.0 μs | 2.8x |
-| 1e4 | ~0.48 ms | ~0.18 ms | 2.6x |
-| 1e6 | ~35 ms | ~22 ms | 1.6x |
-
-Target of <3x met (AMD Ryzen 5 7535U, benchtime 300ms; reproduce with `go test -bench . -run '^$'`).
 
 ## Roadmap
 

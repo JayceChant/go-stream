@@ -66,7 +66,8 @@
 ## 质量验证
 - [x] `go build ./...` 通过（go 1.27，模块路径 github.com/JayceChant/go-stream）
 - [x] `go vet ./...` 无告警
-- [x] `go test -race ./...` 全绿（含空流、单元素、超界参数、短路计数探针、TrySplit 不重叠并集完整、稳定排序、DistinctBy 首见保留、重复消费 panic、Err 短路部分结果、FromFunc 错误、ToMap last-wins、Scan/Chunk/Zip 语义、并行 11 项）
+- [x] `go test -race ./...` 全绿（含空流、单元素、超界参数、短路计数探针、TrySplit 不重叠并集完整、`StableSorted` 等键保序、`Sorted` 排序正确性与源不可变、DistinctBy 首见保留、重复消费 panic、Err 短路部分结果、FromFunc 错误、ToMap last-wins、Scan/Chunk/Zip 语义、并行 11 项）
+- [x] 排序拆分（spec 修订）：`Sorted` 改不稳定 pdqsort（对齐 `slices.SortFunc`）、新增 `StableSorted`（对齐 `slices.SortStableFunc`）；Top-K 基准同契约重测（不稳定 2.3x/1.1x/2.4x，稳定参考 ~1.2x）
 - [x] benchmark 产出：Filter+Map+ToSlice 相对手写 for 循环额外开销 <3x（实测 1e2=2.7x / 1e4=1.8x / 1e6=1.6x）
 - [x] 全部公开 API 具备中文 godoc 注释
 

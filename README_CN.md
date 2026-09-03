@@ -93,7 +93,7 @@ for _, n := range orders { // 循环 1：只装得下无状态的 Filter
         amounts = append(amounts, n)
     }
 }
-slices.SortStableFunc(amounts, func(a, b int) int { return b - a }) // 物化点：必须等全部元素就位（稳定排序，同 Sorted 契约）
+slices.SortFunc(amounts, func(a, b int) int { return b - a }) // 物化点：必须等全部元素就位（不稳定，同 Sorted 契约）
 var top []string
 for i, n := range amounts { // 循环 2：取前三与格式化只能等在这里
     if i >= 3 {
@@ -146,15 +146,15 @@ result := stream.FromSlice(orders).
 
 ### 性能
 
-与上方风格对比相同的管道，对比手写等价实现（`BenchmarkTopKVsManual` / `BenchmarkPipelineVsManual`）。双方同规则：手写版把元素收集进全新切片后原地稳定排序（与 `Sorted` 同契约），源切片两边都不动。
+与上方风格对比相同的管道，对比手写等价实现（`BenchmarkTopKVsManual` / `BenchmarkPipelineVsManual`）。双方同规则：手写版把元素收集进全新切片后原地不稳定排序（pdqsort，与 `Sorted` 同契约），源切片两边都不动。
 
 **Top-K（有状态：Sorted+Limit）**：
 
 | 规模 | 管道 | 手写 for | 开销倍数 |
 |---|---|---|---|
-| 1e2 | ~6.6 μs | ~4.5 μs | 1.5x |
-| 1e4 | ~0.54 ms | ~0.46 ms | 1.2x |
-| 1e6 | ~62 ms | ~52 ms | 1.2x |
+| 1e2 | ~3.5 μs | ~1.5 μs | 2.3x |
+| 1e4 | ~0.17 ms | ~0.16 ms | 1.1x |
+| 1e6 | ~17 ms | ~7.0 ms | 2.4x |
 
 **仅无状态（Filter+Map+ToSlice）**：
 
@@ -164,7 +164,7 @@ result := stream.FromSlice(orders).
 | 1e4 | ~0.29 ms | ~0.17 ms | 1.7x |
 | 1e6 | ~29 ms | ~16 ms | 1.8x |
 
-公平对比下有状态管道只比手写慢 ~1.2–1.5x：两边的主导成本都是稳定排序本身；引擎的物化缓冲是独占的全新切片，`Sorted`/`Reverse` 原地变换、无额外拷贝。剩余差距来自 Sink 链的逐元素接口分发（动态分发 + 闭包调用），随规模增大被摊薄。
+默认为不稳定 pdqsort 后，排序本身变得便宜，引擎的逐元素成本显形：剩余差距来自 Sink 链分发（接口调用 + 闭包，每元素约固定纳秒级）与每次求值的固定构造成本（~25 次小分配，小规模时主导）。物化缓冲是独占的全新切片，`Sorted`/`Reverse` 原地变换、无额外拷贝。需要稳定语义时用 `StableSorted`：两边都付稳定排序的成本（对应手写 `slices.SortStableFunc`，此时排序主导，管道仅落后 ~1.2x）。
 
 复现：`go test -bench . -run '^$' -benchtime 1s`（AMD Ryzen 5 7535U，3 次取中位）。
 
@@ -175,7 +175,7 @@ result := stream.FromSlice(orders).
 | 构造 | `Of` `FromSlice` `FromSeq` `FromChannel` `FromMap` `FromFunc` `Generate` `Iterate` `Range` `Concat` `Empty` |
 | 无状态中间 | `Filter` `Map` `FlatMap` `FlatMapSeq` `Peek` `TakeWhile` `DropWhile` |
 | Err 变体 | `MapErr` `FilterErr` `FlatMapErr` `PeekErr` |
-| 有状态中间 | `Limit` `Skip` `Sorted` `DistinctBy` `Reverse` `Scan` |
+| 有状态中间 | `Limit` `Skip` `Sorted` `StableSorted` `DistinctBy` `Reverse` `Scan` |
 | 并行控制 | `Parallel(n)` `Sequential()` `Unordered()` |
 | 包级中间 | `Distinct` `Sorted`（自然序）`Chunk` `Enumerate` |
 | 双流 | `Zip` |
@@ -198,6 +198,7 @@ result := stream.FromSlice(orders).
 | `Collectors.groupingBy` | `collector.GroupingBy` | 组内保遇序 |
 | `Comparator` | `func(a, b T) int` | 对齐标准库 `slices.SortFunc`/`cmp.Compare` 惯例 |
 | `IntStream` 特化族 | 泛型 + `Number`/`cmp.Ordered` 约束 | Go 泛型零装箱，无需特化 |
+| `stream.sorted()` | `Sorted`（不稳定 pdqsort）/ `StableSorted` | Java `sorted()` 恒稳定；go-stream 默认更快的不稳定排序（对齐 `slices.SortFunc`），需要等键保相遇序时用 `StableSorted`（对齐 `slices.SortStableFunc`） |
 | `stream.parallel()` | `Parallel(n)` / `Sequential()` | TrySplit 分片 + goroutine；短路终止与物化算子后自动降级串行 |
 | `stream.unordered()` | `Unordered()` | 清除 SpOrdered；并行下分片结果先完成先推（流式合并） |
 | `stream.onClose(f)` / `close()` | `OnClose(f)` / `Close()` | 求值结束（含短路/错误/panic 路径）自动触发；显式关闭幂等；回调出错经 `Err()` 查询 |

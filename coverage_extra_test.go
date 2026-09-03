@@ -33,6 +33,7 @@ func TestNilArgumentPanics(t *testing.T) {
 		{"PeekErr", func() { Of(1).PeekErr(nil) }},
 		{"Skip-negative", func() { Of(1).Skip(-1) }},
 		{"Sorted", func() { Of(1).Sorted(nil) }},
+		{"StableSorted", func() { Of(1).StableSorted(nil) }},
 		{"DistinctBy", func() { Of(1).DistinctBy[int](nil) }},
 		{"Scan", func() { Of(1).Scan(0, nil) }},
 		{"Zip-other", func() { Of(1).Zip[int, int](nil, nil) }},

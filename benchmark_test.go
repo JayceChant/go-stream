@@ -75,8 +75,8 @@ func benchPipelineTopK(b *testing.B, n int) {
 }
 
 // Top-K 手写等价实现：收集正数到全新切片（append 构建，源不动，
-// 与管道 collectingSink 物化对称）→ 就地稳定排序（与管道 Sorted 的
-// 稳定排序契约一致）→ 取前三格式化。
+// 与管道 collectingSink 物化对称）→ 就地不稳定排序（与管道 Sorted
+// 的不稳定契约一致，对齐 slices.SortFunc）→ 取前三格式化。
 func benchManualTopK(b *testing.B, n int) {
 	data := makeBenchData(n)
 	b.ReportAllocs()
@@ -88,7 +88,7 @@ func benchManualTopK(b *testing.B, n int) {
 				amounts = append(amounts, v)
 			}
 		}
-		slices.SortStableFunc(amounts, func(x, y int) int { return y - x })
+		slices.SortFunc(amounts, func(x, y int) int { return y - x })
 		top := make([]string, 0, 3)
 		for i, v := range amounts {
 			if i >= 3 {

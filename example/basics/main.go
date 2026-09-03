@@ -80,11 +80,20 @@ func main() {
 	// ---------- 4. 有状态中间操作 ----------
 	scores := []int{88, 72, 95, 60, 88, 79}
 
-	// Sorted：稳定排序（比较器对齐 slices.SortFunc 惯例：负/零/正）
+	// Sorted：不稳定排序（pdqsort，对齐 slices.SortFunc；比较器惯例：负/零/正）
 	fmt.Println("Sorted 升序:", stream.FromSlice(scores).
 		Sorted(cmp.Compare[int]).ToSlice())
 	fmt.Println("Sorted 降序:", stream.FromSlice(scores).
 		Sorted(func(a, b int) int { return cmp.Compare(b, a) }).ToSlice())
+
+	// StableSorted：稳定排序（等键元素保持相遇顺序，语义同 Java sorted()）
+	type pair struct {
+		key  int
+		name string
+	}
+	pairs := stream.Of(pair{2, "b1"}, pair{1, "a1"}, pair{2, "b2"}, pair{1, "a2"})
+	fmt.Println("StableSorted by key:", pairs.
+		StableSorted(func(x, y pair) int { return x.key - y.key }).ToSlice()) // [{1 a1} {1 a2} {2 b1} {2 b2}]
 
 	// DistinctBy：按 key 去重，保留首见（元素本身无需可比较）
 	type student struct {

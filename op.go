@@ -50,8 +50,8 @@ func newStateless[T, U any](
 // make + Accept 的 append 逐元素构建于全新底层数组，绝不与任何数据源
 // （用户 slice、Cache 缓存等）共享底层存储——即使有状态算子是流的
 // 第一个操作，process 收到的也是逐元素拷贝出的独占缓冲，可安全原地
-// 变换。回归守护：TestSortedStable / TestReverse 断言源切片不被修改。
-// 未来若引入「源切片零拷贝直传」类优化，必须先修订本不变式。
+// 变换。回归守护：TestSorted / TestStableSorted / TestReverse 断言源切片
+// 不被修改。未来若引入「源切片零拷贝直传」类优化，必须先修订本不变式。
 type collectingSink[T any] struct {
 	buf   []T
 	limit int64 // -1 表示不限

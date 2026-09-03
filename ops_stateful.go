@@ -39,13 +39,27 @@ func (s *Stream[T]) Skip(n int64) *Stream[T] {
 	}, s.chars|SpSized|SpSubSized)
 }
 
-// Sorted 按比较器 cmp 升序稳定排序（cmp 负/零/正 表示小于/等于/大于）。
+// Sorted 按比较器 cmp 升序排序（cmp 负/零/正 表示小于/等于/大于）。
+// 不稳定（pdqsort，对齐 slices.SortFunc）：等键元素的相对顺序不保证，
+// 换取更快的默认排序；需要等键保相遇序时用 StableSorted。
 // 就地排序物化缓冲：collectingSink 物化的缓冲为本次求值独占的全新切片
 // （append 构建，非源切片别名），不克隆即排序，省一次全量拷贝；
-// 用户源切片不受影响（回归测试 TestSortedStable 守护）。
+// 用户源切片不受影响（回归测试 TestSorted / TestStableSorted 守护）。
 func (s *Stream[T]) Sorted(cmp func(a, b T) int) *Stream[T] {
 	if cmp == nil {
 		panic("stream: Sorted 比较器为 nil")
+	}
+	return newStateful(s, -1, func(buf []T) []T {
+		slices.SortFunc(buf, cmp)
+		return buf
+	}, (s.chars|SpSorted)&^SpDistinct)
+}
+
+// StableSorted 按比较器 cmp 升序稳定排序：等键元素保持相遇顺序
+// （对齐 slices.SortStableFunc，语义同 Java Stream sorted()）。
+func (s *Stream[T]) StableSorted(cmp func(a, b T) int) *Stream[T] {
+	if cmp == nil {
+		panic("stream: StableSorted 比较器为 nil")
 	}
 	return newStateful(s, -1, func(buf []T) []T {
 		slices.SortStableFunc(buf, cmp)

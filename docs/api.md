@@ -73,7 +73,7 @@ Err 变体（错误即值：回调返回错误 → 首错短路、部分结果�
 | 函数 | 说明 |
 |---|---|
 | `Distinct[T comparable](s) *Stream[T]` | 天然去重（保留首见） |
-| `Sorted[T cmp.Ordered](s) *Stream[T]` | 自然序排序 |
+| `Sorted[T cmp.Ordered](s) *Stream[T]` | 自然序排序（不稳定；稳定形态用 `s.StableSorted(cmp.Compare[T])`） |
 | `Chunk[T](s, n int) *Stream[[]T]` | 定长分组（尾组可不足 n） |
 | `Enumerate[T](s) *Stream[KV[int, T]]` | 附加索引（对应 `for i, v := range`） |
 

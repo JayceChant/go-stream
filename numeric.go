@@ -41,8 +41,9 @@ func Contains[T comparable](s *Stream[T], target T) bool {
 	return found
 }
 
-// Sorted 依自然序（cmp.Ordered）稳定排序。
+// Sorted 依自然序（cmp.Ordered）排序（不稳定，委托方法 Sorted）。
 // 包级函数形态：方法无法对 T 追加 cmp.Ordered 约束。
+// 需要稳定排序时用 s.StableSorted(cmp.Compare[T])。
 func Sorted[T cmp.Ordered](s *Stream[T]) *Stream[T] {
 	if s == nil {
 		return nil

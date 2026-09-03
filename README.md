@@ -93,7 +93,7 @@ for _, n := range orders { // loop 1: only the stateless Filter fits here
         amounts = append(amounts, n)
     }
 }
-slices.SortStableFunc(amounts, func(a, b int) int { return b - a }) // materialization point: needs every element (stable, same contract as Sorted)
+slices.SortFunc(amounts, func(a, b int) int { return b - a }) // materialization point: needs every element (unstable, same contract as Sorted)
 var top []string
 for i, n := range amounts { // loop 2: top 3 and formatting can only wait here
     if i >= 3 {
@@ -147,15 +147,15 @@ Readability is half the story; the Performance subsection below quantifies the r
 
 ### Performance
 
-Same pipelines as the style comparison above, each against its hand-written equivalent (`BenchmarkTopKVsManual` / `BenchmarkPipelineVsManual`). Both sides play by the same rules: the hand-written version collects into a fresh slice and stable-sorts it in place (same contract as `Sorted` — the source is never mutated).
+Same pipelines as the style comparison above, each against its hand-written equivalent (`BenchmarkTopKVsManual` / `BenchmarkPipelineVsManual`). Both sides play by the same rules: the hand-written version collects into a fresh slice and sorts it in place (unstable pdqsort, same contract as `Sorted` — the source is never mutated).
 
 **Top-K (stateful: Sorted+Limit)**:
 
 | Scale | Pipeline | Hand-written for | Overhead |
 |---|---|---|---|
-| 1e2 | ~6.6 μs | ~4.5 μs | 1.5x |
-| 1e4 | ~0.54 ms | ~0.46 ms | 1.2x |
-| 1e6 | ~62 ms | ~52 ms | 1.2x |
+| 1e2 | ~3.5 μs | ~1.5 μs | 2.3x |
+| 1e4 | ~0.17 ms | ~0.16 ms | 1.1x |
+| 1e6 | ~17 ms | ~7.0 ms | 2.4x |
 
 **Stateless only (Filter+Map+ToSlice)**:
 
@@ -165,7 +165,7 @@ Same pipelines as the style comparison above, each against its hand-written equi
 | 1e4 | ~0.29 ms | ~0.17 ms | 1.7x |
 | 1e6 | ~29 ms | ~16 ms | 1.8x |
 
-Under a fair comparison the stateful pipeline stays within ~1.2–1.5x of hand-written code: the dominating cost on both sides is the stable sort itself, and the engine's materialization buffer is a fresh exclusive slice — `Sorted`/`Reverse` transform it in place with no extra copy. The remaining gap is per-element dispatch through the sink chain (dynamic dispatch + closure calls), which amortizes away as data grows.
+With the unstable pdqsort as the default, sorting itself becomes cheap and the engine's per-element cost shows through: the remaining gap is dispatch through the sink chain (interface calls + closures, roughly fixed nanoseconds per element), plus per-evaluation setup (~25 small allocations) that dominates at tiny scales. The materialization buffer is a fresh exclusive slice — `Sorted`/`Reverse` transform it in place, no extra copy. If you need stable ordering, `StableSorted` pays the stable-sort cost on both sides (comparable hand-written `slices.SortStableFunc` code trails by only ~1.2x there, since the sort dominates).
 
 Reproduce with `go test -bench . -run '^$' -benchtime 1s` (AMD Ryzen 5 7535U, median of 3 runs).
 
@@ -176,7 +176,7 @@ Reproduce with `go test -bench . -run '^$' -benchtime 1s` (AMD Ryzen 5 7535U, me
 | Construction | `Of` `FromSlice` `FromSeq` `FromChannel` `FromMap` `FromFunc` `Generate` `Iterate` `Range` `Concat` `Empty` |
 | Stateless intermediate | `Filter` `Map` `FlatMap` `FlatMapSeq` `Peek` `TakeWhile` `DropWhile` |
 | Err variants | `MapErr` `FilterErr` `FlatMapErr` `PeekErr` |
-| Stateful intermediate | `Limit` `Skip` `Sorted` `DistinctBy` `Reverse` `Scan` |
+| Stateful intermediate | `Limit` `Skip` `Sorted` `StableSorted` `DistinctBy` `Reverse` `Scan` |
 | Parallelism control | `Parallel(n)` `Sequential()` `Unordered()` |
 | Package-level intermediate | `Distinct` `Sorted` (natural order) `Chunk` `Enumerate` |
 | Two-stream | `Zip` |
@@ -199,6 +199,7 @@ For the full reference and examples, see [docs/api.md](./docs/api.md).
 | `Collectors.groupingBy` | `collector.GroupingBy` | Preserves encounter order within groups |
 | `Comparator` | `func(a, b T) int` | Aligned with the standard library's `slices.SortFunc`/`cmp.Compare` conventions |
 | `IntStream` specializations | Generics + `Number`/`cmp.Ordered` constraints | Go generics have zero boxing; no specialization needed |
+| `stream.sorted()` | `Sorted` (unstable pdqsort) / `StableSorted` | Java's `sorted()` is always stable; go-stream defaults to the faster unstable sort (aligned with `slices.SortFunc`) and offers `StableSorted` when encounter-order preservation matters (aligned with `slices.SortStableFunc`) |
 | `stream.parallel()` | `Parallel(n)` / `Sequential()` | TrySplit splitting + goroutines; automatically falls back to sequential after short-circuit terminals or materializing operators |
 | `stream.unordered()` | `Unordered()` | Clears the SpOrdered flag; under parallelism, shard results are pushed as they complete (streaming merge) |
 | `stream.onClose(f)` / `close()` | `OnClose(f)` / `Close()` | Triggered automatically at the end of evaluation (including short-circuit/error/panic paths); explicit close is idempotent; callback errors are queryable via `Err()` |

@@ -64,21 +64,40 @@ type rec struct {
 	name string
 }
 
-func TestSortedStable(t *testing.T) {
+func TestSorted(t *testing.T) {
+	// 排序正确性 + 不修改输入切片（稳定性由 TestStableSorted 单独覆盖）
 	in := []rec{{2, "b1"}, {1, "a1"}, {2, "b2"}, {1, "a2"}}
 	got := collectViaProbe(FromSlice(in).Sorted(func(a, b rec) int {
+		return a.key - b.key
+	}))
+	// 不稳定排序仅保证 key 升序：1 在 2 前，等键内部顺序不作断言
+	wantKeys := []int{1, 1, 2, 2}
+	for i := range wantKeys {
+		if got[i].key != wantKeys[i] {
+			t.Fatalf("Sorted[%d].key = %d, 期望 %d", i, got[i].key, wantKeys[i])
+		}
+	}
+	// 不影响输入切片
+	if in[0] != (rec{2, "b1"}) {
+		t.Error("Sorted 不应修改输入切片")
+	}
+}
+
+func TestStableSorted(t *testing.T) {
+	in := []rec{{2, "b1"}, {1, "a1"}, {2, "b2"}, {1, "a2"}}
+	got := collectViaProbe(FromSlice(in).StableSorted(func(a, b rec) int {
 		return a.key - b.key
 	}))
 	// 稳定排序：key 相同时保持原相对顺序（a1 在 a2 前、b1 在 b2 前）
 	want := []rec{{1, "a1"}, {1, "a2"}, {2, "b1"}, {2, "b2"}}
 	for i := range want {
 		if got[i] != want[i] {
-			t.Fatalf("SpSorted[%d] = %+v, 期望 %+v", i, got[i], want[i])
+			t.Fatalf("StableSorted[%d] = %+v, 期望 %+v", i, got[i], want[i])
 		}
 	}
 	// 不影响输入切片
 	if in[0] != (rec{2, "b1"}) {
-		t.Error("SpSorted 不应修改输入切片")
+		t.Error("StableSorted 不应修改输入切片")
 	}
 }
 

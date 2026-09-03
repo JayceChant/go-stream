@@ -114,7 +114,7 @@ Java Stream 的骨架是一棵**单继承类树**（`BaseStream` ← `AbstractPi
 
 **无状态中间**：`Filter`/`Map[U]`/`FlatMap[U]`/`FlatMapSeq[U]`/`Peek`/`TakeWhile`/`DropWhile`
 
-**有状态中间**：`Limit(n)`/`Skip(n)`/`Sorted(cmp func(a,b T) int)`（稳定排序，对齐 `slices.SortFunc`）/`DistinctBy(key)`/`Reverse`。**修订**：`Skip(0)` 恒等返回原流（不新增物化层、特征位透传、不触发并行降级；`Skip` 负参仍 panic，`n==0` 为唯一 no-op 特例，语义与 JDK `skip(0) returns this` 一致）
+**有状态中间**：`Limit(n)`/`Skip(n)`/`Sorted(cmp func(a,b T) int)`/`StableSorted(cmp func(a,b T) int)`/`DistinctBy(key)`/`Reverse`。**修订**：`Skip(0)` 恒等返回原流（不新增物化层、特征位透传、不触发并行降级；`Skip` 负参仍 panic，`n==0` 为唯一 no-op 特例，语义与 JDK `skip(0) returns this` 一致）。**修订（排序拆分）**：原 `Sorted` 的「稳定排序，对齐 `slices.SortFunc`」表述自相矛盾（`SortFunc` 本身不稳定）；现拆为 `Sorted`（不稳定，pdqsort，对齐 `slices.SortFunc`，默认选择，更快）与 `StableSorted`（稳定，对齐 `slices.SortStableFunc`，等键元素保持相遇顺序）。取舍：与 Java Stream `sorted()` 的稳定默认不同，转而对齐 Go 标准库 `SortFunc`/`SortStableFunc` 命名直觉；依赖稳定性的调用方迁移至 `StableSorted`。包级自然序 `Sorted` 委托方法随之为不稳定；不设包级自然序 `StableSorted`（`StableSorted(cmp.Compare[T])` 已覆盖，免过度展开 API 面）
 
 **终止**：`ForEach`/`ForEachUntil(f func(T) bool)`/`ToSlice`/`Count`/`Reduce(identity, op)`/`ReduceOpt(op) (T, bool)`/`Collect[A,R]`/`First`/`FindAny`（顺序下同 First）/`AnyMatch`/`AllMatch`/`NoneMatch`/`Min(cmp)`/`Max(cmp)`/`Err()`
 
@@ -219,7 +219,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 
 ### Requirement: 中间操作（惰性、返回新 Stream）
 无状态（StatelessOp，单遍融合）：`Filter`/`Map[U]`/`FlatMap[U]`/`FlatMapSeq[U]`/`Peek`/`TakeWhile`（短路）/`DropWhile`；Err 变体：`MapErr`/`FilterErr`/`FlatMapErr`/`PeekErr`；标志改写：`Unordered()`（Task 10：清除 `SpOrdered`，声明后续求值不需保序——并行流式合并的门控；不改变元素流）。
-有状态（StatefulOp，物化上游段）：`Limit`（短路）/`Skip`/`Sorted`（稳定）/`DistinctBy`/`Reverse`；**单遍有状态**（不物化）：`Scan`；**包级单遍有状态**（实例化循环限制）：`Chunk`/`Enumerate`。
+有状态（StatefulOp，物化上游段）：`Limit`（短路）/`Skip`/`Sorted`（不稳定 pdqsort）/`StableSorted`（稳定）/`DistinctBy`/`Reverse`；**单遍有状态**（不物化）：`Scan`；**包级单遍有状态**（实例化循环限制）：`Chunk`/`Enumerate`。
 双流：`Zip[U, R]`（取短，两条流均被消费）。
 
 #### Scenario: 无状态链单遍融合
@@ -334,7 +334,7 @@ SHALL 交付：`README.md`（简介/安装/快速上手/API 速览/与 Java 对�
 
 提供独立于测试内 Example 函数的**完整可运行示例目录** `example/`：每个示例为独立的 `package main`，`go run ./example/<名称>` 即可直接编译运行；用户可整文件复制进自己的项目改用。示例**不受 README 篇幅限制**，覆盖典型场景全量 API：
 
-- `example/basics/main.go`：构造/中间/终止全流程（Of/FromSlice/FromSeq/FromChannel/FromMap/Range/Concat、Filter/Map/FlatMap/Peek/Sorted/DistinctBy/Limit/Skip/Reverse/TakeWhile/DropWhile、ToSlice/Count/Reduce/First/AnyMatch/Min/Max、ForEach/ForEachUntil）
+- `example/basics/main.go`：构造/中间/终止全流程（Of/FromSlice/FromSeq/FromChannel/FromMap/Range/Concat、Filter/Map/FlatMap/Peek/Sorted/StableSorted/DistinctBy/Limit/Skip/Reverse/TakeWhile/DropWhile、ToSlice/Count/Reduce/First/AnyMatch/Min/Max、ForEach/ForEachUntil）
 - `example/collectors/main.go`：Collector 族（ToSlice/ToSet/ToMap/ToMapMerge/GroupingBy/Joining/Counting/Reducing/Mapping/Summing）与自定义 Collector
 - `example/numeric/main.go`：数值场景（包级 Sum/Avg/Sorted/Min/Max、Scan 前缀和、Iterate/Generate、Range、Zip、Chunk/Enumerate、Distinct/Contains）
 - `example/errors/main.go`：错误即值模型（FromFunc 可失败源、MapErr/FilterErr/FlatMapErr/PeekErr 首错短路、部分结果保留、Err() 查询）

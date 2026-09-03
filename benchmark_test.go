@@ -6,6 +6,7 @@ package stream
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"testing"
 )
@@ -53,6 +54,56 @@ func BenchmarkPipelineVsManual(b *testing.B) {
 	for _, n := range benchSizes {
 		b.Run(fmt.Sprintf("Pipeline_%d", n), func(b *testing.B) { benchPipeline(b, n) })
 		b.Run(fmt.Sprintf("Manual_%d", n), func(b *testing.B) { benchManual(b, n) })
+	}
+}
+
+// Top-K 场景（README「实现对比」同款）：筛正数金额 → 降序排序 → 取前三 →
+// 格式化为价格字符串。有状态算子（Sorted/Limit）前后各有无状态操作，
+// 手写等价实现被迫拆成两个循环加一次就地排序。
+func benchPipelineTopK(b *testing.B, n int) {
+	data := makeBenchData(n)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		_ = FromSlice(data).
+			Filter(func(v int) bool { return v > 0 }).
+			Sorted(func(x, y int) int { return y - x }).
+			Limit(3).
+			Map(func(v int) string { return fmt.Sprintf("$%d", v) }).
+			ToSlice()
+	}
+}
+
+// Top-K 手写等价实现：收集正数到全新切片（append 构建，源不动，
+// 与管道 collectingSink 物化对称）→ 就地稳定排序（与管道 Sorted 的
+// 稳定排序契约一致）→ 取前三格式化。
+func benchManualTopK(b *testing.B, n int) {
+	data := makeBenchData(n)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		amounts := make([]int, 0, len(data))
+		for _, v := range data {
+			if v > 0 {
+				amounts = append(amounts, v)
+			}
+		}
+		slices.SortStableFunc(amounts, func(x, y int) int { return y - x })
+		top := make([]string, 0, 3)
+		for i, v := range amounts {
+			if i >= 3 {
+				break
+			}
+			top = append(top, fmt.Sprintf("$%d", v))
+		}
+		_ = top
+	}
+}
+
+func BenchmarkTopKVsManual(b *testing.B) {
+	for _, n := range benchSizes {
+		b.Run(fmt.Sprintf("Pipeline_%d", n), func(b *testing.B) { benchPipelineTopK(b, n) })
+		b.Run(fmt.Sprintf("Manual_%d", n), func(b *testing.B) { benchManualTopK(b, n) })
 	}
 }
 

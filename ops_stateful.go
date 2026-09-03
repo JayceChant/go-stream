@@ -40,14 +40,16 @@ func (s *Stream[T]) Skip(n int64) *Stream[T] {
 }
 
 // Sorted 按比较器 cmp 升序稳定排序（cmp 负/零/正 表示小于/等于/大于）。
+// 就地排序物化缓冲：collectingSink 物化的缓冲为本次求值独占的全新切片
+// （append 构建，非源切片别名），不克隆即排序，省一次全量拷贝；
+// 用户源切片不受影响（回归测试 TestSortedStable 守护）。
 func (s *Stream[T]) Sorted(cmp func(a, b T) int) *Stream[T] {
 	if cmp == nil {
 		panic("stream: Sorted 比较器为 nil")
 	}
 	return newStateful(s, -1, func(buf []T) []T {
-		out := slices.Clone(buf)
-		slices.SortStableFunc(out, cmp)
-		return out
+		slices.SortStableFunc(buf, cmp)
+		return buf
 	}, (s.chars|SpSorted)&^SpDistinct)
 }
 
@@ -74,11 +76,11 @@ func (s *Stream[T]) DistinctBy[K comparable](key func(T) K) *Stream[T] {
 }
 
 // Reverse 反转元素顺序。
+// 就地反转物化缓冲（独占切片，非源别名，同 Sorted 的论证）。
 func (s *Stream[T]) Reverse() *Stream[T] {
 	return newStateful(s, -1, func(buf []T) []T {
-		out := slices.Clone(buf)
-		slices.Reverse(out)
-		return out
+		slices.Reverse(buf)
+		return buf
 	}, s.chars)
 }
 

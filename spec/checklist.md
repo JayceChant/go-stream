@@ -51,6 +51,12 @@
 - [x] Fuzz 7 目标（fuzz_test.go）：分片不变量、collectingSink 边界、管道等价（Filter/Map/Limit/Skip/Reverse vs 参考实现）、并行等价（有序逐元素/无序集合/Count/分组）、Zip 取短、Chunk/Enumerate、Cache 重放；各 10s 实跑零 crash；语料不入库
 - [x] 质量门槛全绿：gofmt 空 / vet 无告警 / `go test -race -count=1 ./...` 全绿
 
+## 示例目录（Task 15）
+- [x] `example/` 为嵌套独立 module（`example/go.mod` + replace 指向根模块）：根模块 `go test ./...`/coverprofile 完全不含 example（Go 1.22+ 会把无测试文件的包以 0% 计入，嵌套模块规避之），覆盖率总计保持 100.0%
+- [x] 六个可运行示例（`go -C example run ./<名称>`）：basics（构造→中间→终止全流程）、collectors（预置收集器族+自定义 TopN）、numeric（数值聚合/Scan/无限源/Zip/Chunk/Enumerate）、errors（错误即值全路径）、parallel（保序/流式合并/自动降级）、lifecycle（OnClose/Close/Cache）
+- [x] 每个示例为独立 `package main`、自包含可复制；输出确定性（map/无序场景先排序）
+- [x] CI 独立步骤 `go -C example build/vet`（示例保持可编译）；SonarCloud `sonar.exclusions` 排除 `example/**`；根包 `example_test.go` Example 函数照常运行不受影响
+
 ## 文档（Markdown）
 - [x] README.md：简介/安装/快速上手/API 速览/与 Java 对照表/设计要点/路线图（并行已实现）
 - [x] docs/design.md：架构原理（管道/Sink/Splitterator/分段求值/错误模型/组合替代继承映射表/并行求值/生命周期与可重放）

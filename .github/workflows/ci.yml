@@ -37,6 +37,13 @@ jobs:
       - name: Test (race detector)
         run: go test -race -covermode=atomic -coverprofile=coverage.txt ./...
 
+      # example/ 为独立模块（覆盖率隔离，见 spec「示例目录」），
+      # 单独 build+vet 保证示例始终可编译、不烂尾
+      - name: Build examples (separate module)
+        run: |
+          go -C example build ./...
+          go -C example vet ./...
+
       - name: Upload coverage to Codecov
         # 仅在矩阵的一个版本上传，避免重复计数；公开仓库无 token 也可上传（有速率限制），
         # 建议在仓库 secrets 配置 CODECOV_TOKEN 以获得更稳定的服务

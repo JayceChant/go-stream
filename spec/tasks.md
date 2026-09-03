@@ -113,6 +113,20 @@
   - [x] 补充「后级包前级的类型必然性」洞察（调用方持有最后一级 Stream[R] ⇒ drive 元素类型被 R 锁死 ⇒ 包裹方向不可反转）：design.md §2 / pipeline.go 注释 / spec.md AbstractPipeline 映射行
   - 依赖：无（纯可读性改动）
 
+# 后续 TODO（Task 15，随「创建 example 目录」goal 立项）
+- [x] Task 15: 完整可运行示例目录 example/
+  - [x] spec 修订：新增「示例目录（example/，Task 15）」Requirement（六个示例清单 + 覆盖率例外机制 + 两个 Scenario）；Impact 文件布局补记
+  - [x] 六个独立 `package main` 示例（`go -C example run ./<名称>` 直接运行，无 README 篇幅限制、可整文件复制改用）：
+    - [x] basics：构造（Of/FromSlice/FromSeq/FromChannel/FromMap/Range/Concat）→ 中间（Filter/Map/FlatMap/Peek/TakeWhile/DropWhile/Sorted/DistinctBy/Limit/Skip/Reverse）→ 终止（ToSlice/Count/Reduce/ReduceOpt/First/AnyMatch/AllMatch/NoneMatch/Min/Max/ForEachUntil）全流程
+    - [x] collectors：预置收集器族（ToSet/ToMap/ToMapMerge/GroupingBy/Joining/Counting/Reducing/Mapping/Summing）+ 自定义 TopN Collector（Supplier/Accumulator/Combiner/Finisher 四件套）
+    - [x] numeric：包级 Sum/Avg/Sorted/Min/Max/Contains/Distinct、Scan 前缀和、Generate/Iterate 无限源+Limit、Zip 取短、Chunk 尾组、Enumerate、移动平均综合案例
+    - [x] errors：FromFunc 可失败源、MapErr/FilterErr/FlatMapErr/PeekErr 首错短路、部分结果保留、Err() 查询、多级管道错误传播、重复消费 panic 演示
+    - [x] parallel：Parallel(4) 保序（与串行逐元素一致）、并行 Collect 分片合并、Unordered 流式合并、Sequential 抵消、Sorted 物化算子自动降级演示
+    - [x] lifecycle：OnClose 求值结束自动触发（耗尽/短路路径）、显式 Close 幂等、回调链按注册序+首错、Cache 可重放（上游只求值一次）、物化期出错重放携带错误
+  - [x] 覆盖率隔离（实测决策）：Go 1.22+ 的 coverprofile 会把无测试文件的包以 0% 计入——example 做成**嵌套独立 module**（`example/go.mod` + replace 指向根模块），根模块 `go test -coverprofile ./...` 完全不含 example（总计保持 100.0%）；SonarCloud `sonar.exclusions` 排除 `example/**`；CI 增加 `go -C example build/vet` 独立步骤
+  - [x] 验证：六个示例 `go run` 全部通过（输出人工核对）；`go test -race -count=1 ./...` 全绿；覆盖率总计 100.0% 不变
+  - 依赖：无（API 已全部稳定）
+
 # Task Dependencies
 - [Task 2] depends on [Task 1]
 - [Task 3]、[Task 4]、[Task 5] depends on [Task 2]（三组可并行开发）

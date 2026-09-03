@@ -63,7 +63,18 @@ s.AnyMatch(p)
 s.Collect(collector.GroupingBy(keyOf, valOf))
 ```
 
-See [example_test.go](./example_test.go) for more runnable examples (verified by `go test`).
+More runnable examples: [example_test.go](./example_test.go) (verified by `go test`) and the [example/](./example) directory — six standalone, copy-paste-ready programs covering the full API surface:
+
+```bash
+go -C example run ./basics      # sources → intermediate → terminal operations
+go -C example run ./collectors  # collector family + custom Collector (TopN)
+go -C example run ./numeric     # numeric aggregation, Scan, infinite sources, Zip/Chunk/Enumerate
+go -C example run ./errors      # errors-as-value model (FromFunc/MapErr family/Err())
+go -C example run ./parallel    # Parallel(n)/Unordered, order-preserving merge, auto fallback
+go -C example run ./lifecycle   # OnClose/Close resource management, Cache replayable factory
+```
+
+`example/` is a separate Go module (not part of the library's tests or coverage) so each file can be copied into your project as-is.
 
 ## API Overview
 

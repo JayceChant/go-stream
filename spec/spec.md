@@ -195,6 +195,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
   - `go.mod`、`stream.go`（Stream 类型/约束/KV）、`pipeline.go`（引擎+错误槽+consumed+newHead+evaluate+分片）、`sink.go`、`spliterator.go`、`op.go`（newStateless/newStateful）、`sources.go`（各源 Splitterator 实现）、`construct.go`（包级构造函数）
   - `ops_stateless.go`（含 Err 变体）、`ops_stateful.go`（含 Scan/Chunk）、`op_ext.go`（Zip/Enumerate）
   - `terminal.go`（含 Err() 与并行终端）、`collector/collector.go`（子包：Collector 与 9 个预置收集器）、`numeric.go`（包级 Sum/Avg/Sorted/Min/Max/Contains/Distinct + Summing）、`parallel.go`（Parallel/Sequential/Unordered/分片求值/无序流式合并）、`lifecycle.go`（Task 10：OnClose/Close/Cache）
+  - `example/go.mod`（独立模块 + replace 指向根模块）与 `example/{basics,collectors,numeric,errors,parallel,lifecycle}/main.go`（Task 15：完整可运行示例目录，见「示例目录」Requirement；嵌套模块隔离覆盖率）
   - `*_test.go`、`example_test.go`、`benchmark_test.go`、`parallel_test.go`、`collector/collector_test.go`
   - `README.md`、`docs/design.md`、`docs/api.md`
   - `.github/workflows/{ci,govulncheck,scorecard,sonarcloud}.yml`、`codecov.yml`、`sonar-project.properties`（在线质量服务：Actions 测试矩阵 + lint、Codecov 覆盖率、官方 govulncheck 漏洞扫描、OpenSSF Scorecard、SonarCloud 质量门禁）
@@ -328,6 +329,27 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 
 ### Requirement: 文档（Markdown）
 SHALL 交付：`README.md`（简介/安装/快速上手/API 速览/与 Java 对照/设计要点/路线图）、`docs/design.md`（架构原理：管道/Sink/Splitterator/分段求值/错误模型/组合替代继承映射表/并行求值）、`docs/api.md`（分组 API 参考 + 示例）；`example_test.go` 提供可运行示例（与文档示例一致）。
+
+### Requirement: 示例目录（example/，Task 15）
+
+提供独立于测试内 Example 函数的**完整可运行示例目录** `example/`：每个示例为独立的 `package main`，`go run ./example/<名称>` 即可直接编译运行；用户可整文件复制进自己的项目改用。示例**不受 README 篇幅限制**，覆盖典型场景全量 API：
+
+- `example/basics/main.go`：构造/中间/终止全流程（Of/FromSlice/FromSeq/FromChannel/FromMap/Range/Concat、Filter/Map/FlatMap/Peek/Sorted/DistinctBy/Limit/Skip/Reverse/TakeWhile/DropWhile、ToSlice/Count/Reduce/First/AnyMatch/Min/Max、ForEach/ForEachUntil）
+- `example/collectors/main.go`：Collector 族（ToSlice/ToSet/ToMap/ToMapMerge/GroupingBy/Joining/Counting/Reducing/Mapping/Summing）与自定义 Collector
+- `example/numeric/main.go`：数值场景（包级 Sum/Avg/Sorted/Min/Max、Scan 前缀和、Iterate/Generate、Range、Zip、Chunk/Enumerate、Distinct/Contains）
+- `example/errors/main.go`：错误即值模型（FromFunc 可失败源、MapErr/FilterErr/FlatMapErr/PeekErr 首错短路、部分结果保留、Err() 查询）
+- `example/parallel/main.go`：并行求值（Parallel(n)/Sequential/Unordered、保序合并、物化算子后自动降级演示）
+- `example/lifecycle/main.go`：生命周期与可重放（OnClose/Close 求值结束自动触发与幂等、Cache 可重放工厂）
+
+**覆盖率例外（强制）**：`example/` 为可执行示例而非测试代码，以**独立 Go module**（`example/go.mod` + `replace` 指向根模块）承载——根模块的 `go test ./...` 与 coverprofile 完全不含 example 包（Go 1.22+ 会把无测试文件的包以 0% 计入 coverprofile，嵌套模块从根模块的 `./...` 中彻底隔离，规避该污染，保证 100% 基线不受影响）；CI 增加独立步骤对 example 模块执行 `go vet`/`go build`/golangci-lint（示例保持可编译、不烂尾）；SonarCloud 按文件系统分析（不受 module 边界影响），`sonar-project.properties` `sonar.exclusions` 排除 `example/**`；根包 `example_test.go` 的 Example 函数仍照常运行（属根模块测试，不受本例外影响）。
+
+#### Scenario: 示例可直接运行
+- **WHEN** 用户执行 `go -C example run ./basics`（或其余任一示例）
+- **THEN** 编译通过并打印演示输出，无 panic
+
+#### Scenario: 示例不影响覆盖率
+- **WHEN** 在根模块运行 `go test -coverprofile ./...` 并 `go tool cover -func` 汇总
+- **THEN** 覆盖率统计不包含 `example/` 目录（100% 基线不变）
 
 ### Requirement: 质量保障
 全部公开 API 中文 godoc；`go vet`/`go test ./...` 全绿；benchmark：`Filter+Map+ToSlice` 相对手写 for 循环额外开销目标 <3x；并行求值 `go test -race` 全绿。

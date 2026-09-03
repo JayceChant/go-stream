@@ -93,7 +93,7 @@ for _, n := range orders { // loop 1: only the stateless Filter fits here
         amounts = append(amounts, n)
     }
 }
-slices.SortFunc(amounts, func(a, b int) int { return b - a }) // materialization point: needs every element
+slices.SortStableFunc(amounts, func(a, b int) int { return b - a }) // materialization point: needs every element (stable, same contract as Sorted)
 var top []string
 for i, n := range amounts { // loop 2: top 3 and formatting can only wait here
     if i >= 3 {
@@ -147,15 +147,27 @@ Readability is half the story; the Performance subsection below quantifies the r
 
 ### Performance
 
-`Filter+Map+ToSlice` vs. a hand-written for loop (a realistic scenario including `strconv.Itoa`):
+Same pipelines as the style comparison above, each against its hand-written equivalent (`BenchmarkTopKVsManual` / `BenchmarkPipelineVsManual`). Both sides play by the same rules: the hand-written version collects into a fresh slice and stable-sorts it in place (same contract as `Sorted` — the source is never mutated).
+
+**Top-K (stateful: Sorted+Limit)**:
 
 | Scale | Pipeline | Hand-written for | Overhead |
 |---|---|---|---|
-| 1e2 | ~2.8 μs | ~1.0 μs | 2.8x |
-| 1e4 | ~0.48 ms | ~0.18 ms | 2.6x |
-| 1e6 | ~35 ms | ~22 ms | 1.6x |
+| 1e2 | ~6.6 μs | ~4.5 μs | 1.5x |
+| 1e4 | ~0.54 ms | ~0.46 ms | 1.2x |
+| 1e6 | ~62 ms | ~52 ms | 1.2x |
 
-Target of <3x met (AMD Ryzen 5 7535U, benchtime 300ms; reproduce with `go test -bench . -run '^$'`).
+**Stateless only (Filter+Map+ToSlice)**:
+
+| Scale | Pipeline | Hand-written for | Overhead |
+|---|---|---|---|
+| 1e2 | ~2.6 μs | ~0.6 μs | 4.6x |
+| 1e4 | ~0.29 ms | ~0.17 ms | 1.7x |
+| 1e6 | ~29 ms | ~16 ms | 1.8x |
+
+Under a fair comparison the stateful pipeline stays within ~1.2–1.5x of hand-written code: the dominating cost on both sides is the stable sort itself, and the engine's materialization buffer is a fresh exclusive slice — `Sorted`/`Reverse` transform it in place with no extra copy. The remaining gap is per-element dispatch through the sink chain (dynamic dispatch + closure calls), which amortizes away as data grows.
+
+Reproduce with `go test -bench . -run '^$' -benchtime 1s` (AMD Ryzen 5 7535U, median of 3 runs).
 
 ## API Overview
 

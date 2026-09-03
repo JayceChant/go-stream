@@ -93,7 +93,7 @@ for _, n := range orders { // 循环 1：只装得下无状态的 Filter
         amounts = append(amounts, n)
     }
 }
-slices.SortFunc(amounts, func(a, b int) int { return b - a }) // 物化点：必须等全部元素就位
+slices.SortStableFunc(amounts, func(a, b int) int { return b - a }) // 物化点：必须等全部元素就位（稳定排序，同 Sorted 契约）
 var top []string
 for i, n := range amounts { // 循环 2：取前三与格式化只能等在这里
     if i >= 3 {
@@ -146,15 +146,27 @@ result := stream.FromSlice(orders).
 
 ### 性能
 
-`Filter+Map+ToSlice` 相对手写 for 循环（含 `strconv.Itoa` 的真实场景）：
+与上方风格对比相同的管道，对比手写等价实现（`BenchmarkTopKVsManual` / `BenchmarkPipelineVsManual`）。双方同规则：手写版把元素收集进全新切片后原地稳定排序（与 `Sorted` 同契约），源切片两边都不动。
+
+**Top-K（有状态：Sorted+Limit）**：
 
 | 规模 | 管道 | 手写 for | 开销倍数 |
 |---|---|---|---|
-| 1e2 | ~2.8 μs | ~1.0 μs | 2.8x |
-| 1e4 | ~0.48 ms | ~0.18 ms | 2.6x |
-| 1e6 | ~35 ms | ~22 ms | 1.6x |
+| 1e2 | ~6.6 μs | ~4.5 μs | 1.5x |
+| 1e4 | ~0.54 ms | ~0.46 ms | 1.2x |
+| 1e6 | ~62 ms | ~52 ms | 1.2x |
 
-目标 <3x 达标（AMD Ryzen 5 7535U，benchtime 300ms；复现：`go test -bench . -run '^$'`）。
+**仅无状态（Filter+Map+ToSlice）**：
+
+| 规模 | 管道 | 手写 for | 开销倍数 |
+|---|---|---|---|
+| 1e2 | ~2.6 μs | ~0.6 μs | 4.6x |
+| 1e4 | ~0.29 ms | ~0.17 ms | 1.7x |
+| 1e6 | ~29 ms | ~16 ms | 1.8x |
+
+公平对比下有状态管道只比手写慢 ~1.2–1.5x：两边的主导成本都是稳定排序本身；引擎的物化缓冲是独占的全新切片，`Sorted`/`Reverse` 原地变换、无额外拷贝。剩余差距来自 Sink 链的逐元素接口分发（动态分发 + 闭包调用），随规模增大被摊薄。
+
+复现：`go test -bench . -run '^$' -benchtime 1s`（AMD Ryzen 5 7535U，3 次取中位）。
 
 ## API 速览
 

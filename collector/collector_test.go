@@ -211,4 +211,36 @@ func TestCombiners(t *testing.T) {
 	if got := sm.Finisher(sm.Supplier()); got != 0 {
 		t.Fatalf("Summing 空累积 = %v, 期望 0", got)
 	}
+
+	// Averaging：和与计数同行累积，Finisher 一次除法。
+	av := Averaging[float64]()
+	aa := av.Supplier()
+	for _, v := range []float64{1.5, 2.5, 4} {
+		av.Accumulator(aa, v)
+	}
+	if got := av.Finisher(aa); got != 8.0/3 {
+		t.Fatalf("Averaging = %v, 期望 %v", got, 8.0/3)
+	}
+
+	// Averaging Combiner：两侧部分和与计数各自合并（并行路径）。
+	ai := Averaging[int]()
+	ia, ib := ai.Supplier(), ai.Supplier()
+	ai.Accumulator(ia, 1)
+	ai.Accumulator(ia, 2)
+	ai.Accumulator(ib, 3)
+	if got := ai.Finisher(ai.Combiner(ia, ib)); got != 2 {
+		t.Fatalf("Averaging Combiner = %d, 期望 2", got)
+	}
+
+	// Averaging：整型整除截断；空流返回 0。
+	if got := ai.Finisher(ai.Supplier()); got != 0 {
+		t.Fatalf("Averaging 空流 = %d, 期望 0", got)
+	}
+	at := Averaging[int]()
+	ta := at.Supplier()
+	at.Accumulator(ta, 1)
+	at.Accumulator(ta, 2)
+	if got := at.Finisher(ta); got != 1 {
+		t.Fatalf("Averaging 整除 = %d, 期望 1", got)
+	}
 }

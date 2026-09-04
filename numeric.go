@@ -18,8 +18,8 @@ func Sum[N Number](s *Stream[N]) N {
 }
 
 // Avg 数值平均（空流返回 0）。
-// 库内唯一单遍均值实现：collector 无均值收集器；Sum/Count 拆两步需对流二次
-// 消费（单遍流第二次求值 panic）；Reduce 累加器即元素类型，装不下"和+计数"。
+// 单遍求值：和与计数同行累积。收集器形态见 collector.Averaging
+// （需与其它收集器组合时用）。
 func Avg[N Number](s *Stream[N]) N {
 	var acc N
 	var n int64

@@ -179,6 +179,7 @@ type Collector[T, A, R any] struct {
 | `collector.Reducing[T](identity, op)` | 折叠 |
 | `collector.Mapping[T, U, A, R](f, downstream)` | 先变换再汇聚（组合子） |
 | `collector.Summing[N constraints.Number]()` | 数值求和 |
+| `collector.Averaging[N constraints.Number]()` | 数值平均（和 + 计数同行累积，单遍；空流 0；整型整除） |
 
 ```go
 // Mapping 组合子：分组后求每组的和

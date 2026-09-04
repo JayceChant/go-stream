@@ -188,3 +188,32 @@ func Summing[N constraints.Number]() Collector[N, *N, N] {
 		Finisher: func(a *N) N { return *a },
 	}
 }
+
+// avgAcc 是 Averaging 的累积容器：和与计数同行累积（单遍完成均值）。
+type avgAcc[N constraints.Number] struct {
+	sum N
+	n   int64
+}
+
+// Averaging 数值平均收集器（Number 约束）。
+// 与 Summing 同构：整流直接求平均用 stream.Avg（一行闭环、免跨包）；
+// 需与其它收集器组合时用本形态（如 Mapping(f, Averaging())、
+// GroupingBy 分组后按组平均）。
+// 空流返回 0（与 stream.Avg 一致）；整型按整除语义截断。
+func Averaging[N constraints.Number]() Collector[N, *avgAcc[N], N] {
+	return Collector[N, *avgAcc[N], N]{
+		Supplier:    func() *avgAcc[N] { return new(avgAcc[N]) },
+		Accumulator: func(a *avgAcc[N], v N) { a.sum += v; a.n++ },
+		Combiner: func(a, b *avgAcc[N]) *avgAcc[N] {
+			a.sum += b.sum
+			a.n += b.n
+			return a
+		},
+		Finisher: func(a *avgAcc[N]) N {
+			if a.n == 0 {
+				return 0
+			}
+			return a.sum / N(a.n)
+		},
+	}
+}

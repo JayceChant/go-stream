@@ -199,7 +199,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - Affected code: 全部新增
   - `go.mod`、`stream.go`（Stream 类型/约束/KV）、`pipeline.go`（引擎+错误槽+consumed+newHead+evaluate+分片）、`sink.go`、`spliterator.go`、`op.go`（newStateless/newStateful）、`sources.go`（各源 Splitterator 实现）、`construct.go`（包级构造函数）
   - `ops_stateless.go`（含 Err 变体）、`ops_stateful.go`（含 Scan/Chunk）、`op_ext.go`（Zip/Enumerate）
-  - `terminal.go`（含 Err() 与并行终端）、`constraints/constraints.go`（Task 16：数值约束叶子包）、`collector/collector.go`（子包：Collector 与 10 个预置收集器）、`numeric.go`（包级 Sum/Avg/Sorted/Min/Max/Contains/Distinct）、`parallel.go`（Parallel/Sequential/Unordered/分片求值/无序流式合并）、`lifecycle.go`（Task 10：OnClose/Close/Cache）
+  - `terminal.go`（含 Err() 与并行终端）、`constraints/constraints.go`（Task 16：数值约束叶子包）、`collector/collector.go`（子包：Collector 与 11 个预置收集器）、`numeric.go`（包级 Sum/Avg/Sorted/Min/Max/Contains/Distinct）、`parallel.go`（Parallel/Sequential/Unordered/分片求值/无序流式合并）、`lifecycle.go`（Task 10：OnClose/Close/Cache）
   - `example/go.mod`（独立模块 + replace 指向根模块）与 `example/{basics,collectors,numeric,errors,parallel,lifecycle}/main.go`（Task 15：完整可运行示例目录，见「示例目录」Requirement；嵌套模块隔离覆盖率）
   - `*_test.go`、`example_test.go`、`benchmark_test.go`、`parallel_test.go`、`collector/collector_test.go`
   - `README.md`、`docs/design.md`、`docs/api.md`

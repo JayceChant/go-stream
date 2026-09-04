@@ -182,8 +182,8 @@ Reproduce with `go test -bench . -run '^$' -benchtime 1s` (AMD Ryzen 5 7535U, me
 | Two-stream | `Zip` |
 | Lifecycle | `OnClose(f)` `Close()` `Cache(s)` (replayable factory) |
 | Terminal | `ForEach` `ForEachUntil` `ToSlice` `Count` `Reduce` `ReduceOpt` `Collect` `First` `FindAny` `AnyMatch` `AllMatch` `NoneMatch` `Min` `Max` `Err` |
-| Collectors (subpackage `collector`) | `ToSlice` `ToSet` `ToMap` `ToMapMerge` `GroupingBy` `Joining` `Counting` `Reducing` `Mapping` |
-| Collectors (root package) | `Summing` (relies on the `Number` constraint) |
+| Collectors (subpackage `collector`) | `ToSlice` `ToSet` `ToMap` `ToMapMerge` `GroupingBy` `Joining` `Counting` `Reducing` `Mapping` `Summing` |
+| Numeric constraints | `stream.Integer`/`stream.Float`/`stream.Number` (aliases of `constraints` subpackage) |
 | Package-level aggregation | `Sum` `Avg` `Contains` `Min` `Max` |
 
 For the full reference and examples, see [docs/api.md](./docs/api.md).

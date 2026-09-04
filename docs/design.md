@@ -17,7 +17,7 @@ Java Stream 的骨架是一棵**单继承类树**（`BaseStream` ← `AbstractPi
 | `abstract StatefulOp`（分段物化） | `newStateful(up, limit, process)` | 物化策略由闭包注入（limit+process 两点式） |
 | `interface Sink<T>` + `ChainedReference` | `Sink[T]` 接口 + 闭包 sink 适配器 | `cancellationRequested` 融合为 `Accept` 的 bool 返回 |
 | `TerminalOp` 类族 | `*Stream[T]` 的导出方法 | 无用户侧多态扩展需求，避免过度抽象 |
-| `interface Collector<T,A,R>` | `collector.Collector[T,A,R]` struct（函数字段，独立子包） | struct 组合比接口多态更符合 Go 习惯；收集器族与引擎零耦合，独立成 `stream/collector` 零依赖叶子包（`Summing` 因依赖 `Number` 约束留根包） |
+| `interface Collector<T,A,R>` | `collector.Collector[T,A,R]` struct（函数字段，独立子包） | struct 组合比接口多态更符合 Go 习惯；收集器族与引擎零耦合，独立成 `stream/collector` 子包（数值约束下沉 `stream/constraints` 叶子包后回归零根包依赖） |
 | `abstract AbstractSpliterator` | `baseSplitterator[T]` struct | 按需嵌入复用公共字段与默认 TrySplit |
 
 ### 嵌入原则

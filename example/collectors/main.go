@@ -92,10 +92,10 @@ func main() {
 	))
 	fmt.Println("每区域累计:", regionTotal)
 
-	// ---------- 8. Summing：数值求和（根包，依赖 Number 约束） ----------
+	// ---------- 8. Summing：数值求和（constraints.Number 约束收集器） ----------
 	fmt.Println("流水总计:", src().
 		Map(func(o order) float64 { return o.amount }).
-		Collect(stream.Summing[float64]()))
+		Collect(collector.Summing[float64]()))
 
 	// ---------- 9. 自定义 Collector ----------
 	// TopN：保留金额最大的 N 笔订单（Finisher 收尾排序输出）。

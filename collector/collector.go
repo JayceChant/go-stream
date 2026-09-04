@@ -1,13 +1,16 @@
 // Package collector 提供流式汇聚的收集器族（Collector 及其预置实现）。
 //
-// 本包为 go-stream 的低耦合子包：不依赖根包任何符号（Collector 以
-// struct + 函数字段组合装配，供根包 Stream.Collect 消费），亦无其它
-// 第三方依赖。累积容器 A 均为指针类型（如 *[]T、*map[K]V），使
-// Accumulator 的修改对 Finisher 可见；Combiner 供并行求值按分片序合并。
+// 本包为 go-stream 的低耦合子包：仅依赖零依赖叶子包 constraints
+// （共享数值约束）与标准库 strings（Collector 以 struct + 函数字段
+// 组合装配，供根包 Stream.Collect 消费）。累积容器 A 均为指针类型
+// （如 *[]T、*map[K]V），使 Accumulator 的修改对 Finisher 可见；
+// Combiner 供并行求值按分片序合并。
 package collector
 
 import (
 	"strings"
+
+	"github.com/JayceChant/go-stream/constraints"
 )
 
 // Collector 是可组合的汇聚器。T 流元素类型；A 累积容器类型（建议指针）；
@@ -164,5 +167,20 @@ func Mapping[T, U, A, R any](f func(T) U, downstream Collector[U, A, R]) Collect
 		Accumulator: func(a A, v T) { downstream.Accumulator(a, f(v)) },
 		Combiner:    downstream.Combiner,
 		Finisher:    downstream.Finisher,
+	}
+}
+
+// Summing 数值求和收集器（Number 约束的便捷形态）。
+// 依赖共享的 constraints.Number 故能落入本子包；与根包 numeric.go
+// 的 Sum/Avg 同属数值聚合族。
+func Summing[N constraints.Number]() Collector[N, *N, N] {
+	return Collector[N, *N, N]{
+		Supplier:    func() *N { return new(N) },
+		Accumulator: func(a *N, v N) { *a += v },
+		Combiner: func(a, b *N) *N {
+			*a += *b
+			return a
+		},
+		Finisher: func(a *N) N { return *a },
 	}
 }

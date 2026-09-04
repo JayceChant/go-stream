@@ -9,21 +9,19 @@
 // 详细设计（架构、错误模型、API 详案）见项目 spec/spec.md。
 package stream
 
+import "github.com/JayceChant/go-stream/constraints"
+
+// 数值约束本体定义于零依赖叶子包 constraints（供 collector 等子包复用）；
+// 根包以类型别名保留公开形态，stream.Integer/Float/Number 用法不变。
+
 // Integer 约束全部有符号与无符号整数类型，供 Range 等构造使用。
-type Integer interface {
-	~int | ~int8 | ~int16 | ~int32 | ~int64 |
-		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr
-}
+type Integer = constraints.Integer
 
 // Float 约束全部浮点类型。
-type Float interface {
-	~float32 | ~float64
-}
+type Float = constraints.Float
 
 // Number 约束全部数值类型（整数与浮点），供 Sum/Avg 等聚合使用。
-type Number interface {
-	Integer | Float
-}
+type Number = constraints.Number
 
 // KV 是键值对元素，供 FromMap（map 源）、Enumerate（索引配对）等场景使用。
 type KV[K comparable, V any] struct {

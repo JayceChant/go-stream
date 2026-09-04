@@ -170,11 +170,16 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 
 原则：**只拆与入口包低耦合的部分，无法干净拆分的不强行划分**。
 
+### 已拆：`constraints` 子包（`stream/constraints`，Task 16）
+
+- 内容：数值约束 `Integer`/`Float`/`Number`（原根包 stream.go 定义）
+- 依据：约束是纯类型约束的公共依赖，独立成零依赖叶子包后，子包（如 collector 的 Summing）可复用数值约束而不反向依赖根包；根包以类型别名保留 `stream.Integer`/`stream.Float`/`stream.Number` 公开形态（别名同一类型，既有用法零破坏）
+
 ### 已拆：`collector` 子包（`stream/collector`）
 
-- 内容：`Collector[T,A,R]` struct 与预置收集器 `ToSlice`/`ToSet`/`ToMap`/`ToMapMerge`/`GroupingBy`/`Joining`/`Counting`/`Reducing`/`Mapping`
-- 依据（耦合度实测）：对根包**零非导出依赖**、零引擎依赖（不触碰 `pipeline`/`Sink`/`evalCtx`）；根包反向仅 `Stream.Collect` 方法引用其导出类型与导出字段。子包仅依赖标准库 `strings`，为**零依赖叶子包**（无 import 环）
-- 例外：`Summing[N Number]` 依赖根包 `Number` 约束，为避免约束下沉成碎包或造成 import 环，留在根包 `numeric.go`（与 `Sum`/`Avg` 同属数值聚合族，语义一致）
+- 内容：`Collector[T,A,R]` struct 与预置收集器 `ToSlice`/`ToSet`/`ToMap`/`ToMapMerge`/`GroupingBy`/`Joining`/`Counting`/`Reducing`/`Mapping`/`Summing`（Task 16 迁入）
+- 依据（耦合度实测）：对根包**零非导出依赖**、零引擎依赖（不触碰 `pipeline`/`Sink`/`evalCtx`）；根包反向仅 `Stream.Collect` 方法引用其导出类型与导出字段。子包仅依赖标准库 `strings` 与零依赖叶子包 `constraints`（无 import 环）
+- 历史例外（Task 16 已消除）：`Summing[N Number]` 曾因依赖根包 `Number` 约束留在根包；约束下沉 `constraints` 后迁入子包
 - 调用方式变更：`s.Collect(collector.GroupingBy(k, v))`（用户按需 import 子包）
 
 ### 不拆：引擎与算子群（根包一体）
@@ -194,7 +199,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - Affected code: 全部新增
   - `go.mod`、`stream.go`（Stream 类型/约束/KV）、`pipeline.go`（引擎+错误槽+consumed+newHead+evaluate+分片）、`sink.go`、`spliterator.go`、`op.go`（newStateless/newStateful）、`sources.go`（各源 Splitterator 实现）、`construct.go`（包级构造函数）
   - `ops_stateless.go`（含 Err 变体）、`ops_stateful.go`（含 Scan/Chunk）、`op_ext.go`（Zip/Enumerate）
-  - `terminal.go`（含 Err() 与并行终端）、`collector/collector.go`（子包：Collector 与 9 个预置收集器）、`numeric.go`（包级 Sum/Avg/Sorted/Min/Max/Contains/Distinct + Summing）、`parallel.go`（Parallel/Sequential/Unordered/分片求值/无序流式合并）、`lifecycle.go`（Task 10：OnClose/Close/Cache）
+  - `terminal.go`（含 Err() 与并行终端）、`constraints/constraints.go`（Task 16：数值约束叶子包）、`collector/collector.go`（子包：Collector 与 10 个预置收集器）、`numeric.go`（包级 Sum/Avg/Sorted/Min/Max/Contains/Distinct）、`parallel.go`（Parallel/Sequential/Unordered/分片求值/无序流式合并）、`lifecycle.go`（Task 10：OnClose/Close/Cache）
   - `example/go.mod`（独立模块 + replace 指向根模块）与 `example/{basics,collectors,numeric,errors,parallel,lifecycle}/main.go`（Task 15：完整可运行示例目录，见「示例目录」Requirement；嵌套模块隔离覆盖率）
   - `*_test.go`、`example_test.go`、`benchmark_test.go`、`parallel_test.go`、`collector/collector_test.go`
   - `README.md`、`docs/design.md`、`docs/api.md`
@@ -246,7 +251,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - **THEN** 遇到 1 即返回 false，不遍历 8
 
 ### Requirement: Collector 汇聚抽象
-`collector.Collector[T,A,R]` struct（Supplier/Accumulator/Combiner/Finisher + 特征 IdentityFinish/Unordered），位于低耦合子包 `stream/collector`（Task 9 修订：子包对根包零非导出依赖，为零依赖叶子包）；预置：`ToSlice`/`ToSet`/`ToMap`（last-wins）/`ToMapMerge`/`GroupingBy`（保遇序）/`Joining`/`Counting`/`Reducing`/`Mapping`；`Summing` 因依赖根包 `Number` 约束留在根包 `numeric.go`。
+`collector.Collector[T,A,R]` struct（Supplier/Accumulator/Combiner/Finisher + 特征 IdentityFinish/Unordered），位于低耦合子包 `stream/collector`（Task 9 修订：子包对根包零非导出依赖；Task 16 修订：数值约束下沉至零依赖叶子包 `stream/constraints` 后子包回归零根包依赖）；预置：`ToSlice`/`ToSet`/`ToMap`（last-wins）/`ToMapMerge`/`GroupingBy`（保遇序）/`Joining`/`Counting`/`Reducing`/`Mapping`/`Summing`（Task 16 迁入子包）。
 
 #### Scenario: 分组保序
 - **WHEN** `Of(p1,p2,...).Collect(collector.GroupingBy(p.Id, p.Name))`

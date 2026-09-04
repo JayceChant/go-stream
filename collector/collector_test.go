@@ -198,4 +198,17 @@ func TestCombiners(t *testing.T) {
 	if got := r.Finisher(r.Combiner(va, vb)); got != 3 {
 		t.Fatalf("Reducing Combiner = %d, 期望 3", got)
 	}
+
+	// Summing：累加与两侧部分和合并（含零值初始容器）。
+	sm := Summing[float64]()
+	sma, smb := sm.Supplier(), sm.Supplier()
+	sm.Accumulator(sma, 1.5)
+	sm.Accumulator(sma, 2.5)
+	sm.Accumulator(smb, 4)
+	if got := sm.Finisher(sm.Combiner(sma, smb)); got != 8 {
+		t.Fatalf("Summing = %v, 期望 8", got)
+	}
+	if got := sm.Finisher(sm.Supplier()); got != 0 {
+		t.Fatalf("Summing 空累积 = %v, 期望 0", got)
+	}
 }

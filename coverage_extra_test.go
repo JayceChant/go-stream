@@ -4,6 +4,8 @@ import (
 	"errors"
 	"slices"
 	"testing"
+
+	"github.com/JayceChant/go-stream/collector"
 )
 
 // coverage_extra_test.go：随覆盖率提升目标补充的测试。
@@ -278,7 +280,7 @@ func TestSummingParallelCollect(t *testing.T) {
 	for i := range data {
 		data[i] = 1
 	}
-	if got := FromSlice(data).Parallel(4).Collect(Summing[int]()); got != 100 {
+	if got := FromSlice(data).Parallel(4).Collect(collector.Summing[int]()); got != 100 {
 		t.Errorf("并行 Summing = %d, 期望 100", got)
 	}
 }

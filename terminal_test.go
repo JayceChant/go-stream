@@ -203,7 +203,7 @@ func TestMappingCombinator(t *testing.T) {
 }
 
 func TestSummingCollector(t *testing.T) {
-	if got := Of(1, 2, 3).Collect(Summing[int]()); got != 6 {
+	if got := Of(1, 2, 3).Collect(collector.Summing[int]()); got != 6 {
 		t.Errorf("Summing = %d", got)
 	}
 }

@@ -56,7 +56,7 @@ func main() {
 	total := stream.Range(0, 1000).
 		Parallel(4).
 		Map(cpuHeavy).
-		Collect(stream.Summing[int]())
+		Collect(collector.Summing[int]())
 	fmt.Println("并行求和:", total)
 
 	// ---------- 3. Unordered：不依赖顺序时先完成先推 ----------

@@ -178,7 +178,7 @@ type Collector[T, A, R any] struct {
 | `collector.Counting[T]()` | 计数 |
 | `collector.Reducing[T](identity, op)` | 折叠 |
 | `collector.Mapping[T, U, A, R](f, downstream)` | 先变换再汇聚（组合子） |
-| `stream.Summing[N Number]()` | 数值求和（根包，依赖 Number 约束） |
+| `collector.Summing[N constraints.Number]()` | 数值求和 |
 
 ```go
 // Mapping 组合子：分组后求每组的和

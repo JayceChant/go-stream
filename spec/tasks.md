@@ -155,3 +155,12 @@
   - [x] 测试：Skip(0) 特征位透传、splitN 不降级、Skip(0)+短路终端只拉首元素、Skip(0) 后原流仍可继续链接
   - [x] 文档：docs/api.md（签名 int64 误记 int 一并修正）、docs/design.md、README.md
   - 依赖：无
+
+# 后续 TODO（Task 16，随「constraints 叶子包 + Summing 迁移」goal 立项）
+- [x] Task 16: 数值约束下沉 `constraints` 子包，`Summing` 迁入 collector
+  - [x] 动机：Task 9 以「依赖根包 `Number` 约束」为由把 `Summing` 留在根包——实际只需把 `Integer`/`Float`/`Number` 这组公共约束独立成零依赖叶子包即可消除反向依赖；排查确认其余未拆部分（pipeline/op/parallel 等）均属引擎内非导出符号循环互访，与本类问题无关
+  - [x] 新建 `constraints/constraints.go`：`Integer`/`Float`/`Number` 本体（零依赖叶子包）
+  - [x] 根包 stream.go：三个约束改为类型别名（`type Number = constraints.Number`），公开形态 `stream.Number` 等零破坏
+  - [x] `Summing` 迁入 `collector/collector.go`（约束改 `constraints.Number`）；删除根包 collector.go；根包/示例调用点同步
+  - [x] spec「包结构」+ Impact、README、docs/api.md、docs/design.md 同步
+  - 依赖：无

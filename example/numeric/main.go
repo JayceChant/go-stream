@@ -27,6 +27,13 @@ func main() {
 	fmt.Println("Distinct:", stream.OfNumber(3, 1, 3, 2, 1).
 		Distinct().Sorted().ToSlice()) // [1 2 3]
 
+	// FromNumberSlice：slice 收窄入口；StableSorted 稳定自然序；并行 Max
+	fmt.Println("FromNumberSlice+StableSorted:", stream.FromNumberSlice([]int{5, 3, 9, 1}).
+		StableSorted().ToSlice()) // [1 3 5 9]
+	if hi, ok := stream.Range(0, 1000).Parallel(4).Max(); ok {
+		fmt.Println("Parallel(4).Max:", hi) // 999
+	}
+
 	// 类型迁移入窄流：MapToNumber（对应 Java mapToInt）
 	words := []string{"go", "stream", "number"}
 	fmt.Println("MapToNumber(len).Sum():",

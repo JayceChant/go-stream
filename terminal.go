@@ -259,14 +259,15 @@ func (s *Stream[T]) Err() error {
 }
 
 // Collect 以自定义收集器汇聚元素（泛型方法，支持 A→R 类型迁移）。
-// 并行流：片级独立累积，按分片序以 Combiner 合并，Finisher 收尾。
+// 并行流：片级独立累积，按分片序以 Combiner 合并，Finisher 收尾；
+// 收集器 Combiner 返回 nil（不支持并行合并）时自动降级串行。
 // 收集器族见子包 collector（stream/collector）。
 func (s *Stream[T]) Collect[A, R any](c collector.Collector[T, A, R]) R {
 	a := c.Supplier()
 	var pt parallelTotal[T]
-	if c.Combiner != nil {
+	if com := c.Combiner(); com != nil {
 		pt = &collectTotal[T, A]{
-			sup: c.Supplier, acc: c.Accumulator, com: c.Combiner, main: &a,
+			sup: c.Supplier, acc: c.Accumulator, com: com, main: &a,
 		}
 	}
 	s.pipeline.evaluateNP(sinkFunc[T](func(v T) bool {

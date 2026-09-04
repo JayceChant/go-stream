@@ -21,7 +21,7 @@ func TestToSliceAndToSet(t *testing.T) {
 	a1, a2 := ToSlice[int]().Supplier(), ToSlice[int]().Supplier()
 	ToSlice[int]().Accumulator(a1, 1)
 	ToSlice[int]().Accumulator(a2, 2)
-	if merged := ToSlice[int]().Combiner(a1, a2); len(*merged) != 2 {
+	if merged := ToSlice[int]().Combiner()(a1, a2); len(*merged) != 2 {
 		t.Fatalf("Combiner = %v", *merged)
 	}
 
@@ -117,6 +117,13 @@ func TestJoiningCountingReducingMapping(t *testing.T) {
 	if got := m.Finisher(ma); !reflect.DeepEqual(got, []int{1, 4, 9}) {
 		t.Fatalf("Mapping = %v", got)
 	}
+	// Mapping 转发下游 Combiner（并行支持与下游一致）
+	mb := m.Supplier()
+	m.Accumulator(mb, 4)
+	mc := m.Combiner()(ma, mb)
+	if got := m.Finisher(mc); !reflect.DeepEqual(got, []int{1, 4, 9, 16}) {
+		t.Fatalf("Mapping Combiner = %v", got)
+	}
 }
 
 // ---- Combiner（并行合并路径）补测：此前仅 ToSlice 的 Combiner 被覆盖 ----
@@ -134,7 +141,7 @@ func TestCombiners(t *testing.T) {
 	setC.Accumulator(sa, 2)
 	setC.Accumulator(sb, 2)
 	setC.Accumulator(sb, 3)
-	if m := setC.Finisher(setC.Combiner(sa, sb)); len(m) != 3 {
+	if m := setC.Finisher(setC.Combiner()(sa, sb)); len(m) != 3 {
 		t.Fatalf("ToSet Combiner = %v, 期望 3 个键", m)
 	}
 
@@ -148,7 +155,7 @@ func TestCombiners(t *testing.T) {
 	mc.Accumulator(ka, "aa") // 键 'a'
 	mc.Accumulator(kb, "ab") // 键 'a'（冲突）
 	mc.Accumulator(kb, "b")  // 键 'b'
-	mm := *mc.Combiner(ka, kb)
+	mm := *mc.Combiner()(ka, kb)
 	if mm['a'] != 4 || mm['b'] != 1 {
 		t.Fatalf("ToMapMerge Combiner = %v, 期望 a=4 b=1", mm)
 	}
@@ -162,7 +169,7 @@ func TestCombiners(t *testing.T) {
 	gc.Accumulator(ga, combkv{"a", 1})
 	gc.Accumulator(gb, combkv{"a", 2})
 	gc.Accumulator(gb, combkv{"b", 3})
-	gm := *gc.Combiner(ga, gb)
+	gm := *gc.Combiner()(ga, gb)
 	if !reflect.DeepEqual(gm["a"], []int{1, 2}) || !reflect.DeepEqual(gm["b"], []int{3}) {
 		t.Fatalf("GroupingBy Combiner = %v", gm)
 	}
@@ -172,11 +179,11 @@ func TestCombiners(t *testing.T) {
 	ja, jb := j.Supplier(), j.Supplier()
 	j.Accumulator(ja, 1)
 	j.Accumulator(jb, 2)
-	if got := j.Finisher(j.Combiner(ja, jb)); got != "x-xx" {
+	if got := j.Finisher(j.Combiner()(ja, jb)); got != "x-xx" {
 		t.Fatalf("Joining Combiner = %q, 期望 x-xx", got)
 	}
 	je := j.Supplier()
-	if got := j.Finisher(j.Combiner(je, jb)); got != "xx" {
+	if got := j.Finisher(j.Combiner()(je, jb)); got != "xx" {
 		t.Fatalf("Joining 空侧 Combiner = %q, 期望 xx（无分隔符）", got)
 	}
 
@@ -186,7 +193,7 @@ func TestCombiners(t *testing.T) {
 	cn.Accumulator(na, 1)
 	cn.Accumulator(nb, 1)
 	cn.Accumulator(nb, 2)
-	if n := cn.Finisher(cn.Combiner(na, nb)); n != 3 {
+	if n := cn.Finisher(cn.Combiner()(na, nb)); n != 3 {
 		t.Fatalf("Counting Combiner = %d, 期望 3", n)
 	}
 
@@ -195,7 +202,7 @@ func TestCombiners(t *testing.T) {
 	va, vb := r.Supplier(), r.Supplier()
 	r.Accumulator(va, 1)
 	r.Accumulator(vb, 2)
-	if got := r.Finisher(r.Combiner(va, vb)); got != 3 {
+	if got := r.Finisher(r.Combiner()(va, vb)); got != 3 {
 		t.Fatalf("Reducing Combiner = %d, 期望 3", got)
 	}
 
@@ -205,7 +212,7 @@ func TestCombiners(t *testing.T) {
 	sm.Accumulator(sma, 1.5)
 	sm.Accumulator(sma, 2.5)
 	sm.Accumulator(smb, 4)
-	if got := sm.Finisher(sm.Combiner(sma, smb)); got != 8 {
+	if got := sm.Finisher(sm.Combiner()(sma, smb)); got != 8 {
 		t.Fatalf("Summing = %v, 期望 8", got)
 	}
 	if got := sm.Finisher(sm.Supplier()); got != 0 {
@@ -228,7 +235,7 @@ func TestCombiners(t *testing.T) {
 	ai.Accumulator(ia, 1)
 	ai.Accumulator(ia, 2)
 	ai.Accumulator(ib, 3)
-	if got := ai.Finisher(ai.Combiner(ia, ib)); got != 2 {
+	if got := ai.Finisher(ai.Combiner()(ia, ib)); got != 2 {
 		t.Fatalf("Averaging Combiner = %d, 期望 2", got)
 	}
 

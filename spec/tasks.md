@@ -164,3 +164,13 @@
   - [x] `Summing` 迁入 `collector/collector.go`（约束改 `constraints.Number`）；删除根包 collector.go；根包/示例调用点同步
   - [x] spec「包结构」+ Impact、README、docs/api.md、docs/design.md 同步
   - 依赖：无
+
+# 后续 TODO（Task 17，随「Collector 接口化」用户指令立项）
+- [x] Task 17: `Collector` 由 struct（导出函数字段）改为接口，各收集器具体类型实现
+  - [x] 动机：struct 全导出函数字段可被外部意外改写（`c.Accumulator = ...`）；接口化后行为只读。用户指令附带性能回测要求
+  - [x] 设计：`Collector[T,A,R]` 接口四方法（Supplier/Accumulator/Combiner/Finisher）；**Combiner 改为「返回合并函数、可为 nil」**——nil 表达不支持并行合并，`Collect` 据此降级串行，与旧 struct 的 nil Combiner 字段语义完全一致（泛型接口无法表达可选方法，此为最简等价形态）；公开泛型签名（A = `*[]T`/`*map[K]V`/`*T` 等）保持不变，调用点零修改
+  - [x] 实现：`collector/collector.go` 重写（sliceCollector/setCollector/mapCollector/groupCollector/joinCollector/countCollector/reduceCollector/mappingCollector/sumCollector/avgCollector 十个非导出具体类型）；`terminal.go` 的 Collect 改 `Combiner()` 检测；whitebox/示例/子包测试同步（example 的 topN 自定义收集器改为接口实现示范）
+  - [x] 性能回测（新增 `BenchmarkCollect`：Accum/Grouping/Summing × 1e2/1e4/1e6，worktree 同机 A/B、2s×count=8）：Accum/Summing ns/op 持平或略优（-6%~0%，每 op 少 1 次分配——旧 struct 向接口传参的结构体装箱不复存在）；Grouping 中位数 +7%（单次交叠 A/B 297→318µs @1e4，另两次复测 +4.5%/+15% 波动）——map 写穿所致，接口派发本身无可测影响；远低于「管道开销 <3x 手写」红线（并行/Grouping 场景不适用该指标，整体无超线性劣化）
+  - [x] 质量门槛全绿：go fix / gofmt 空 / vet 无告警 / `go test -count=1 ./...` 全绿 / `go test -race` 全绿 / golangci-lint 0 issues；collector 子包覆盖率 100%
+  - [x] 文档：spec（Java 对照表、Collector Requirement）、docs/api.md、docs/design.md 同步
+  - 依赖：无

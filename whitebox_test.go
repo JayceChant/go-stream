@@ -6,8 +6,6 @@ import (
 	"slices"
 	"sync"
 	"testing"
-
-	"github.com/JayceChant/go-stream/collector"
 )
 
 // whitebox_test.go：Task 11 白盒补缺——按覆盖审计清单直测引擎内部路径。
@@ -648,16 +646,21 @@ func TestParallelOrderedMinMax(t *testing.T) {
 }
 
 func TestCollectNoCombinerParallelDegrades(t *testing.T) {
-	// Combiner 为 nil 的收集器：pt 为 nil，并行声明自动串行，结果仍正确。
+	// Combiner 返回 nil 的收集器（接口形态下"不支持并行合并"的表达）：
+	// pt 为 nil，并行声明自动串行，结果仍正确。
 	data := []int{1, 2, 3, 4, 5, 6, 7, 8}
-	c := collector.Collector[int, *int64, int64]{
-		Supplier:    func() *int64 { return new(int64) },
-		Accumulator: func(n *int64, v int) { *n += int64(v) },
-		// Combiner 为 nil：Collect 构造的 parallelTotal 为 nil → 串行
-		Finisher: func(n *int64) int64 { return *n },
-	}
-	got := FromSlice(data).Parallel(4).Collect(c)
+	got := FromSlice(data).Parallel(4).Collect(serialSumCollector{})
 	if got != 36 {
 		t.Errorf("无 Combiner 并行 Collect = %d, 期望 36（串行降级）", got)
 	}
 }
+
+// serialSumCollector 是仅串行的自定义收集器示例：Combiner 返回 nil。
+type serialSumCollector struct{}
+
+func (serialSumCollector) Supplier() *int64 { return new(int64) }
+func (serialSumCollector) Accumulator(n *int64, v int) {
+	*n += int64(v)
+}
+func (serialSumCollector) Combiner() func(*int64, *int64) *int64 { return nil }
+func (serialSumCollector) Finisher(n *int64) int64               { return *n }

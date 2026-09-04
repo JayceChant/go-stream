@@ -105,26 +105,34 @@ func main() {
 	}
 }
 
-// topN 构造"取指标最大的前 n 个元素"的收集器：Accumulator 累积，
-// 溢出时截断，Finisher 收尾排序（降序取前 n）。Combiner 供并行合并。
-func topN[T any](n int, key func(T) float64) collector.Collector[T, *[]T, []T] {
-	return collector.Collector[T, *[]T, []T]{
-		Supplier: func() *[]T { return &[]T{} },
-		Accumulator: func(a *[]T, v T) {
-			*a = append(*a, v)
-			if len(*a) > 2*n { // 防缓冲膨胀：溢出即截断（真实场景可用 container/heap）
-				*a = bestN(*a, n, key)
-			}
-		},
-		Combiner: func(a, b *[]T) *[]T {
-			*a = append(*a, *b...)
-			*a = bestN(*a, n, key)
-			return a
-		},
-		Finisher: func(a *[]T) []T {
-			return bestN(*a, n, key)
-		},
+// topN 构造"取指标最大的前 n 个元素"的收集器：接口形态下自定义类型
+// 实现 Collector 四方法（Accumulator 累积、溢出即截断，Finisher 收尾
+// 排序降序取前 n；Combiner 供并行合并）。
+type topNCollector[T any] struct {
+	n   int
+	key func(T) float64
+}
+
+func (c topNCollector[T]) Supplier() *[]T { return &[]T{} }
+func (c topNCollector[T]) Accumulator(a *[]T, v T) {
+	*a = append(*a, v)
+	if len(*a) > 2*c.n { // 防缓冲膨胀：溢出即截断（真实场景可用 container/heap）
+		*a = bestN(*a, c.n, c.key)
 	}
+}
+func (c topNCollector[T]) Combiner() func(a, b *[]T) *[]T {
+	return func(a, b *[]T) *[]T {
+		*a = append(*a, *b...)
+		*a = bestN(*a, c.n, c.key)
+		return a
+	}
+}
+func (c topNCollector[T]) Finisher(a *[]T) []T {
+	return bestN(*a, c.n, c.key)
+}
+
+func topN[T any](n int, key func(T) float64) collector.Collector[T, *[]T, []T] {
+	return topNCollector[T]{n: n, key: key}
 }
 
 // bestN 返回按 key 降序前 n 个元素（副本）。

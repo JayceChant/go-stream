@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strconv"
 	"testing"
+
+	"github.com/JayceChant/go-stream/collector"
 )
 
 var benchSizes = []int{100, 10_000, 1_000_000}
@@ -191,5 +193,50 @@ func BenchmarkDistinctByKeyType(b *testing.B) {
 		b.Run(fmt.Sprintf("Typed_%d", n), func(b *testing.B) { benchDistinctTyped(b, n) })
 		b.Run(fmt.Sprintf("Any_%d", n), func(b *testing.B) { benchDistinctAny(b, n) })
 		b.Run(fmt.Sprintf("Manual_%d", n), func(b *testing.B) { benchDistinctManual(b, n) })
+	}
+}
+
+// ---- Collect 路径基准：收集器形态（struct/接口）回测共用 ----
+
+// benchCollectAccum 是 Collect 累积路径基准：预置收集器逐元素累积 + Finisher。
+// 累积热路径即用户回调链的每元素调用，接口化的开销变化在此显形。
+func benchCollectAccum(b *testing.B, n int) {
+	data := makeBenchData(n)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = FromSlice(data).Collect(collector.ToSlice[int]())
+	}
+}
+
+// benchCollectCombining 是 Collect 并行合并路径基准：分组累积 + Combiner 合并。
+func benchCollectCombining(b *testing.B, n int) {
+	data := makeBenchData(n)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = FromSlice(data).Collect(collector.GroupingBy(
+			func(v int) int { return v % 8 },
+			func(v int) int { return v },
+		))
+	}
+}
+
+// benchCollectSumming 是数值聚合收集器基准（指针容器、无复合结构）。
+func benchCollectSumming(b *testing.B, n int) {
+	data := makeBenchData(n)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = FromSlice(data).Collect(collector.Summing[int]())
+	}
+}
+
+// BenchmarkCollect 收集器路径基准：串行累积 / 分组合并 / 数值求和三场景。
+func BenchmarkCollect(b *testing.B) {
+	for _, n := range benchSizes {
+		b.Run(fmt.Sprintf("Accum_%d", n), func(b *testing.B) { benchCollectAccum(b, n) })
+		b.Run(fmt.Sprintf("Grouping_%d", n), func(b *testing.B) { benchCollectCombining(b, n) })
+		b.Run(fmt.Sprintf("Summing_%d", n), func(b *testing.B) { benchCollectSumming(b, n) })
 	}
 }

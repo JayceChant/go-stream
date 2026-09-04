@@ -69,7 +69,7 @@ Java Stream 的骨架是一棵**单继承类树**（`BaseStream` ← `AbstractPi
 | `interface Sink<T>` + `abstract ChainedReference<T,E_OUT>`（protected downstream 字段） | `Sink[T]` 接口 + 包内闭包 sink 适配器（捕获下游 sink 的函数/匿名 struct） | Go 无 protected 字段；下游 sink 由闭包捕获，`cancellationRequested` 融合为 `Accept` 的 bool 返回值 |
 | `abstract PipelineHelper<P_OUT>` | 删除独立类型 | 其 `wrapSink`/`copyInto` 能力直接作为 `pipeline[T]` 的方法存在，无需类层次即可复用 |
 | `TerminalOp` 实现类族（`ReduceOp`/`ForEachOp`/`FindOp`/`MatchOp`...） | 删除接口与类族 | 终止操作实现为 `*Stream[T]` 的导出方法，内部直接构造终止 sink；无用户侧多态扩展需求，**避免过度抽象**（简化点） |
-| `interface Collector<T,A,R>` | `Collector[T,A,R]` **struct**（Supplier/Accumulator/Combiner/Finisher 函数字段 + 特征位） | 无多态必要；struct 字段组合更符合 Go 习惯，便于函数式装配 |
+| `interface Collector<T,A,R>` | `Collector[T,A,R]` **接口**（Supplier/Accumulator/Combiner/Finisher 四方法；各收集器为非导出具体类型实现，Combiner 返回 nil 表达不支持并行） | 接口形态保证行为只读（struct 函数字段可被外部改写）；自定义收集器实现同一边即可 |
 | `Spliterators.AbstractSpliterator`（trySplit 缓冲模板） | 非导出 `baseSplitterator[T]` struct（estSize/characteristics 公共字段） | **按需嵌入**：各源实现（slice/seq/channel/range/func）嵌入它获得公共字段与默认 TrySplit（返回 nil） |
 
 ### 嵌入使用原则
@@ -154,7 +154,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 
 - **阶段 1（本 spec 全部任务）**：串行核心引擎 + 全部 Tier A/B API + 错误即值模型 + Collector + 测试与基准 + Markdown 文档。
 - **并行（原后续 TODO，已实现）**：`Parallel(n)`/`Sequential()` 并行求值——语义细化见「并行求值 v1」Requirement。
-- **接口层从第一天为并行预留（已兑现）**：`TrySplit`/`Characteristics`/`EstimateSize` 语义、Collector 的 `Combiner` 字段、`newStateful` 的物化闭包签名。
+- **接口层从第一天为并行预留（已兑现）**：`TrySplit`/`Characteristics`/`EstimateSize` 语义、Collector 的 `Combiner` 方法、`newStateful` 的物化闭包签名。
 
 ## What Changes
 
@@ -251,7 +251,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - **THEN** 遇到 1 即返回 false，不遍历 8
 
 ### Requirement: Collector 汇聚抽象
-`collector.Collector[T,A,R]` struct（Supplier/Accumulator/Combiner/Finisher + 特征 IdentityFinish/Unordered），位于低耦合子包 `stream/collector`（Task 9 修订：子包对根包零非导出依赖；Task 16 修订：数值约束下沉至零依赖叶子包 `stream/constraints` 后子包回归零根包依赖）；预置：`ToSlice`/`ToSet`/`ToMap`（last-wins）/`ToMapMerge`/`GroupingBy`（保遇序）/`Joining`/`Counting`/`Reducing`/`Mapping`/`Summing`（Task 16 迁入子包）。
+`collector.Collector[T,A,R]` **接口**（Supplier/Accumulator/Combiner/Finisher；用户确认的接口化修订：struct 导出函数字段有被外部意外改写的风险，改为接口 + 各收集器非导出具体类型实现，行为只读。Combiner 以「返回合并函数、可为 nil」表达并行支持与否，nil 时 `Collect` 自动降级串行——与旧 struct 的 nil Combiner 字段语义一致。接口派发的性能影响经 BenchmarkCollect 基准回测：ns/op 无显著差异，累积/求和场景每 op 少 1 次分配——旧形态向接口传参时的结构体装箱开销不再存在），位于低耦合子包 `stream/collector`（Task 9 修订：子包对根包零非导出依赖；Task 16 修订：数值约束下沉至零依赖叶子包 `stream/constraints` 后子包回归零根包依赖）；预置：`ToSlice`/`ToSet`/`ToMap`（last-wins）/`ToMapMerge`/`GroupingBy`（保遇序）/`Joining`/`Counting`/`Reducing`/`Mapping`/`Summing`（Task 16 迁入子包）。
 
 #### Scenario: 分组保序
 - **WHEN** `Of(p1,p2,...).Collect(collector.GroupingBy(p.Id, p.Name))`

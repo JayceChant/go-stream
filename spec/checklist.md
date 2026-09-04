@@ -21,14 +21,15 @@
 - [x] 无状态中间操作齐全：Filter/Map/FlatMap/FlatMapSeq/Peek/TakeWhile/DropWhile + MapErr/FilterErr/FlatMapErr/PeekErr
 - [x] 有状态中间操作齐全：Limit/Skip/Sorted(稳定)/DistinctBy/Reverse + Scan/Chunk/Enumerate + Zip
 - [x] 终止操作齐全：ForEach/ForEachUntil/ToSlice/Count/Reduce/ReduceOpt/Collect/First/FindAny/AnyMatch/AllMatch/NoneMatch/Min/Max/Err
-- [x] Collector 与预置收集器齐全：ToSlice/ToSet/ToMap/ToMapMerge/GroupingBy/Joining/Counting/Reducing/Mapping（另有 Summing）；已迁移至低耦合子包 `collector`（零依赖叶子包），Summing 因依赖 Number 约束留根包
+- [x] Collector 与预置收集器齐全：ToSlice/ToSet/ToMap/ToMapMerge/GroupingBy/Joining/Counting/Reducing/Mapping/Summing/Averaging；已迁移至低耦合子包 `collector`（零依赖叶子包）
+- [x] Collector 为接口 + 非导出具体类型实现（Task 17：struct 导出函数字段有被外部改写的风险）；Combiner 为「返回合并函数、可为 nil」，nil 时 Collect 自动降级串行；性能经 BenchmarkCollect 回测无劣化（详见 tasks.md Task 17）
 - [x] 包级便捷函数齐全：Contains/Sorted/Min/Max/Sum/Avg/Distinct（泛型约束补偿设计）
 - [x] Splitterator 接口含 TryAdvance/ForEachRemaining/TrySplit/EstimateSize/Characteristics，特征位齐全且沿管道正确传播
 - [x] Map 操作类型迁移静态类型安全（编译期检查）
 
 ## 并行（Task 8 已实现）
 - [x] TrySplit/EstimateSize/Characteristics 语义完整（slice/range 可二分，前后不重叠并集完整）
-- [x] Collector 含 Combiner 字段且全部预置收集器实现分片合并；newStateful 物化闭包签名已用于降级判断
+- [x] Collector 含 Combiner 方法且全部预置收集器实现分片合并；newStateful 物化闭包签名已用于降级判断
 - [x] `Parallel(n)`/`Sequential()`：类型擦除 splitN 分片闭包沿链传播、每片独立 sink 链求值、分片序合并保序、降级规则（物化/单遍有状态/双流/短路终止族/不可分源自动串行）、错误分片语义与 panic re-panic
 - [x] README 路线图已更新为已实现（实测 4 分片加速比 ~3.3x）
 

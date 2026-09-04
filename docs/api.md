@@ -154,16 +154,18 @@ f().ForEach(use)   // 重放：零拷贝
 
 ## Collector（子包 `stream/collector`）
 
-收集器族位于低耦合子包 `collector`（`github.com/JayceChant/go-stream/collector`，零依赖叶子包）；`Summing` 因依赖根包 `Number` 约束留在根包。
+收集器族位于低耦合子包 `collector`（`github.com/JayceChant/go-stream/collector`，零依赖叶子包）。
 
 ```go
 import "github.com/JayceChant/go-stream/collector"
 
-type Collector[T, A, R any] struct {
-    Supplier    func() A              // 创建累积容器（建议指针类型）
-    Accumulator func(A, T)            // 累积单元素
-    Combiner    func(A, A) A          // 合并两容器（并行分片合并）
-    Finisher    func(A) R             // 最终变换
+// Collector 为接口，各收集器以非导出具体类型实现（行为只读，
+// 防止外部意外改写内部逻辑）；自定义收集器实现同一边即可。
+type Collector[T, A, R any] interface {
+    Supplier() A                    // 创建累积容器（建议指针类型）
+    Accumulator(a A, v T)           // 累积单元素
+    Combiner() func(a, b A) A       // 返回合并函数；nil = 不支持并行（自动降级串行）
+    Finisher(a A) R                 // 最终变换
 }
 ```
 

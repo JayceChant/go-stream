@@ -197,7 +197,7 @@ pairs := stream.Of("a", "b").Zip(stream.Range(1, 10).AsStream(), f).ToSlice()
 
 ## Collector（子包 `stream/collector`）
 
-收集器族位于低耦合子包 `collector`（`github.com/JayceChant/go-stream/collector`，零依赖叶子包）。
+收集器族位于低耦合子包 `collector`（`github.com/JayceChant/go-stream/collector`，无三方依赖，仅共享类型约束）。
 
 ```go
 import "github.com/JayceChant/go-stream/collector"

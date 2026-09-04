@@ -28,7 +28,7 @@
 - [x] 无状态中间操作齐全：Filter/Map/FlatMap/FlatMapSeq/Peek/TakeWhile/DropWhile + MapErr/FilterErr/FlatMapErr/PeekErr
 - [x] 有状态中间操作齐全：Limit/Skip/Sorted(稳定)/DistinctBy/Reverse + Scan/Chunk/Enumerate + Zip
 - [x] 终止操作齐全：ForEach/ForEachUntil/ToSlice/Count/Reduce/ReduceOpt/Collect/First/FindAny/AnyMatch/AllMatch/NoneMatch/Min/Max/Err
-- [x] Collector 与预置收集器齐全：ToSlice/ToSet/ToMap/ToMapMerge/GroupingBy/Joining/Counting/Reducing/Mapping/Summing/Averaging；已迁移至低耦合子包 `collector`（零依赖叶子包）
+- [x] Collector 与预置收集器齐全：ToSlice/ToSet/ToMap/ToMapMerge/GroupingBy/Joining/Counting/Reducing/Mapping/Summing/Averaging；已迁移至低耦合子包 `collector`（无三方依赖，仅共享类型约束）
 - [x] Collector 为接口 + 非导出具体类型实现（Task 17：struct 导出函数字段有被外部改写的风险）；Combiner 为「返回合并函数、可为 nil」，nil 时 Collect 自动降级串行；性能经 BenchmarkCollect 回测无劣化（详见 tasks.md Task 17）
 - [x] 包级便捷函数齐全：Contains/Sorted/Min/Max/Sum/Avg/Distinct（泛型约束补偿设计）
 - [x] Splitterator 接口含 TryAdvance/ForEachRemaining/TrySplit/EstimateSize/Characteristics，特征位齐全且沿管道正确传播

@@ -100,6 +100,7 @@ func (t countTotal[T]) total(parts []Sink[T], _ Sink[T], _ *evalCtx) {
 }
 
 // Reduce 以 identity 为初值折叠全部元素（并行流片内折叠、片序合并）。
+// 可组合的收集器形态见 collector.Reducing（供 Mapping/GroupingBy 下游折叠）。
 func (s *Stream[T]) Reduce(identity T, op func(T, T) T) T {
 	if op == nil {
 		panic("stream: Reduce 操作为 nil")
@@ -221,11 +222,13 @@ func (s *Stream[T]) match(p func(T) bool, stopOn, expect bool) bool {
 }
 
 // Min 返回最小元素（依 cmp）；空流返回 (零值, false)。
+// 免写比较器的自然序形态见包级函数 Min[T cmp.Ordered]（方法无法约束 T）。
 func (s *Stream[T]) Min(cmp func(a, b T) int) (T, bool) {
 	return s.minmax(cmp, -1)
 }
 
 // Max 返回最大元素（依 cmp）；空流返回 (零值, false)。
+// 免写比较器的自然序形态见包级函数 Max[T cmp.Ordered]（方法无法约束 T）。
 func (s *Stream[T]) Max(cmp func(a, b T) int) (T, bool) {
 	return s.minmax(cmp, 1)
 }

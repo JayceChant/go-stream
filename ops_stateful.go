@@ -42,6 +42,7 @@ func (s *Stream[T]) Skip(n int64) *Stream[T] {
 // Sorted 按比较器 cmp 升序排序（cmp 负/零/正 表示小于/等于/大于）。
 // 不稳定（pdqsort，对齐 slices.SortFunc）：等键元素的相对顺序不保证，
 // 换取更快的默认排序；需要等键保相遇序时用 StableSorted。
+// 免写比较器的自然序形态见包级函数 Sorted[T cmp.Ordered]（方法无法约束 T）。
 // 就地排序物化缓冲：collectingSink 物化的缓冲为本次求值独占的全新切片
 // （append 构建，非源切片别名），不克隆即排序，省一次全量拷贝；
 // 用户源切片不受影响（回归测试 TestSorted / TestStableSorted 守护）。

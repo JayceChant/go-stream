@@ -145,6 +145,8 @@ func Counting[T any]() Collector[T, *int64, int64] {
 }
 
 // Reducing 以 identity 为初值折叠。
+// 整流直接折叠用方法 s.Reduce（调用即求值）；本形态把折叠做成可传递的值，
+// 用于收集器组合（如 Mapping(f, Reducing(...))、GroupingBy 分组后按组折叠）。
 func Reducing[T any](identity T, op func(T, T) T) Collector[T, *T, T] {
 	return Collector[T, *T, T]{
 		Supplier: func() *T {
@@ -172,7 +174,9 @@ func Mapping[T, U, A, R any](f func(T) U, downstream Collector[U, A, R]) Collect
 
 // Summing 数值求和收集器（Number 约束的便捷形态）。
 // 依赖共享的 constraints.Number 故能落入本子包；与根包 numeric.go
-// 的 Sum/Avg 同属数值聚合族。
+// 的 Sum/Avg 同属数值聚合族：整流直接求和用 stream.Sum（一行闭环，
+// 免 import 本包与显式实例化）；需与其它收集器组合时用本形态
+// （如 Mapping(f, Summing())、GroupingBy 分组后按组求和）。
 func Summing[N constraints.Number]() Collector[N, *N, N] {
 	return Collector[N, *N, N]{
 		Supplier:    func() *N { return new(N) },

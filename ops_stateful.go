@@ -72,6 +72,7 @@ func (s *Stream[T]) StableSorted(cmp func(a, b T) int) *Stream[T] {
 // K 须满足 comparable：键为具体不可比较类型（slice/map/func 等）时编译期即报错。
 // 逃生口：K 显式取 any（接口满足 comparable）仍可编译，动态类型不可比较时
 // 在求值时 panic（用户契约，同 map 键语义）。
+// 按元素自身 == 去重的免键函数形态见包级函数 Distinct[T comparable]。
 func (s *Stream[T]) DistinctBy[K comparable](key func(T) K) *Stream[T] {
 	if key == nil {
 		panic("stream: DistinctBy 键函数为 nil")

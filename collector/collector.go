@@ -46,6 +46,8 @@ func (sliceCollector[T]) Combiner() func(a, b *[]T) *[]T {
 func (sliceCollector[T]) Finisher(a *[]T) []T { return *a }
 
 // ToSlice 收集为切片。
+// 整流直接收集用方法 s.ToSlice（一行闭环）；本形态把收集方式做成可传递
+// 的值，用于收集器组合（如 Mapping(f, ToSlice())、GroupingBy 分组后组内收集）。
 func ToSlice[T any]() Collector[T, *[]T, []T] {
 	return sliceCollector[T]{}
 }
@@ -199,6 +201,8 @@ func (countCollector[T]) Combiner() func(a, b *int64) *int64 {
 func (countCollector[T]) Finisher(n *int64) int64 { return *n }
 
 // Counting 计数。
+// 整流直接计数用方法 s.Count（调用即求值）；本形态把计数做成可传递的值，
+// 用于收集器组合（如 Mapping/GroupingBy 下游计数）。
 func Counting[T any]() Collector[T, *int64, int64] {
 	return countCollector[T]{}
 }

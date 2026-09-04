@@ -67,6 +67,7 @@ func (s *Stream[T]) ForEachUntil(f func(T) bool) {
 }
 
 // ToSlice 收集全部元素为新切片（并行流按相遇序合并进同一终端）。
+// 可组合的收集器形态见 collector.ToSlice（供 Mapping/GroupingBy 下游收集）。
 func (s *Stream[T]) ToSlice() []T {
 	cs := &collectingSink[T]{limit: -1}
 	s.pipeline.evaluateNP(cs, sliceTotal[T]{})
@@ -74,6 +75,7 @@ func (s *Stream[T]) ToSlice() []T {
 }
 
 // Count 返回元素总数（并行流片内计数、片序求和）。
+// 可组合的收集器形态见 collector.Counting（供 Mapping/GroupingBy 下游计数）。
 func (s *Stream[T]) Count() int64 {
 	var n int64
 	s.pipeline.evaluateNP(sinkFunc[T](func(T) bool { n++; return true }), countTotal[T]{&n})

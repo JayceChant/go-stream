@@ -85,7 +85,8 @@ func pullFromDrive[T any](drive driveFunc[T], ec *evalCtx) (next func() (T, bool
 }
 
 // Distinct 依据元素自身可比较性去重（保留首见，保持遇序）。
-// 包级函数形态：Go 方法无法对 T 追加 comparable 约束。
+// 包级函数形态：Go 方法无法对 T 追加 comparable 约束；
+// 需要按键去重（键函数任意）时用方法版 DistinctBy[K comparable]。
 func Distinct[T comparable](s *Stream[T]) *Stream[T] {
 	if s == nil {
 		return nil

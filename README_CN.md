@@ -50,7 +50,7 @@ import (
 
 // 1. 从容器构造（惰性，不触发遍历）
 s := stream.FromSlice(data)          // 零拷贝引用
-r := stream.Range(0, 100)            // [0, 100) 整数区间
+r := stream.Range(0, 100)            // [0, 100) 整数区间，直接收窄为 *NumberStream（见下方「NumberStream」小节）
 g := stream.Generate(func() int { return 42 }) // 无限生成器
 
 // 2. 中间操作（返回新 Stream，链式）
@@ -181,9 +181,9 @@ result := stream.FromSlice(orders).
 | 双流 | `Zip` |
 | 生命周期 | `OnClose(f)` `Close()` `Cache(s)`（可重放工厂） |
 | 终止 | `ForEach` `ForEachUntil` `ToSlice` `Count` `Reduce` `ReduceOpt` `Collect` `First` `FindAny` `AnyMatch` `AllMatch` `NoneMatch` `Min` `Max` `Err` |
-| 收集器（子包 `collector`） | `ToSlice` `ToSet` `ToMap` `ToMapMerge` `GroupingBy` `Joining` `Counting` `Reducing` `Mapping` |
-| 收集器（根包） | `Summing`（依赖 Number 约束） |
+| 收集器（子包 `collector`） | `ToSlice` `ToSet` `ToMap` `ToMapMerge` `GroupingBy` `Joining` `Counting` `Reducing` `Mapping` `Summing` `Averaging` |
 | 包级聚合 | `Sum` `Avg` `Contains` `Min` `Max` |
+| NumberStream 数值流（Task 18） | 嵌入 `Stream[N]` 的收窄包装 + 收窄入口 `Range`（直接返回 `*NumberStream`）`OfNumber` `FromNumberSlice` `MapToNumber` `AsNumber`/`AsStream`；收窄方法 `Sum()` `Avg()` `Min()` `Max()` `Contains()` `Sorted()` `StableSorted()` `Distinct()` |
 
 完整参考与示例见 [docs/api.md](./docs/api.md)。
 

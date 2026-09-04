@@ -127,6 +127,20 @@
   - [x] 验证：六个示例 `go run` 全部通过（输出人工核对）；`go test -race -count=1 ./...` 全绿；覆盖率总计 100.0% 不变
   - 依赖：无（API 已全部稳定）
 
+# 后续 TODO（Task 18，随「NumberStream 数值流」用户指令立项）
+- [x] Task 18: NumberStream 数值流（对标 Java IntStream 的**约束收窄**形态，非装箱规避）
+  - [x] spec 修订：Tier C「原始特化流」部分移出、优化取舍表、关键约束第 4 条补充解法、新增「NumberStream 数值流」Requirement（收窄入口 + 19 核心方法 + 逃逸规则 + 一次性语义）、Impact/What Changes/示例清单同步
+  - [x] 类型设计：`NumberStream[N Number]` **值嵌入** `Stream[N]`（约束收窄到自有类型参数位，突破关键约束第 4 条；值嵌入保住「桥接即消费」急切 fail-fast 语义）
+  - [x] 收窄入口：`Range` 签名修订直接返回 `*NumberStream[I]`（整数必然是数值；实现迁入 number_stream.go 与其余收窄入口同置）、`OfNumber`/`FromNumberSlice`（Number 中缀命名）、`MapToNumber`（`*Stream[T]` 方法，对应 Java mapToInt；实现随 Map 迁入 ops_stateless.go）、`AsNumber`/`AsStream` 双向桥接（复制句柄 + 标记消费，一次性语义 fail-fast，nil 容错）
+  - [x] 核心 19 方法：元素保持中间 7（Filter/Peek/TakeWhile/DropWhile/Limit/Skip〔n==0 恒等特判〕/Reverse）+ 自然序收窄 3（Sorted/StableSorted/Distinct，遮蔽比较器版）+ 标志/生命周期 4（Parallel/Sequential/Unordered/OnClose）+ 收窄终端 5（Sum/Avg/Min/Max/Contains，Min/Max 遮蔽比较器版）；终端委托包级实现，零逻辑重复
+  - [x] 逃逸规则：未覆写提升方法保持 Stream 语义（类型迁移自然返回 *Stream、值终端直接可用、DistinctBy/FilterErr/PeekErr 可用）
+  - [x] 既有调用点迁移：terminal_test/example_test/e2e_test/sources_test 中 `Sum(Range(...))` 等直接当 *Stream 使用的点改方法链或 AsStream；example/{numeric,parallel,lifecycle} 同步（Cache 入参、比较器 Sorted、MapToNumber 函数值）
+  - [x] 单测 number_stream_test.go：19 方法语义、收窄入口、双向桥接一次性语义（二次桥接/桥接后复用原流 panic）、Skip(0) 恒等、并行链、类型迁移逃逸、MapToNumber 推断与特征位
+  - [x] 构造开销基准 BenchmarkNumberStreamVsStream（深度 1/4 × n=0/100/1e6，Ryzen 5 7535U、benchtime 300ms）：每级窄链算子 +1 次句柄分配（~65ns/112B，d4 纯构造合计 +5 allocs/+560B/+~300ns，约 +35% 构造耗时）；求值热路径持平（n=1e6 无差别）。原生构造优化（newStatelessN 系）性价比不足——收益仅限纯构造/极小 n 场景（d4/n=0 约 -26%、n=100 约 -10%），代价是算子 nil 检查/chars 规则/panic 文案双份漂移 → 采用文档提醒方案（NumberStream godoc 与 docs/api.md 性能注记：重构造轻求值场景先以 *Stream 串联、末步 AsNumber 收窄）
+  - [x] numeric.go/op_ext.go 包级函数 godoc 并存互引补记（7 处）
+  - [x] README/docs/api.md/example/numeric 同步；质量门槛全绿（go fix/gofmt 空/vet 无告警/test -race 全绿/golangci-lint 0 issues/覆盖率 100.0% 保持，number_stream.go 全函数 100%）
+  - 依赖：无（纯增量 API；Range 签名修订为唯一Breaking 点，随本任务迁移）
+
 # Task Dependencies
 - [Task 2] depends on [Task 1]
 - [Task 3]、[Task 4]、[Task 5] depends on [Task 2]（三组可并行开发）

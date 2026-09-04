@@ -19,7 +19,7 @@
 | `FromFunc[T](next func() (T, bool, error)) *Stream[T]` | 拉式源（IO/解析场景），错误即值入口 |
 | `Generate[T](f func() T) *Stream[T]` | 无限生成器 |
 | `Iterate[T](seed T, next func(T) T) *Stream[T]` | 无限迭代（seed, f(seed), ...） |
-| `Range[I Integer](start, stop I) *Stream[I]` | 左闭右开整数区间（可 TrySplit） |
+| `Range[I Integer](start, stop I) *NumberStream[I]` | 左闭右开整数区间（可 TrySplit）；直接返回数值流（Task 18），需 `*Stream` 时经 `AsStream()` 桥接 |
 | `Concat[T](a, b *Stream[T]) *Stream[T]` | 顺序拼接两流 |
 
 ```go
@@ -143,7 +143,7 @@ f().ForEach(use)   // 重放：零拷贝
 | `Max(cmp func(a, b T) int) (T, bool)` | 最大 |
 | `Err() error` | 最近一次求值的首错（错误即值） |
 
-包级聚合（约束补偿设计）：
+包级聚合（约束补偿设计；链式方法形态见下节 NumberStream）：
 
 | 函数 | 说明 |
 |---|---|
@@ -151,10 +151,53 @@ f().ForEach(use)   // 重放：零拷贝
 | `Avg[N Number](s *Stream[N]) N` | 平均（空流 0） |
 | `Contains[T comparable](s, target T) bool` *短路* | 包含判断 |
 | `Min[T cmp.Ordered](s) (T, bool)` / `Max[T cmp.Ordered](s)` | 自然序最值 |
+| `Distinct[T comparable](s) *Stream[T]` | 元素自身去重（保首见遇序） |
+
+## NumberStream（数值流，Task 18）
+
+对标 Java IntStream 的**约束收窄**形态（Go 泛型零装箱，非装箱规避）：`NumberStream[N Number]` 值嵌入 `Stream[N]`，把元素约束收窄到包装类型自有类型参数位，使依赖元素约束的 API 回归**可链式调用的方法形态**；普通 `*Stream` 的包级函数继续可用（并存≠重复）。
+
+收窄入口（返回 `*NumberStream`）：
+
+| 入口 | 说明 |
+|---|---|
+| `Range[I](start, stop I)` | 区间元素必然是数值：直接返回数值流 |
+| `OfNumber[N](xs ...N)` / `FromNumberSlice[N](s []N)` | `Of`/`FromSlice` 收窄版 |
+| `(*Stream[T]).MapToNumber[N](f func(T) N)` | 类型迁移入窄流（对应 Java `mapToInt`） |
+| `AsNumber[N](s *Stream[N])` | 通用桥接（复制句柄 + 立即标记原流消费，二次桥接 panic；nil 容错） |
+
+核心方法（19 个）：
+
+| 分组 | 方法 |
+|---|---|
+| 元素保持中间（返回 `*NumberStream[N]`，链不断窄） | `Filter` `Peek` `TakeWhile` `DropWhile` `Limit` `Skip`（`n==0` 恒等返回自身）`Reverse` |
+| 自然序收窄 | `Sorted()` `StableSorted()`（免比较器）`Distinct()`（按元素值；浮点 NaN 各自保留） |
+| 标志/生命周期 | `Parallel(n)` `Sequential()` `Unordered()` `OnClose(f)` |
+| 收窄终端 | `Sum()` `Avg()` `Min()` `Max()` `Contains(target)` |
+
+逃逸规则：未被覆写的提升方法保持 Stream 语义——类型迁移（`Map[U]`/`FlatMap` 族/`Scan`/`Zip`）自然返回 `*Stream`；值终端（`ToSlice`/`Count`/`First`/`Collect`/`Err` 等）直接可用；被自然序版遮蔽的比较器形态（`Sorted(cmp)`/`StableSorted(cmp)`/`Min(cmp)`/`Max(cmp)`）经显式出口 `AsStream()` 使用（消费本流，返回独立句柄）。
+
+性能注记：每级元素保持算子与收窄入口相对等价 Stream 版多一次句柄分配（构造期一次性，实测深度 4 纯构造链 +5 allocs/+560B/+~300ns；n=100 约 +10%；n≥1e6 持平），求值热路径零差异（`BenchmarkNumberStreamVsStream`）。重构造轻求值的极端场景（每请求重建短链且元素极少）可先以 `*Stream` 串联中间操作、末步 `AsNumber` 收窄后仅接终端。
+
+```go
+// 数值链一行闭环：Range 直接收窄，Sum/Avg/Min/Max/Contains 全程方法形态
+total := stream.Range(1, 101).Sum()                       // 5050
+avg := stream.Range(1, 4).Avg()                            // 2（整除）
+evenSum := stream.Range(0, 100).Filter(func(v int) bool {
+    return v%2 == 0
+}).Sum()                                                   // 2450
+sorted := stream.OfNumber(3, 1, 2).Distinct().Sorted().ToSlice() // [1 2 3]
+
+// 类型迁移入窄流（mapToInt 风格）与双向桥接
+totalLen := stream.FromSlice(words).MapToNumber(func(s string) int {
+    return len(s)
+}).Sum()
+pairs := stream.Of("a", "b").Zip(stream.Range(1, 10).AsStream(), f).ToSlice()
+```
 
 ## Collector（子包 `stream/collector`）
 
-收集器族位于低耦合子包 `collector`（`github.com/JayceChant/go-stream/collector`，零依赖叶子包）。
+收集器族位于低耦合子包 `collector`（`github.com/JayceChant/go-stream/collector`，无三方依赖，仅共享类型约束）。
 
 ```go
 import "github.com/JayceChant/go-stream/collector"

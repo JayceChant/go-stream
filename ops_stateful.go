@@ -14,6 +14,7 @@ import "slices"
 // SpSubSized；SpSorted/SpDistinct 由各算子按语义设置。
 
 // Limit 截取前 n 个元素（n == 0 得空流；无限源可借此终止；n < 0 panic）。
+// 数值链形态见 (*NumberStream[N]).Limit。
 func (s *Stream[T]) Limit(n int64) *Stream[T] {
 	if n < 0 {
 		panic("stream: Limit 参数为负")
@@ -24,6 +25,7 @@ func (s *Stream[T]) Limit(n int64) *Stream[T] {
 
 // Skip 跳过前 n 个元素，输出其余（n == 0 恒等返回原流，不物化、特征位透传；
 // n < 0 panic）。恒等返回时不标记上游 consumed，原流仍可继续链接。
+// 数值链形态见 (*NumberStream[N]).Skip。
 func (s *Stream[T]) Skip(n int64) *Stream[T] {
 	if n < 0 {
 		panic("stream: Skip 参数为负")
@@ -42,7 +44,8 @@ func (s *Stream[T]) Skip(n int64) *Stream[T] {
 // Sorted 按比较器 cmp 升序排序（cmp 负/零/正 表示小于/等于/大于）。
 // 不稳定（pdqsort，对齐 slices.SortFunc）：等键元素的相对顺序不保证，
 // 换取更快的默认排序；需要等键保相遇序时用 StableSorted。
-// 免写比较器的自然序形态见包级函数 Sorted[T cmp.Ordered]（方法无法约束 T）。
+// 免写比较器的自然序形态见包级函数 Sorted[T cmp.Ordered]（方法无法约束 T）；
+// 元素为数值时另有 (*NumberStream[N]).Sorted()。
 // 就地排序物化缓冲：collectingSink 物化的缓冲为本次求值独占的全新切片
 // （append 构建，非源切片别名），不克隆即排序，省一次全量拷贝；
 // 用户源切片不受影响（回归测试 TestSorted / TestStableSorted 守护）。
@@ -58,6 +61,7 @@ func (s *Stream[T]) Sorted(cmp func(a, b T) int) *Stream[T] {
 
 // StableSorted 按比较器 cmp 升序稳定排序：等键元素保持相遇顺序
 // （对齐 slices.SortStableFunc，语义同 Java Stream sorted()）。
+// 元素为数值时的免比较器形态见 (*NumberStream[N]).StableSorted()。
 func (s *Stream[T]) StableSorted(cmp func(a, b T) int) *Stream[T] {
 	if cmp == nil {
 		panic("stream: StableSorted 比较器为 nil")
@@ -72,7 +76,8 @@ func (s *Stream[T]) StableSorted(cmp func(a, b T) int) *Stream[T] {
 // K 须满足 comparable：键为具体不可比较类型（slice/map/func 等）时编译期即报错。
 // 逃生口：K 显式取 any（接口满足 comparable）仍可编译，动态类型不可比较时
 // 在求值时 panic（用户契约，同 map 键语义）。
-// 按元素自身 == 去重的免键函数形态见包级函数 Distinct[T comparable]。
+// 按元素自身 == 去重的免键函数形态见包级函数 Distinct[T comparable]；
+// 元素为数值时另有 (*NumberStream[N]).Distinct()。
 func (s *Stream[T]) DistinctBy[K comparable](key func(T) K) *Stream[T] {
 	if key == nil {
 		panic("stream: DistinctBy 键函数为 nil")
@@ -93,6 +98,7 @@ func (s *Stream[T]) DistinctBy[K comparable](key func(T) K) *Stream[T] {
 
 // Reverse 反转元素顺序。
 // 就地反转物化缓冲（独占切片，非源别名，同 Sorted 的论证）。
+// 数值链形态见 (*NumberStream[N]).Reverse。
 func (s *Stream[T]) Reverse() *Stream[T] {
 	return newStateful(s, -1, func(buf []T) []T {
 		slices.Reverse(buf)

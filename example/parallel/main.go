@@ -78,8 +78,10 @@ func main() {
 	// ---------- 5. 自动降级：正确性优先 ----------
 	// Sorted（物化有状态算子）之后并行不可行，引擎自动降级串行求值，
 	// 用户无需关心；结果依然正确。
+	// 自然序版 Sorted() 为 NumberStream 方法；自定义比较器经 AsStream() 桥接。
 	sortedTop := stream.Range(0, 1000).
 		Parallel(4).
+		AsStream().
 		Sorted(func(a, b int) int { return b - a }). // 物化算子：触发降级
 		Limit(3).
 		ToSlice()

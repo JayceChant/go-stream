@@ -33,7 +33,7 @@
 3. ❌ **接口方法不能声明类型参数**，泛型方法也不能实现接口方法
    - ⇒ `Stream` 必须是**具体泛型 struct**，不能像 Java 那样以接口形态公开 API。
    - ⇒ 内部异构 stage 链（不同 E_IN/E_OUT）不能通过"接口 + 泛型方法"表达，采用**函数组合**（wrapSink 闭包）+ 上游引用链接，而非 Java 的类继承链。
-4. ❌ **方法不能约束接收者已有的类型参数**：`func (s *Stream[T comparable]) …` 语法错误（missing ',' in type argument list）⇒ 需要约束 `T` 本身的 API（`Distinct`/`Contains`）只能以包级函数提供。
+4. ❌ **方法不能约束接收者已有的类型参数**：`func (s *Stream[T comparable]) …` 语法错误（missing ',' in type argument list）⇒ 需要约束 `T` 本身的 API（`Distinct`/`Contains`）在 `*Stream[T]` 上只能以包级函数提供。**Task 18 补充解法**：以自有类型参数带约束的包装类型（`NumberStream[N Number]` 嵌入 `Stream[N]`）把约束收窄到类型参数位，上述 API 回归方法形态（见「NumberStream 数值流」Requirement）。
 5. ❌ **方法返回 T 的派生类型触发实例化循环**：`func (s *Stream[T]) Chunk(n int) *Stream[[]T]` 报 instantiation cycle（T → []T → [][]T → …）⇒ `Chunk`/`Enumerate` 只能以包级函数提供。
 
 判定口诀：方法**新增**类型参数（任意约束）均可；一旦要**动 T 本身**——约束它、或让其以派生类型出现在返回值——就必须降级为包级函数。
@@ -110,7 +110,7 @@ Java Stream 的骨架是一棵**单继承类树**（`BaseStream` ← `AbstractPi
 
 ### Tier A：必做（Java Stream 对齐）
 
-**源（构造函数，全部惰性）**：`Of`/`FromSlice`/`FromSeq(iter.Seq)`/`FromChannel`/`FromMap[K,V] → *Stream[KV[K,V]]`/`FromFunc(next func() (T, bool, error))`/`Generate`/`Iterate`/`Range[I Integer]`/`Concat`/`Empty`
+**源（构造函数，全部惰性）**：`Of`/`FromSlice`/`FromSeq(iter.Seq)`/`FromChannel`/`FromMap[K,V] → *Stream[KV[K,V]]`/`FromFunc(next func() (T, bool, error))`/`Generate`/`Iterate`/`Range[I Integer] → *NumberStream[I]`（**Task 18 修订**：区间元素必然是数值，直接返回数值流，免去 `AsNumber(Range(...))` 二次收窄；泛型推断随接收者类型自动收窄，`Sum(Range(0,100))` 等既有用法不变）/`Concat`/`Empty`
 
 **无状态中间**：`Filter`/`Map[U]`/`FlatMap[U]`/`FlatMapSeq[U]`/`Peek`/`TakeWhile`/`DropWhile`
 
@@ -136,10 +136,11 @@ Java Stream 的骨架是一棵**单继承类树**（`BaseStream` ← `AbstractPi
 | 包级 `Sorted/Min/Max[T cmp.Ordered]` | 包级函数 | ✅ 纳入 | 同上，免写比较器的便捷形态 |
 | 包级 `Sum/Avg[T Number](*Stream[T]) T` | 包级函数 | ✅ 纳入 | 数值聚合高频；`Number` 约束 = `Integer | Float` |
 | 包级 `Distinct[T comparable]` | 包级函数 | ✅ 纳入 | 同 Contains 理由，与方法版 `DistinctBy` 互补 |
+| `NumberStream[N Number]` 数值流（Task 18） | 嵌入 `Stream[N]` 的具型包装 + 包级/方法收窄入口 | ✅ 纳入 | 对标 Java IntStream 的**约束收窄**（非装箱规避）：自有类型参数带约束突破「方法不能约束接收者 T」限制，Sum/Avg/Min/Max/Contains/自然序 Sorted/Distinct 回归方法形态并支持链式调用（详见「NumberStream 数值流」Requirement） |
 
 ### Tier C：明确不做（v1，附理由）
 
-- 原始特化流（IntStream 等）：Go 泛型零装箱，无需求
+- ~~原始特化流（IntStream 等）：Go 泛型零装箱，无需求~~（**Task 18 修订**：特化的**装箱**动机在 Go 不存在，维持不引入 `IntStream` 式原始特化族；但特化形态承载的**约束收窄**价值真实存在——包装类型 `NumberStream[N Number]` 嵌入 `Stream[N]` 承接，见「NumberStream 数值流」Requirement）
 - ~~`onClose`/资源管理流：channel 源自然耗尽；需要时后续加~~（**Task 10 已实现**，见「生命周期与可重放」Requirement）
 - ~~可重放/可缓存流（memoize）：与一次性消费模型冲突~~（**Task 10 以 Cache 工厂形态实现**——不破坏一次性模型：物化一次、工厂每次产全新流，见「生命周期与可重放」Requirement）
 - Collector 错误化 Finisher：破坏组合简洁性
@@ -162,7 +163,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - 新建 Go module：`github.com/JayceChant/go-stream`，go 1.27，根包 `stream`；另含低耦合子包 `collector`（收集器族，见「包结构」）
 - 核心类型：`Stream[T]`（嵌入 `pipeline[T]`）、`Sink[T]`、`Splitterator[T]`（嵌入 `baseSplitterator[T]`）、`collector.Collector[T,A,R]`、`KV[K,V]`、`Number`/复用 `cmp.Ordered` 约束
 - 求值引擎：Sink 链反向包装、单遍融合、短路、有状态分段物化、一次性消费、错误即值短路；并行分片求值（parallel.go）
-- API：Tier A + Tier B 全量 + `Parallel(n)`/`Sequential()`
+- API：Tier A + Tier B 全量 + `Parallel(n)`/`Sequential()`；**Task 18 增补**：`NumberStream` 数值流（收窄入口 + 19 个核心方法），`Range` 签名修订为返回 `*NumberStream[I]`
 - 测试：单测 + `example_test.go`（可运行示例）+ 基准（vs 手写 for 循环）+ 并行加速比
 - 文档（Markdown，任务化）：`README.md`、`docs/design.md`（架构与 Java 对照）、`docs/api.md`（API 参考）
 
@@ -197,8 +198,8 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 
 - Affected specs: 无（首个 spec）
 - Affected code: 全部新增
-  - `go.mod`、`stream.go`（Stream 类型/约束/KV）、`pipeline.go`（引擎+错误槽+consumed+newHead+evaluate+分片）、`sink.go`、`spliterator.go`、`op.go`（newStateless/newStateful）、`sources.go`（各源 Splitterator 实现）、`construct.go`（包级构造函数）
-  - `ops_stateless.go`（含 Err 变体）、`ops_stateful.go`（含 Scan/Chunk）、`op_ext.go`（Zip/Enumerate）
+  - `go.mod`、`stream.go`（Stream 类型/约束/KV）、`pipeline.go`（引擎+错误槽+consumed+newHead+evaluate+分片）、`sink.go`、`spliterator.go`、`op.go`（newStateless/newStateful）、`sources.go`（各源 Splitterator 实现）、`construct.go`（包级构造函数）、`number_stream.go`（**Task 18**：NumberStream 数值流类型/收窄入口 Range〔构造函数自 construct.go 迁入，与其余收窄入口同置〕、OfNumber、FromNumberSlice、AsNumber、AsStream/19 个核心方法）
+  - `ops_stateless.go`（含 Err 变体；**Task 18 增补** `MapToNumber`，随 Map 同置）、`ops_stateful.go`（含 Scan/Chunk）、`op_ext.go`（Zip/Enumerate）
   - `terminal.go`（含 Err() 与并行终端）、`constraints/constraints.go`（Task 16：数值约束叶子包）、`collector/collector.go`（子包：Collector 与 11 个预置收集器）、`numeric.go`（包级 Sum/Avg/Sorted/Min/Max/Contains/Distinct）、`parallel.go`（Parallel/Sequential/Unordered/分片求值/无序流式合并）、`lifecycle.go`（Task 10：OnClose/Close/Cache）
   - `example/go.mod`（独立模块 + replace 指向根模块）与 `example/{basics,collectors,numeric,errors,parallel,lifecycle}/main.go`（Task 15：完整可运行示例目录，见「示例目录」Requirement；嵌套模块隔离覆盖率）
   - `*_test.go`、`example_test.go`、`benchmark_test.go`、`parallel_test.go`、`collector/collector_test.go`
@@ -272,10 +273,48 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 
 ### Requirement: 包级便捷函数
 `Contains[T comparable]`/`Sorted/Min/Max[T cmp.Ordered]`/`Sum/Avg[T Number]`/`Distinct[T comparable]`。
+**Task 18 并存互引**：以上操作的**方法形态**由 `NumberStream` 承载（元素约束收窄到包装类型后合法）；包级函数继续服务普通 `*Stream[T]`，二者并存≠重复。
 
 #### Scenario: 数值聚合
-- **WHEN** `stream.Sum(stream.Range(0, 100))`
-- **THEN** 返回 4950
+- **WHEN** `stream.Range(0, 100).Sum()`（方法形态，Task 18）
+- **THEN** 返回 4950；包级形态 `stream.Sum(普通流)` 继续可用
+
+### Requirement: NumberStream 数值流（Task 18）
+
+对标 Java IntStream/LongStream 的**约束收窄**形态（非装箱规避——Go 泛型零装箱）：`NumberStream[N Number]` **值嵌入** `Stream[N]`，把元素约束收窄到包装类型自有类型参数位，绕开「方法不能约束接收者已有类型参数」限制（关键约束第 4 条），使需要元素约束的 API 回归方法形态并支持链式调用。
+
+- **收窄入口（上游，返回 \*NumberStream）**：
+  - `Range[I Integer](start, stop I) *NumberStream[I]`：签名修订——区间元素必然是数值，直接返回数值流，不保留 `*Stream` 旧版（既有 `stream.Sum(stream.Range(…))` 调用点迁移为 `.Sum()` 方法链或 `.AsStream()` 桥接）
+  - `OfNumber[N Number](xs ...N)` / `FromNumberSlice[N Number](s []N)`：`Of`/`FromSlice` 的收窄版（Number 中缀命名：单词后缀 `Number`，双词中插 `Number`）
+  - `(*Stream[T]).MapToNumber[N Number](f func(T) N) *NumberStream[N]`：类型迁移入窄流（对应 Java `mapToInt`；方法自有类型参数带 Number 约束，合法）
+  - `AsNumber[N Number](s *Stream[N]) *NumberStream[N]`：通用桥接（复制句柄 + 立即标记原流消费；二次桥接 panic；nil 容错返回 nil）
+- **核心方法（NumberStream 自有，19 个）**：
+  - 元素保持中间（返回 `*NumberStream[N]`，链不断窄）：`Filter`/`Peek`/`TakeWhile`/`DropWhile`/`Limit`/`Skip`（`n==0` 恒等返回自身，Task 14 语义）/`Reverse`
+  - 自然序收窄：`Sorted()`/`StableSorted()`（免比较器；**遮蔽** Stream 比较器版，自定义比较器经 `AsStream()` 使用）、`Distinct()`（按元素值去重，Number 全类型可比较）
+  - 标志/生命周期：`Parallel`/`Sequential`/`Unordered`/`OnClose`
+  - 收窄终端：`Sum()`/`Avg()`/`Min()`/`Max()`/`Contains(target)`（`Min()`/`Max()` 同样**遮蔽**比较器版）
+- **逃逸规则（未覆写的提升方法保持 Stream 语义）**：类型迁移算子（`Map[U]`/`FlatMap` 族/`Scan`/`Zip` 等）自然返回 `*Stream`；值终端（`ToSlice`/`Count`/`First`/`Collect`/`Err` 等）直接可用；同型显式出口 `AsStream() *Stream[N]`（复制句柄 + 标记本流消费；供 Zip 另一侧、`Chunk`/`Enumerate` 等包级函数复用；禁止裸 `&ns.Stream` 别名——别名共享会绕过一次性语义）
+- **一次性语义**：与 Stream 完全一致（链接/桥接即消费，重复使用 panic fail-fast）
+
+#### Scenario: 数值链一行闭环
+- **WHEN** `stream.Range(1, 101).Filter(偶数谓词).Sum()`
+- **THEN** 返回 2550，全程方法链无包级前缀
+
+#### Scenario: 自然序排序与去重
+- **WHEN** `stream.OfNumber(3, 1, 2, 1).Distinct().Sorted().ToSlice()`
+- **THEN** 返回 `[1 2 3]`
+
+#### Scenario: 类型迁移入窄流
+- **WHEN** `stream.FromSlice(words).MapToNumber(len).Sum()`
+- **THEN** 返回全部单词长度之和
+
+#### Scenario: 桥接一次性语义
+- **WHEN** `ns := stream.AsNumber(s)` 后再次 `stream.AsNumber(s)` 或继续链接 `s`
+- **THEN** panic（编程错误 fail-fast）
+
+#### Scenario: 并行数值终端
+- **WHEN** `stream.Range(0, 1_000_000).Parallel(4).Max()`
+- **THEN** 与串行 `Max()` 一致（分片归并语义不变）
 
 ### Requirement: 并行接口预留（已兑现）
 ~~接口层 SHALL 保留 TrySplit/特征位/Combiner/物化闭包签名；README 路线图 SHALL 声明 `Parallel(n)` 为后续版本计划。~~

@@ -50,7 +50,7 @@ import (
 
 // 1. Build from containers (lazy, no traversal yet)
 s := stream.FromSlice(data)          // zero-copy reference
-r := stream.Range(0, 100)            // integer range [0, 100)
+r := stream.Range(0, 100)            // integer range [0, 100) → *NumberStream (numeric narrowing, see NumberStream below)
 g := stream.Generate(func() int { return 42 }) // infinite generator
 
 // 2. Intermediate operations (return a new Stream, chainable)
@@ -169,6 +169,32 @@ With the unstable pdqsort as the default, sorting itself becomes cheap and the e
 
 Reproduce with `go test -bench . -run '^$' -benchtime 1s` (AMD Ryzen 5 7535U, median of 3 runs).
 
+## NumberStream
+
+Mirrors Java's primitive streams (`IntStream`/`LongStream`) — not for boxing avoidance (Go generics have zero boxing), but for **constraint narrowing**: `NumberStream[N Number]` embeds `Stream[N]`, moving the element constraint into the wrapper's own type parameter. This sidesteps the Go 1.27 rule that methods cannot constrain the receiver's existing type parameter, so element-constrained APIs become chainable methods (`stream.Range(0, 100).Sum()` in one line):
+
+```go
+// Narrowed chain: range → filter → sum, no package-level detour
+total := stream.Range(1, 101).
+    Filter(func(v int) bool { return v%2 == 0 }).
+    Sum() // 2550
+
+// Natural-order Sorted/Distinct without comparators or key functions
+stream.OfNumber(3, 1, 3, 2, 1).Distinct().Sorted().ToSlice() // [1 2 3]
+
+// Type migration into the narrowed world (Java mapToInt style)
+stream.FromSlice(words).MapToNumber(func(s string) int { return len(s) }).Avg()
+
+// Bridging: AsNumber narrows a *Stream; AsStream escapes back
+// (for Zip's other side, Chunk/Enumerate, comparator-based Sorted/Min/Max)
+stream.Of("a", "b").Zip(stream.Range(1, 10).AsStream(), pair)
+stream.AsNumber(stream.Of(1, 2, 3)).Contains(2) // true
+```
+
+Narrowed method surface: element-preserving intermediates (`Filter`/`Peek`/`TakeWhile`/`DropWhile`/`Limit`/`Skip`/`Reverse`), natural-order ops (`Sorted()`/`StableSorted()`/`Distinct()`), flags/lifecycle (`Parallel`/`Sequential`/`Unordered`/`OnClose`), and narrowed terminals (`Sum()`/`Avg()`/`Min()`/`Max()`/`Contains()`). Non-overridden promoted methods keep Stream semantics: type-migrating operators (`Map[U]`/`Zip`/`Scan`) return `*Stream`, value terminals (`ToSlice`/`Count`/`Collect`) work directly. Both bridges copy the handle and mark the source consumed — one-shot semantics, second bridge panics.
+
+Performance note: each narrowing entry and element-preserving operator costs one extra handle allocation over the equivalent Stream chain (construction-time only, ~65ns/112B; a depth-4 pure-construction chain measures +5 allocs/+560B; evaluation hot path is identical at n=1e6 — see `BenchmarkNumberStreamVsStream`). For rebuild-heavy/evaluate-light workloads (tiny inputs, chains rebuilt per request), chain intermediates on `*Stream` first and narrow with `AsNumber` just before the terminal.
+
 ## API Overview
 
 | Category | APIs |
@@ -185,6 +211,7 @@ Reproduce with `go test -bench . -run '^$' -benchtime 1s` (AMD Ryzen 5 7535U, me
 | Collectors (subpackage `collector`) | `ToSlice` `ToSet` `ToMap` `ToMapMerge` `GroupingBy` `Joining` `Counting` `Reducing` `Mapping` `Summing` `Averaging` |
 | Numeric constraints | `stream.Integer`/`stream.Float`/`stream.Number` (aliases of `constraints` subpackage) |
 | Package-level aggregation | `Sum` `Avg` `Contains` `Min` `Max` |
+| Number stream (Task 18) | `NumberStream[N]` (embeds `Stream[N]`) + narrowing entries `Range` (returns `*NumberStream`) `OfNumber` `FromNumberSlice` `MapToNumber` `AsNumber`/`AsStream`; narrowed methods `Sum()` `Avg()` `Min()` `Max()` `Contains()` `Sorted()` `StableSorted()` `Distinct()` |
 
 For the full reference and examples, see [docs/api.md](./docs/api.md).
 
@@ -198,7 +225,7 @@ For the full reference and examples, see [docs/api.md](./docs/api.md).
 | `Collectors.toMap` | `collector.ToMap` / `ToMapMerge` | Key conflicts: last-wins (aligned with Go map conventions); use ToMapMerge for custom merging |
 | `Collectors.groupingBy` | `collector.GroupingBy` | Preserves encounter order within groups |
 | `Comparator` | `func(a, b T) int` | Aligned with the standard library's `slices.SortFunc`/`cmp.Compare` conventions |
-| `IntStream` specializations | Generics + `Number`/`cmp.Ordered` constraints | Go generics have zero boxing; no specialization needed |
+| `IntStream` specializations | `NumberStream[N]` narrowing wrapper + `Number`/`cmp.Ordered` constraints | Boxing avoidance is unnecessary (Go generics have zero boxing); the *constraint narrowing* value is kept: element-constrained APIs (`Sum()`/`Avg()`/`Min()`/`Max()`/`Contains()`/natural-order `Sorted()`/`Distinct()`) become chainable methods on `NumberStream`, mirroring Java's primitive-stream ergonomics |
 | `stream.sorted()` | `Sorted` (unstable pdqsort) / `StableSorted` | Java's `sorted()` is always stable; go-stream defaults to the faster unstable sort (aligned with `slices.SortFunc`) and offers `StableSorted` when encounter-order preservation matters (aligned with `slices.SortStableFunc`) |
 | `stream.parallel()` | `Parallel(n)` / `Sequential()` | TrySplit splitting + goroutines; automatically falls back to sequential after short-circuit terminals or materializing operators |
 | `stream.unordered()` | `Unordered()` | Clears the SpOrdered flag; under parallelism, shard results are pushed as they complete (streaming merge) |

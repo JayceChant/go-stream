@@ -240,3 +240,46 @@ func BenchmarkCollect(b *testing.B) {
 		b.Run(fmt.Sprintf("Summing_%d", n), func(b *testing.B) { benchCollectSumming(b, n) })
 	}
 }
+
+// ---- NumberStream 收窄路径基准：Stream 链 + 包级 Sum vs NumberStream 链 + 方法 Sum ----
+//
+// 考察点（Task 18）：NumberStream 元素保持算子在等价 Stream 版之上，每级多
+// 一次 wrapNumber 句柄分配（构造期一次性、与元素数无关）。深度 1/4 的纯
+// Filter 链 + Sum；n=0 隔离纯构造开销（求值为零），n=100/1e6 考察其在真实
+// 求值中的占比。等价语义：谓词、求值路径（串行 evaluate）完全一致。
+
+func benchSumViaStream(b *testing.B, n, depth int) {
+	data := makeBenchData(n)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		s := FromSlice(data)
+		for range depth {
+			s = s.Filter(func(v int) bool { return v%2 == 0 })
+		}
+		sinkInt64 = int64(Sum(s))
+	}
+}
+
+func benchSumViaNumberStream(b *testing.B, n, depth int) {
+	data := makeBenchData(n)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		ns := FromNumberSlice(data)
+		for range depth {
+			ns = ns.Filter(func(v int) bool { return v%2 == 0 })
+		}
+		sinkInt64 = int64(ns.Sum())
+	}
+}
+
+func BenchmarkNumberStreamVsStream(b *testing.B) {
+	sizes := []int{0, 100, 1_000_000} // 0 = 纯链构造（无元素），隔离句柄开销
+	for _, depth := range []int{1, 4} {
+		for _, n := range sizes {
+			b.Run(fmt.Sprintf("Stream_d%d_%d", depth, n), func(b *testing.B) { benchSumViaStream(b, n, depth) })
+			b.Run(fmt.Sprintf("NumStream_d%d_%d", depth, n), func(b *testing.B) { benchSumViaNumberStream(b, n, depth) })
+		}
+	}
+}

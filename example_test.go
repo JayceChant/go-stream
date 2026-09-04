@@ -60,10 +60,10 @@ func Example_infiniteWithLimit() {
 	// Output: [1 4 9 16 25]
 }
 
-// 数值聚合：包级 Sum/Avg（方法无法追加 Number 约束）。
+// 数值聚合：NumberStream 方法形态（Range 直接收窄，Task 18）。
 func Example_numeric() {
-	fmt.Println(stream.Sum(stream.Range(1, 101)))
-	fmt.Println(stream.Avg(stream.Range(1, 4)))
+	fmt.Println(stream.Range(1, 101).Sum())
+	fmt.Println(stream.Range(1, 4).Avg())
 	// Output:
 	// 5050
 	// 2
@@ -102,7 +102,7 @@ func Example_sortedDistinctPage() {
 // 双流拉链：Zip 取短。
 func Example_zip() {
 	got := stream.Of("a", "b", "c").
-		Zip(stream.Range(1, 100), func(s string, i int) string {
+		Zip(stream.Range(1, 100).AsStream(), func(s string, i int) string {
 			return fmt.Sprintf("%s%d", s, i)
 		}).
 		ToSlice()

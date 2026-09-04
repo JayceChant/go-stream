@@ -11,6 +11,7 @@ import "cmp"
 // Sum 数值求和。
 // 与 s.Collect(collectors.Summing[N]()) 等价：保留根包一行闭环，
 // 高频终端操作免跨包 import collector 与显式实例化。
+// 链式方法形态见 (*NumberStream[N]).Sum（Task 18，元素约束收窄的流）。
 func Sum[N Number](s *Stream[N]) N {
 	var acc N
 	s.pipeline.evaluate(sinkFunc[N](func(v N) bool { acc += v; return true }))
@@ -19,7 +20,7 @@ func Sum[N Number](s *Stream[N]) N {
 
 // Avg 数值平均（空流返回 0）。
 // 单遍求值：和与计数同行累积。收集器形态见 collector.Averaging
-// （需与其它收集器组合时用）。
+// （需与其它收集器组合时用）；链式方法形态见 (*NumberStream[N]).Avg。
 func Avg[N Number](s *Stream[N]) N {
 	var acc N
 	var n int64
@@ -33,6 +34,7 @@ func Avg[N Number](s *Stream[N]) N {
 // Contains 判断流中是否含有目标元素（短路）。
 // 与 s.AnyMatch(func(v T) bool { return v == target }) 等价：免写样板闭包，
 // 且 nil 流安全返回 false；any 约束的方法体内无法使用 ==，comparable 只能落在包级。
+// 链式方法形态见 (*NumberStream[N]).Contains（N 为 Number 时）。
 func Contains[T comparable](s *Stream[T], target T) bool {
 	if s == nil {
 		return false
@@ -51,6 +53,7 @@ func Contains[T comparable](s *Stream[T], target T) bool {
 // Sorted 依自然序（cmp.Ordered）排序（不稳定，委托方法 Sorted）。
 // 免写比较器形态：方法版须手写 cmp.Compare[T]，方法无法对 T 追加
 // cmp.Ordered 约束，故落在包级。需要稳定排序时用 s.StableSorted(cmp.Compare[T])。
+// 链式方法形态见 (*NumberStream[N]).Sorted（N 为 Number 时）。
 func Sorted[T cmp.Ordered](s *Stream[T]) *Stream[T] {
 	if s == nil {
 		return nil
@@ -60,6 +63,7 @@ func Sorted[T cmp.Ordered](s *Stream[T]) *Stream[T] {
 
 // Min 依自然序取最小（空流返回零值与 false）。
 // 免写比较器形态：与 s.Min(cmp.Compare[T]) 等价，方法无法约束 T 故落在包级。
+// 链式方法形态见 (*NumberStream[N]).Min（N 为 Number 时）。
 func Min[T cmp.Ordered](s *Stream[T]) (T, bool) {
 	if s == nil {
 		var zero T
@@ -70,6 +74,7 @@ func Min[T cmp.Ordered](s *Stream[T]) (T, bool) {
 
 // Max 依自然序取最大（空流返回零值与 false）。
 // 免写比较器形态：与 s.Max(cmp.Compare[T]) 等价，方法无法约束 T 故落在包级。
+// 链式方法形态见 (*NumberStream[N]).Max（N 为 Number 时）。
 func Max[T cmp.Ordered](s *Stream[T]) (T, bool) {
 	if s == nil {
 		var zero T

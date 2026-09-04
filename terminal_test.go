@@ -209,12 +209,19 @@ func TestSummingCollector(t *testing.T) {
 }
 
 func TestPackageHelpers(t *testing.T) {
-	// Sum / Avg
-	if got := Sum(Range(0, 100)); got != 4950 {
+	// Sum / Avg：方法形态（Range 直接收窄为 NumberStream，Task 18）
+	if got := Range(0, 100).Sum(); got != 4950 {
 		t.Errorf("Sum = %d, 期望 4950", got)
 	}
-	if got := Avg(Range(0, 4)); got != 1 { // (0+1+2+3)/4
+	if got := Range(0, 4).Avg(); got != 1 { // (0+1+2+3)/4
 		t.Errorf("Avg = %d, 期望 1", got)
+	}
+	// 包级形态对普通流继续可用（并存≠重复）
+	if got := Sum(Of(1, 2, 3, 4)); got != 10 {
+		t.Errorf("Sum = %d, 期望 10", got)
+	}
+	if got := Avg(Of(2, 4)); got != 3 {
+		t.Errorf("Avg = %d, 期望 3", got)
 	}
 	// Contains 短路
 	calls := 0

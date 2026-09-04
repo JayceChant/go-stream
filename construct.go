@@ -7,7 +7,7 @@ import "iter"
 // 一次性语义：每个构造出的 *Stream 仅可被链接或消费一次（重复使用 panic）。
 // FromSlice/Of 直接引用原 slice 不拷贝，求值期间请勿并发修改。
 
-// Of 以可变参数构建流。
+// Of 以可变参数构建流；数值收窄版见 OfNumber（number_stream.go）。
 func Of[T any](xs ...T) *Stream[T] {
 	return newHeadSplit(newSliceSp(xs, SpSized|SpOrdered))
 }
@@ -17,7 +17,8 @@ func Empty[T any]() *Stream[T] {
 	return newHead(newSliceSp[T](nil, SpSized|SpOrdered))
 }
 
-// FromSlice 基于 slice 构建流（零拷贝，直接引用原切片）。
+// FromSlice 基于 slice 构建流（零拷贝，直接引用原切片）；
+// 数值收窄版见 FromNumberSlice（number_stream.go）。
 func FromSlice[T any](s []T) *Stream[T] {
 	return newHeadSplit(newSliceSp(s, SpSized|SpOrdered))
 }
@@ -98,11 +99,6 @@ func Iterate[T any](seed T, next func(T) T) *Stream[T] {
 		cur = next(cur)
 		return v, true, nil
 	})
-}
-
-// Range 构建整数区间流 [start, stop)（左闭右开，步长 1）。
-func Range[I Integer](start, stop I) *Stream[I] {
-	return newHeadSplit(newRangeSp(start, stop, SpSized|SpOrdered))
 }
 
 // newHeadSplit 构造可分源的 Head：额外设置 splitN 分片闭包

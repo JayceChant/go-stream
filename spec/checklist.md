@@ -1,5 +1,12 @@
 # Checklist
 
+## NumberStream 数值流（Task 18）
+- [x] `NumberStream[N Number]` 值嵌入 `Stream[N]`：约束收窄到自有类型参数位，Sum/Avg/Min/Max/Contains/自然序 Sorted/StableSorted/Distinct 回归方法形态
+- [x] 收窄入口：`Range` 直接返回 `*NumberStream[I]`（签名修订，旧调用点已迁移）、`OfNumber`/`FromNumberSlice`、`MapToNumber`（Stream 方法）、`AsNumber`/`AsStream` 双向桥接（复制句柄 + 标记消费，一次性 fail-fast，nil 容错）
+- [x] 核心 19 方法：元素保持中间 7（Skip(0) 恒等返回自身）+ 自然序 3 + 标志/生命周期 4 + 收窄终端 5；比较器版 Sorted/StableSorted/Min/Max 被遮蔽，经 AsStream 使用
+- [x] 逃逸规则：未覆写提升方法保持 Stream 语义（类型迁移自然返回 *Stream、值终端直接可用）
+- [x] 单测覆盖 19 方法 + 收窄入口 + 桥接一次性语义 + 并行链；质量门槛全绿（gofmt 空 / vet 无告警 / `go test -race -count=1` 全绿 / golangci-lint 0 issues / 覆盖率总计 100.0%，number_stream.go 全函数 100%）
+
 ## 架构与核心机制（组合替代继承）
 - [x] Stream 为具体泛型 struct（非接口），中间/终止操作通过 Go 1.27 泛型方法实现（如 `Map[U any]`、`Zip[U, R]`、`Collect[A, R]`），未在任何接口中声明带类型参数的方法
 - [x] `Stream[T]` 通过嵌入 `pipeline[T]` 组合核心求值机；算子以"构造函数 + wrap 闭包"实现，无类继承层次、无"模拟抽象类待覆写"的基类型
@@ -21,7 +28,7 @@
 - [x] 无状态中间操作齐全：Filter/Map/FlatMap/FlatMapSeq/Peek/TakeWhile/DropWhile + MapErr/FilterErr/FlatMapErr/PeekErr
 - [x] 有状态中间操作齐全：Limit/Skip/Sorted(稳定)/DistinctBy/Reverse + Scan/Chunk/Enumerate + Zip
 - [x] 终止操作齐全：ForEach/ForEachUntil/ToSlice/Count/Reduce/ReduceOpt/Collect/First/FindAny/AnyMatch/AllMatch/NoneMatch/Min/Max/Err
-- [x] Collector 与预置收集器齐全：ToSlice/ToSet/ToMap/ToMapMerge/GroupingBy/Joining/Counting/Reducing/Mapping/Summing/Averaging；已迁移至低耦合子包 `collector`（零依赖叶子包）
+- [x] Collector 与预置收集器齐全：ToSlice/ToSet/ToMap/ToMapMerge/GroupingBy/Joining/Counting/Reducing/Mapping/Summing/Averaging；已迁移至低耦合子包 `collector`（无三方依赖，仅共享类型约束）
 - [x] Collector 为接口 + 非导出具体类型实现（Task 17：struct 导出函数字段有被外部改写的风险）；Combiner 为「返回合并函数、可为 nil」，nil 时 Collect 自动降级串行；性能经 BenchmarkCollect 回测无劣化（详见 tasks.md Task 17）
 - [x] 包级便捷函数齐全：Contains/Sorted/Min/Max/Sum/Avg/Distinct（泛型约束补偿设计）
 - [x] Splitterator 接口含 TryAdvance/ForEachRemaining/TrySplit/EstimateSize/Characteristics，特征位齐全且沿管道正确传播

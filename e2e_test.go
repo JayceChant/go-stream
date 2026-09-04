@@ -88,8 +88,8 @@ func TestE2E_SortDistinctPage(t *testing.T) {
 // 场景 6：Zip 双流 + 数值聚合。
 func TestE2E_ZipAggregate(t *testing.T) {
 	names := Of("a", "b", "c")
-	// Range(1,100) 长于 names，Zip 取短
-	pairs := names.Zip(Range(1, 100), func(s string, i int) string {
+	// Range(1,100) 长于 names，Zip 取短（另一侧为普通流：经 AsStream 桥接）
+	pairs := names.Zip(Range(1, 100).AsStream(), func(s string, i int) string {
 		return fmt.Sprintf("%s%d", s, i)
 	}).ToSlice()
 	if !slices.Equal(pairs, []string{"a1", "b2", "c3"}) {

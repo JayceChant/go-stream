@@ -1,5 +1,12 @@
 # Checklist
 
+## NumberStream 数值流（Task 18）
+- [x] `NumberStream[N Number]` 值嵌入 `Stream[N]`：约束收窄到自有类型参数位，Sum/Avg/Min/Max/Contains/自然序 Sorted/StableSorted/Distinct 回归方法形态
+- [x] 收窄入口：`Range` 直接返回 `*NumberStream[I]`（签名修订，旧调用点已迁移）、`OfNumber`/`FromNumberSlice`、`MapToNumber`（Stream 方法）、`AsNumber`/`AsStream` 双向桥接（复制句柄 + 标记消费，一次性 fail-fast，nil 容错）
+- [x] 核心 19 方法：元素保持中间 7（Skip(0) 恒等返回自身）+ 自然序 3 + 标志/生命周期 4 + 收窄终端 5；比较器版 Sorted/StableSorted/Min/Max 被遮蔽，经 AsStream 使用
+- [x] 逃逸规则：未覆写提升方法保持 Stream 语义（类型迁移自然返回 *Stream、值终端直接可用）
+- [x] 单测覆盖 19 方法 + 收窄入口 + 桥接一次性语义 + 并行链；质量门槛全绿（gofmt 空 / vet 无告警 / `go test -race -count=1` 全绿 / golangci-lint 0 issues / 覆盖率总计 100.0%，number_stream.go 全函数 100%）
+
 ## 架构与核心机制（组合替代继承）
 - [x] Stream 为具体泛型 struct（非接口），中间/终止操作通过 Go 1.27 泛型方法实现（如 `Map[U any]`、`Zip[U, R]`、`Collect[A, R]`），未在任何接口中声明带类型参数的方法
 - [x] `Stream[T]` 通过嵌入 `pipeline[T]` 组合核心求值机；算子以"构造函数 + wrap 闭包"实现，无类继承层次、无"模拟抽象类待覆写"的基类型

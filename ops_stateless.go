@@ -13,6 +13,8 @@ import "iter"
 //   - TakeWhile/DropWhile：清除 SpSized（截断后数量未知），其余保留
 
 // Filter 保留满足谓词 p 的元素。
+// 元素为数值且需要链式调用 Sum/Avg 等收窄终端时，用 NumberStream 的
+// 同名形态（(*NumberStream[N]).Filter，经收窄入口构造）。
 func (s *Stream[T]) Filter(p func(T) bool) *Stream[T] {
 	if p == nil {
 		panic("stream: Filter 谓词为 nil")
@@ -41,6 +43,7 @@ func (w *filterSink[T]) End() { w.down.End() }
 
 // Map 将每个元素经 f 变换为新类型 U（泛型方法，元素类型迁移）。
 // 1:1 变换：保留 SpSized（下游可按 size 预分配），仅清 SpSorted/SpDistinct。
+// 类型迁移入数值流的收窄形态见下方 MapToNumber。
 func (s *Stream[T]) Map[U any](f func(T) U) *Stream[U] {
 	if f == nil {
 		panic("stream: Map 函数为 nil")
@@ -61,6 +64,17 @@ var _ Sink[int] = (*mapSink[int, int])(nil)
 func (w *mapSink[T, U]) Begin(size int64) { w.down.Begin(size) }
 func (w *mapSink[T, U]) Accept(v T) bool  { return w.down.Accept(w.f(v)) }
 func (w *mapSink[T, U]) End()             { w.down.End() }
+
+// MapToNumber 将每个元素经 f 迁移为数值类型并收窄为数值流（对应 Java
+// mapToInt/mapToDouble：f 的返回类型即窄化后的元素类型，类型迁移 + 约束收窄
+// 一步完成）。1:1 变换：保留 SpSized，仅清 SpSorted/SpDistinct（与 Map 一致）。
+// 实现随 Map 同置本文件；收窄后的链式方法面见 NumberStream（Task 18）。
+func (s *Stream[T]) MapToNumber[N Number](f func(T) N) *NumberStream[N] {
+	if f == nil {
+		panic("stream: MapToNumber 函数为 nil")
+	}
+	return wrapNumber(s.Map(f))
+}
 
 // FlatMap 将每个元素经 f 展开为子序列并依次输出。
 func (s *Stream[T]) FlatMap[U any](f func(T) []U) *Stream[U] {
@@ -122,6 +136,7 @@ func (w *flatMapSeqSink[T, U]) End() { w.down.End() }
 
 // Peek 对每个元素施加副作用 f（不改变元素，常用于调试观察）。
 // 并行流下 f 在分片 goroutine 内执行，观察顺序不保证（需保序请用 ForEach）。
+// 数值链形态见 (*NumberStream[N]).Peek。
 func (s *Stream[T]) Peek(f func(T)) *Stream[T] {
 	if f == nil {
 		panic("stream: Peek 函数为 nil")
@@ -144,6 +159,7 @@ func (w *peekSink[T]) Accept(v T) bool  { w.f(v); return w.down.Accept(v) }
 func (w *peekSink[T]) End()             { w.down.End() }
 
 // TakeWhile 保留首批满足 p 的元素，遇到首个不满足即终止（短路）。
+// 数值链形态见 (*NumberStream[N]).TakeWhile。
 func (s *Stream[T]) TakeWhile(p func(T) bool) *Stream[T] {
 	if p == nil {
 		panic("stream: TakeWhile 谓词为 nil")
@@ -172,6 +188,7 @@ func (w *takeWhileSink[T]) End() { w.down.End() }
 
 // DropWhile 丢弃首批满足 p 的元素，之后全部放行。
 // 有状态单遍（done 门闸）→ 并行降级（splitN=nil）。
+// 数值链形态见 (*NumberStream[N]).DropWhile。
 func (s *Stream[T]) DropWhile(p func(T) bool) *Stream[T] {
 	if p == nil {
 		panic("stream: DropWhile 谓词为 nil")

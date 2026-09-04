@@ -236,13 +236,15 @@ func (s *Stream[T]) match(p func(T) bool, stopOn, expect bool) bool {
 }
 
 // Min 返回最小元素（依 cmp）；空流返回 (零值, false)。
-// 免写比较器的自然序形态见包级函数 Min[T cmp.Ordered]（方法无法约束 T）。
+// 免写比较器的自然序形态见包级函数 Min[T cmp.Ordered]（方法无法约束 T）；
+// 元素为数值时另有 (*NumberStream[N]).Min()。
 func (s *Stream[T]) Min(cmp func(a, b T) int) (T, bool) {
 	return s.minmax(cmp, -1)
 }
 
 // Max 返回最大元素（依 cmp）；空流返回 (零值, false)。
-// 免写比较器的自然序形态见包级函数 Max[T cmp.Ordered]（方法无法约束 T）。
+// 免写比较器的自然序形态见包级函数 Max[T cmp.Ordered]（方法无法约束 T）；
+// 元素为数值时另有 (*NumberStream[N]).Max()。
 func (s *Stream[T]) Max(cmp func(a, b T) int) (T, bool) {
 	return s.minmax(cmp, 1)
 }

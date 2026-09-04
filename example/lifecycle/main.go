@@ -66,7 +66,7 @@ func main() {
 
 	// ---------- 5. Cache：可重放工厂 ----------
 	evals := 0
-	source := stream.Range(1, 6).Peek(func(n int) { evals++ })
+	source := stream.Range(1, 6).Peek(func(n int) { evals++ }).AsStream()
 	replay := stream.Cache(source) // 此时尚未求值
 
 	r1 := replay().ToSlice() // 首次调用：求值上游一次并物化

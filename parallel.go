@@ -17,6 +17,7 @@ import "sync"
 
 // Parallel 声明后续求值以最多 n 个分片并行（中间操作语义：消费上游，
 // 返回携带并行标志的新流）。n <= 1 或不可分源/含降级算子的管道自动串行。
+// 数值链形态见 (*NumberStream[N]).Parallel。
 func (s *Stream[T]) Parallel(n int) *Stream[T] {
 	if n < 1 {
 		n = 1
@@ -25,6 +26,7 @@ func (s *Stream[T]) Parallel(n int) *Stream[T] {
 }
 
 // Sequential 还原串行求值（抵消上游 Parallel 声明）。
+// 数值链形态见 (*NumberStream[N]).Sequential。
 func (s *Stream[T]) Sequential() *Stream[T] {
 	return s.newFlagStage(0)
 }
@@ -36,6 +38,7 @@ func (s *Stream[T]) Sequential() *Stream[T] {
 // 降低端到端延迟；结果集合与串行一致，顺序不保证（本就是无序语义）。
 // 仅 ToSlice/ForEach/Min/Max（元素级）与 Collect（Combiner 按完成序合并）
 // 参与流式合并；Count/Reduce 仍按片序聚合（结果不受影响）。
+// 数值链形态见 (*NumberStream[N]).Unordered。
 func (s *Stream[T]) Unordered() *Stream[T] {
 	ns := s.newFlagStage(s.parN)
 	ns.chars &^= SpOrdered

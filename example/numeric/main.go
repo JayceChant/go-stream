@@ -1,9 +1,10 @@
-// Package main 演示数值场景：包级聚合函数、Scan 前缀和、无限源、Zip、Chunk/Enumerate。
+// Package main 演示数值场景：NumberStream 数值流链式聚合、包级函数对照、
+// Scan 前缀和、无限源、Zip、Chunk/Enumerate。
 //
 // 运行：go -C example run ./numeric（example 为独立模块，不影响库的测试与覆盖率）
 //
-// Go 泛型方法无法对接收者的 T 追加 Number/cmp.Ordered 约束，
-// 因此数值聚合与"免写比较器"形态以包级函数提供（stream.Sum 等）。
+// 依赖元素约束的 API（Sum/Avg/Min/Max/Contains/自然序 Sorted/Distinct）由
+// NumberStream 数值流承载方法形态；普通 *Stream 继续用包级函数（并存≠重复）。
 package main
 
 import (
@@ -13,27 +14,50 @@ import (
 )
 
 func main() {
-	// ---------- 1. 包级数值聚合 ----------
-	fmt.Println("Sum(1..100):", stream.Sum(stream.Range(1, 101)))
-	fmt.Println("Avg(1..3):", stream.Avg(stream.Range(1, 4)))
+	// ---------- 1. NumberStream：链式数值聚合（Range 直接收窄） ----------
+	fmt.Println("Sum(1..100):", stream.Range(1, 101).Sum())
+	fmt.Println("Avg(1..3):", stream.Range(1, 4).Avg())
 
-	// 免写比较器的 Sorted/Min/Max（cmp.Ordered 约束）
-	fmt.Println("Sorted:", stream.Sorted(stream.Of(3, 1, 2)).ToSlice())
-	lo, _ := stream.Min(stream.Of(3, 1, 2))
-	hi, _ := stream.Max(stream.Of(3, 1, 2))
+	// 收窄红利：自然序 Sorted/StableSorted/Distinct 免写比较器/键函数
+	fmt.Println("Sorted:", stream.OfNumber(3, 1, 2).Sorted().ToSlice())
+	lo, _ := stream.OfNumber(3, 1, 2).Min()
+	hi, _ := stream.OfNumber(3, 1, 2).Max()
 	fmt.Println("Min/Max:", lo, hi)
+	fmt.Println("Contains(2):", stream.Range(0, 10).Contains(2))
+	fmt.Println("Distinct:", stream.OfNumber(3, 1, 3, 2, 1).
+		Distinct().Sorted().ToSlice()) // [1 2 3]
 
-	// Contains：短路查找（comparable 约束）
-	fmt.Println("Contains(2):", stream.Contains(stream.Range(0, 10), 2))
+	// 类型迁移入窄流：MapToNumber（对应 Java mapToInt）
+	words := []string{"go", "stream", "number"}
+	fmt.Println("MapToNumber(len).Sum():",
+		stream.FromSlice(words).MapToNumber(func(s string) int {
+			return len(s)
+		}).Sum()) // 2+6+6=14
 
-	// ---------- 2. Scan：滚动累积（前缀和） ----------
+	// 双向桥接：AsNumber 收窄 / AsStream 逃逸（Zip 另一侧等场景）
+	fmt.Println("AsNumber().Filter().Sum():",
+		stream.AsNumber(stream.Of(1, 2, 3, 4)).Filter(func(v int) bool {
+			return v%2 == 0
+		}).Sum()) // 6
+	pairs := stream.Of("a", "b").
+		Zip(stream.Range(1, 10).AsStream(), func(s string, i int) string {
+			return fmt.Sprintf("%s%d", s, i)
+		}).
+		ToSlice()
+	fmt.Println("Zip(AsStream):", pairs) // [a1 b2]
+
+	// ---------- 2. 包级函数对照（普通 *Stream 的便捷形态，继续可用） ----------
+	fmt.Println("包级 Sum:", stream.Sum(stream.Of(1, 2, 3)))
+	fmt.Println("包级 Contains:", stream.Contains(stream.Of(1, 2, 3), 2))
+
+	// ---------- 3. Scan：滚动累积（前缀和） ----------
 	// 输出含初值：0, 0+1, 0+1+2, ...
 	prefix := stream.Of(1, 2, 3, 4).
 		Scan(0, func(acc, n int) int { return acc + n }).
 		ToSlice()
 	fmt.Println("前缀和:", prefix) // [0 1 3 6 10]
 
-	// ---------- 3. 无限源：Generate / Iterate + Limit 短路 ----------
+	// ---------- 4. 无限源：Generate / Iterate + Limit 短路 ----------
 	i := 0
 	squares := stream.Generate(func() int { i++; return i * i }).
 		Limit(5).
@@ -52,29 +76,25 @@ func main() {
 	}
 	fmt.Println("斐波那契前 10 项:", fibN)
 
-	// ---------- 4. Zip：双流按位置配对（取短） ----------
+	// ---------- 5. Zip：双流按位置配对（取短） ----------
 	names := stream.Of("Alice", "Bob", "Carol")
 	scores := stream.Of(90, 85)
-	pairs := names.
+	zipPairs := names.
 		Zip(scores, func(n string, s int) string {
 			return fmt.Sprintf("%s=%d", n, s)
 		}).
 		ToSlice()
-	fmt.Println("Zip 配对（取短）:", pairs) // [Alice=90 Bob=85]
+	fmt.Println("Zip 配对（取短）:", zipPairs) // [Alice=90 Bob=85]
 
-	// ---------- 5. Chunk：定长分批（批量写库/分页高频） ----------
-	batches := stream.Chunk(stream.Range(1, 10), 4).ToSlice()
+	// ---------- 6. Chunk：定长分批（批量写库/分页高频） ----------
+	batches := stream.Chunk(stream.Range(1, 10).AsStream(), 4).ToSlice()
 	fmt.Println("Chunk(4):", batches) // [1 2 3 4] [5 6 7 8] [9]
 
-	// ---------- 6. Enumerate：附加索引（对应 for i, v := range） ----------
+	// ---------- 7. Enumerate：附加索引（对应 for i, v := range） ----------
 	stream.Enumerate(stream.Of("a", "b", "c")).
 		ForEach(func(kv stream.KV[int, string]) {
 			fmt.Printf("Enumerate: %d:%s\n", kv.Key, kv.Value)
 		})
-
-	// ---------- 7. Distinct：元素自身可比较的去重（包级，保遇序） ----------
-	fmt.Println("Distinct:", stream.Distinct(stream.Of(3, 1, 3, 2, 1)).
-		ToSlice()) // [3 1 2]
 
 	// ---------- 8. 综合小案例：移动平均 ----------
 	// 滑动窗口 3 的移动平均 = 前缀和差分；Scan 不物化、单遍完成。

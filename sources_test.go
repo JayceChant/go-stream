@@ -22,7 +22,7 @@ func TestFromSliceAndOf(t *testing.T) {
 }
 
 func TestRange(t *testing.T) {
-	got := collectViaProbe(Range(0, 5))
+	got := collectViaProbe(Range(0, 5).AsStream())
 	want := []int{0, 1, 2, 3, 4}
 	if len(got) != 5 {
 		t.Fatalf("Range(0,5) 产出 %d 个, 期望 5", len(got))
@@ -33,10 +33,10 @@ func TestRange(t *testing.T) {
 		}
 	}
 	// 空区间与反向区间
-	if got := collectViaProbe(Range(5, 5)); len(got) != 0 {
+	if got := collectViaProbe(Range(5, 5).AsStream()); len(got) != 0 {
 		t.Error("空区间应无元素")
 	}
-	if got := collectViaProbe(Range(5, 0)); len(got) != 0 {
+	if got := collectViaProbe(Range(5, 0).AsStream()); len(got) != 0 {
 		t.Error("反向区间应无元素")
 	}
 }

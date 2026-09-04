@@ -19,6 +19,7 @@ import "sync"
 // 幂等保证：每个物理回调以 sync.Once 包装——无论经由求值自动触发、
 // 任一 stage 实例的显式 Close、还是组合流（Concat/Zip 继承合并后的
 // 回调链）触发，均恰好执行一次。
+// 数值链形态见 (*NumberStream[N]).OnClose。
 func (s *Stream[T]) OnClose(f func() error) *Stream[T] {
 	if f == nil {
 		panic("stream: OnClose 回调为 nil")

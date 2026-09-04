@@ -32,6 +32,9 @@ type Collector[T, A, R any] interface {
 // sliceCollector 是 ToSlice 的实现（无配置，空结构体）。
 type sliceCollector[T any] struct{}
 
+// 编译期检查：sliceCollector 实现 Collector。
+var _ Collector[int, *[]int, []int] = sliceCollector[int]{}
+
 func (sliceCollector[T]) Supplier() *[]T { return &[]T{} }
 func (sliceCollector[T]) Accumulator(a *[]T, v T) {
 	*a = append(*a, v)
@@ -54,6 +57,9 @@ func ToSlice[T any]() Collector[T, *[]T, []T] {
 
 // setCollector 是 ToSet 的实现。
 type setCollector[T comparable] struct{}
+
+// 编译期检查：setCollector 实现 Collector。
+var _ Collector[string, *map[string]struct{}, map[string]struct{}] = setCollector[string]{}
 
 func (setCollector[T]) Supplier() *map[T]struct{} {
 	m := make(map[T]struct{})
@@ -82,6 +88,9 @@ type mapCollector[K comparable, V any, T any] struct {
 	valF  func(T) V
 	merge func(oldV, newV V) V
 }
+
+// 编译期检查：mapCollector 实现 Collector。
+var _ Collector[int, *map[string]int, map[string]int] = mapCollector[string, int, int]{}
 
 func (c mapCollector[K, V, T]) Supplier() *map[K]V {
 	m := make(map[K]V)
@@ -132,6 +141,9 @@ type groupCollector[K comparable, V any, T any] struct {
 	valF func(T) V
 }
 
+// 编译期检查：groupCollector 实现 Collector。
+var _ Collector[int, *map[string][]int, map[string][]int] = groupCollector[string, int, int]{}
+
 func (groupCollector[K, V, T]) Supplier() *map[K][]V {
 	m := make(map[K][]V)
 	return &m
@@ -163,6 +175,9 @@ type joinCollector[T any] struct {
 	sep  string
 }
 
+// 编译期检查：joinCollector 实现 Collector。
+var _ Collector[int, *strings.Builder, string] = joinCollector[int]{}
+
 func (joinCollector[T]) Supplier() *strings.Builder { return &strings.Builder{} }
 func (c joinCollector[T]) Accumulator(b *strings.Builder, v T) {
 	if b.Len() > 0 {
@@ -190,6 +205,9 @@ func Joining[T any](strF func(T) string, sep string) Collector[T, *strings.Build
 // countCollector 是 Counting 的实现；累积容器即 *int64。
 type countCollector[T any] struct{}
 
+// 编译期检查：countCollector 实现 Collector。
+var _ Collector[int, *int64, int64] = countCollector[int]{}
+
 func (countCollector[T]) Supplier() *int64          { return new(int64) }
 func (countCollector[T]) Accumulator(n *int64, _ T) { *n++ }
 func (countCollector[T]) Combiner() func(a, b *int64) *int64 {
@@ -212,6 +230,9 @@ type reduceCollector[T any] struct {
 	identity T
 	op       func(T, T) T
 }
+
+// 编译期检查：reduceCollector 实现 Collector。
+var _ Collector[int, *int, int] = reduceCollector[int]{}
 
 func (c reduceCollector[T]) Supplier() *T {
 	v := c.identity
@@ -241,6 +262,9 @@ type mappingCollector[T, U, A, R any] struct {
 	downstream Collector[U, A, R]
 }
 
+// 编译期检查：mappingCollector 实现 Collector。
+var _ Collector[int, *[]string, []string] = mappingCollector[int, string, *[]string, []string]{}
+
 func (m mappingCollector[T, U, A, R]) Supplier() A          { return m.downstream.Supplier() }
 func (m mappingCollector[T, U, A, R]) Accumulator(a A, v T) { m.downstream.Accumulator(a, m.f(v)) }
 func (m mappingCollector[T, U, A, R]) Combiner() func(A, A) A {
@@ -255,6 +279,9 @@ func Mapping[T, U, A, R any](f func(T) U, downstream Collector[U, A, R]) Collect
 
 // sumCollector 是 Summing 的实现；累积容器即 *N。
 type sumCollector[N constraints.Number] struct{}
+
+// 编译期检查：sumCollector 实现 Collector。
+var _ Collector[int, *int, int] = sumCollector[int]{}
 
 func (sumCollector[N]) Supplier() *N          { return new(N) }
 func (sumCollector[N]) Accumulator(a *N, v N) { *a += v }
@@ -283,6 +310,9 @@ type avgAcc[N constraints.Number] struct {
 
 // avgCollector 是 Averaging 的实现。
 type avgCollector[N constraints.Number] struct{}
+
+// 编译期检查：avgCollector 实现 Collector。
+var _ Collector[int, *avgAcc[int], int] = avgCollector[int]{}
 
 func (avgCollector[N]) Supplier() *avgAcc[N] { return new(avgAcc[N]) }
 func (avgCollector[N]) Accumulator(a *avgAcc[N], v N) {

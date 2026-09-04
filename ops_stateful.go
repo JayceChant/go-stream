@@ -123,6 +123,9 @@ type scanSink[T, U any] struct {
 	started bool
 }
 
+// 编译期检查：scanSink 实现 Sink。
+var _ Sink[int] = (*scanSink[int, int])(nil)
+
 func (w *scanSink[T, U]) Begin(int64) { w.down.Begin(-1) }
 func (w *scanSink[T, U]) Accept(v T) bool {
 	if !w.started { // 先输出种子
@@ -145,6 +148,9 @@ type chunkSink[T any] struct {
 	n    int
 	cur  []T
 }
+
+// 编译期检查：chunkSink 实现 Sink。
+var _ Sink[int] = (*chunkSink[int])(nil)
 
 func (w *chunkSink[T]) Begin(int64) {
 	w.down.Begin(-1)
@@ -172,6 +178,9 @@ type enumerateSink[T any] struct {
 	down Sink[KV[int, T]]
 	i    int
 }
+
+// 编译期检查：enumerateSink 实现 Sink（输入 T，输出 KV[int, T]）。
+var _ Sink[int] = (*enumerateSink[int])(nil)
 
 func (w *enumerateSink[T]) Begin(size int64) { w.down.Begin(size) }
 func (w *enumerateSink[T]) Accept(v T) bool {

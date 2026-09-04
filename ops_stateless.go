@@ -27,6 +27,9 @@ type filterSink[T any] struct {
 	p    func(T) bool
 }
 
+// 编译期检查：filterSink 实现 Sink。
+var _ Sink[int] = (*filterSink[int])(nil)
+
 func (w *filterSink[T]) Begin(size int64) { w.down.Begin(size) }
 func (w *filterSink[T]) Accept(v T) bool {
 	if w.p(v) {
@@ -52,6 +55,9 @@ type mapSink[T, U any] struct {
 	f    func(T) U
 }
 
+// 编译期检查：mapSink 实现 Sink。
+var _ Sink[int] = (*mapSink[int, int])(nil)
+
 func (w *mapSink[T, U]) Begin(size int64) { w.down.Begin(size) }
 func (w *mapSink[T, U]) Accept(v T) bool  { return w.down.Accept(w.f(v)) }
 func (w *mapSink[T, U]) End()             { w.down.End() }
@@ -70,6 +76,9 @@ type flatMapSink[T, U any] struct {
 	down Sink[U]
 	f    func(T) []U
 }
+
+// 编译期检查：flatMapSink 实现 Sink。
+var _ Sink[int] = (*flatMapSink[int, int])(nil)
 
 func (w *flatMapSink[T, U]) Begin(int64) { w.down.Begin(-1) }
 func (w *flatMapSink[T, U]) Accept(v T) bool {
@@ -96,6 +105,9 @@ type flatMapSeqSink[T, U any] struct {
 	down Sink[U]
 	f    func(T) iter.Seq[U]
 }
+
+// 编译期检查：flatMapSeqSink 实现 Sink。
+var _ Sink[int] = (*flatMapSeqSink[int, int])(nil)
 
 func (w *flatMapSeqSink[T, U]) Begin(int64) { w.down.Begin(-1) }
 func (w *flatMapSeqSink[T, U]) Accept(v T) bool {
@@ -124,6 +136,9 @@ type peekSink[T any] struct {
 	f    func(T)
 }
 
+// 编译期检查：peekSink 实现 Sink。
+var _ Sink[int] = (*peekSink[int])(nil)
+
 func (w *peekSink[T]) Begin(size int64) { w.down.Begin(size) }
 func (w *peekSink[T]) Accept(v T) bool  { w.f(v); return w.down.Accept(v) }
 func (w *peekSink[T]) End()             { w.down.End() }
@@ -142,6 +157,9 @@ type takeWhileSink[T any] struct {
 	down Sink[T]
 	p    func(T) bool
 }
+
+// 编译期检查：takeWhileSink 实现 Sink。
+var _ Sink[int] = (*takeWhileSink[int])(nil)
 
 func (w *takeWhileSink[T]) Begin(size int64) { w.down.Begin(size) }
 func (w *takeWhileSink[T]) Accept(v T) bool {
@@ -170,6 +188,9 @@ type dropWhileSink[T any] struct {
 	p    func(T) bool
 	done bool
 }
+
+// 编译期检查：dropWhileSink 实现 Sink。
+var _ Sink[int] = (*dropWhileSink[int])(nil)
 
 func (w *dropWhileSink[T]) Begin(size int64) { w.down.Begin(size) }
 func (w *dropWhileSink[T]) Accept(v T) bool {
@@ -201,6 +222,9 @@ type mapErrSink[T, U any] struct {
 	ec   *evalCtx
 	f    func(T) (U, error)
 }
+
+// 编译期检查：mapErrSink 实现 Sink。
+var _ Sink[int] = (*mapErrSink[int, int])(nil)
 
 func (w *mapErrSink[T, U]) Begin(size int64) { w.down.Begin(size) }
 func (w *mapErrSink[T, U]) Accept(v T) bool {
@@ -287,6 +311,9 @@ type peekErrSink[T any] struct {
 	ec   *evalCtx
 	f    func(T) error
 }
+
+// 编译期检查：peekErrSink 实现 Sink。
+var _ Sink[int] = (*peekErrSink[int])(nil)
 
 func (w *peekErrSink[T]) Begin(size int64) { w.down.Begin(size) }
 func (w *peekErrSink[T]) Accept(v T) bool {

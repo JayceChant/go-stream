@@ -152,6 +152,9 @@ func (s suppressEnd[T]) End()             {}
 // skipBegin 吞掉下游 Begin 的包装（Concat 中 b 段与 a 段共用一次 Begin）。
 type skipBegin[T any] struct{ down Sink[T] }
 
+// 编译期检查：skipBegin 实现 Sink。
+var _ Sink[int] = skipBegin[int]{}
+
 func (s skipBegin[T]) Begin(int64)     {}
 func (s skipBegin[T]) Accept(v T) bool { return s.down.Accept(v) }
 func (s skipBegin[T]) End()            { s.down.End() }

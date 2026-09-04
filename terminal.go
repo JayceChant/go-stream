@@ -20,6 +20,12 @@ func (s *Stream[T]) ForEach(f func(T)) {
 // 回放进用户终端 down（保序；短路即停止后续回放并广播取消）。
 type sliceTotal[T any] struct{}
 
+// 编译期检查：sliceTotal 实现 parallelTotal 与 streamTotal（无序流式合并）。
+var (
+	_ parallelTotal[int] = sliceTotal[int]{}
+	_ streamTotal[int]   = sliceTotal[int]{}
+)
+
 func (sliceTotal[T]) part() Sink[T] { return &collectingSink[T]{limit: -1} }
 
 func (sliceTotal[T]) total(parts []Sink[T], down Sink[T], ec *evalCtx) {
@@ -85,7 +91,13 @@ func (s *Stream[T]) Count() int64 {
 // countTotal 是 Count 的并行终端：片内计数，total 求和。
 type countTotal[T any] struct{ n *int64 }
 
+// 编译期检查：countTotal 实现 parallelTotal。
+var _ parallelTotal[int] = countTotal[int]{}
+
 type countSink[T any] struct{ n int64 }
+
+// 编译期检查：countSink 实现 Sink。
+var _ Sink[int] = (*countSink[int])(nil)
 
 func (c *countSink[T]) Begin(int64)   {}
 func (c *countSink[T]) Accept(T) bool { c.n++; return true }

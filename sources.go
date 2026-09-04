@@ -15,6 +15,9 @@ type sliceSp[T any] struct {
 	i int // 下一个待读下标
 }
 
+// 编译期检查：sliceSp 实现 Splitterator。
+var _ Splitterator[int] = (*sliceSp[int])(nil)
+
 // newSliceSp 基于（子）切片构造源：estSize 为剩余元素数。
 func newSliceSp[T any](s []T, chars Characteristics) *sliceSp[T] {
 	if chars&SpSized != 0 {
@@ -61,6 +64,9 @@ type rangeSp[I Integer] struct {
 	cur  I
 	stop I
 }
+
+// 编译期检查：rangeSp 实现 Splitterator。
+var _ Splitterator[int] = (*rangeSp[int])(nil)
 
 func newRangeSp[I Integer](cur, stop I, chars Characteristics) *rangeSp[I] {
 	if chars&SpSized != 0 {
@@ -176,6 +182,9 @@ type funcSp[T any] struct {
 	next func() (T, bool, error)
 	err  error // 首错缓存
 }
+
+// 编译期检查：funcSp 实现 Splitterator。
+var _ Splitterator[int] = (*funcSp[int])(nil)
 
 func newFuncSp[T any](next func() (T, bool, error)) *funcSp[T] {
 	return &funcSp[T]{baseSplitterator[T]{-1, SpOrdered}, next, nil}

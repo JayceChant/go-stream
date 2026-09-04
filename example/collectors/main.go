@@ -113,6 +113,9 @@ type topNCollector[T any] struct {
 	key func(T) float64
 }
 
+// 编译期检查：topNCollector 实现 Collector。
+var _ collector.Collector[int, *[]int, []int] = topNCollector[int]{}
+
 func (c topNCollector[T]) Supplier() *[]T { return &[]T{} }
 func (c topNCollector[T]) Accumulator(a *[]T, v T) {
 	*a = append(*a, v)

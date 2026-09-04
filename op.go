@@ -57,6 +57,9 @@ type collectingSink[T any] struct {
 	limit int64 // -1 表示不限
 }
 
+// 编译期检查：collectingSink 实现 Sink。
+var _ Sink[int] = (*collectingSink[int])(nil)
+
 func (c *collectingSink[T]) Begin(size int64) {
 	if size > 0 {
 		n := size

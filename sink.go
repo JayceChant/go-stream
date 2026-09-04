@@ -23,6 +23,9 @@ type Sink[T any] interface {
 // Begin/End 为空实现；未实现取消语义的算子可借助它快速装配。
 type sinkFunc[T any] func(t T) bool
 
+// 编译期检查：sinkFunc 实现 Sink。
+var _ Sink[int] = sinkFunc[int](nil)
+
 func (f sinkFunc[T]) Begin(int64)     {}
 func (f sinkFunc[T]) Accept(t T) bool { return f(t) }
 func (f sinkFunc[T]) End()            {}

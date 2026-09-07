@@ -378,7 +378,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 **1. ToSeq 出站适配（Task 19）**
 - `(*Stream[T]).ToSeq() iter.Seq[T]`：终止求值语义（调用即消费本流），把流编译为 Go 1.23 push 迭代器——`for v := range s.ToSeq()` 或交任何接受 `iter.Seq` 的 API（如 `slices.Collect`、`maps.Insert`）。
 - 消费方提前 break 即短路（`yield` 返回 false → Accept 返回 false → 引擎停止推动源），错误即值语义保留（`Err()` 可查首错）；OnClose 回调链随求值结束照常触发。
-- 同一 `iter.Seq` 值可多次 range（每次 range 触发一次全新求值——但流本身一次性：首遍 range 后本流已消费，第二遍 range 将 panic，与全库一次性契约一致；文档明示）。
+- 同一 `iter.Seq` 值的第二遍 range 将 panic（首遍 range 已消费本流；fail-fast 而非静默空遍历，与全库一次性契约一致）。
 - `(*NumberStream[N])` 经提升直接可用。
 
 **2. Collector 组合生态（Task 20）**

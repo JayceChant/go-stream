@@ -2,6 +2,8 @@ package stream
 
 import (
 	"errors"
+	"math"
+	"slices"
 	"testing"
 )
 
@@ -242,4 +244,67 @@ func collectSplitterator[T any](sp Splitterator[T]) []T {
 		return true
 	})
 	return got
+}
+
+func TestRangeClosed(t *testing.T) {
+	// 基本闭区间：含两端
+	if got := RangeClosed(1, 5).ToSlice(); !slices.Equal(got, []int{1, 2, 3, 4, 5}) {
+		t.Errorf("RangeClosed(1,5) = %v", got)
+	}
+	// start == stop：单元素
+	if got := RangeClosed(3, 3).ToSlice(); !slices.Equal(got, []int{3}) {
+		t.Errorf("RangeClosed(3,3) = %v", got)
+	}
+	// start > stop：空流
+	if got := RangeClosed(5, 1).Count(); got != 0 {
+		t.Errorf("RangeClosed(5,1) 计数 = %d", got)
+	}
+	// 与 Range 语义对照：RangeClosed(1,5) == Range(1,6)
+	if got := RangeClosed(1, 5).Sum(); got != Range(1, 6).Sum() {
+		t.Errorf("RangeClosed 求和 = %d", got)
+	}
+	// 可分：并行求和与串行一致
+	if got := RangeClosed(0, 999).Parallel(4).Sum(); got != 499500 {
+		t.Errorf("并行 RangeClosed 求和 = %d", got)
+	}
+	// 小整型实例化
+	if got := RangeClosed(int8(1), int8(3)).ToSlice(); !slices.Equal(got, []int8{1, 2, 3}) {
+		t.Errorf("int8 RangeClosed = %v", got)
+	}
+	// 溢出邻近值：stop = MaxInt64-1（未溢出路径）
+	if got := RangeClosed(int64(math.MaxInt64-1), int64(math.MaxInt64-1)).ToSlice(); len(got) != 1 {
+		t.Errorf("MaxInt64-1 = %v", got)
+	}
+	// 溢出路径：stop = MaxInt64（拆分 [start,stop) ++ [stop]）
+	s := RangeClosed(int64(math.MaxInt64), int64(math.MaxInt64))
+	first, ok := s.First()
+	if !ok || first != math.MaxInt64 {
+		t.Errorf("溢出路径首元素 = %d,%v", first, ok)
+	}
+	if got := RangeClosed(int64(math.MaxInt64-2), int64(math.MaxInt64)).Limit(3).ToSlice(); len(got) != 3 {
+		t.Errorf("溢出路径前 3 个 = %v", got)
+	}
+}
+
+func TestOfNonNil(t *testing.T) {
+	// 指针：nil 被过滤
+	a, b := 1, 2
+	got := OfNonNil(&a, nil, &b).ToSlice()
+	if len(got) != 2 || *got[0] != 1 || *got[1] != 2 {
+		t.Errorf("OfNonNil 指针 = %v", got)
+	}
+	// 接口零值
+	var nilErr error
+	gotI := OfNonNil(nilErr, errors.New("x")).ToSlice()
+	if len(gotI) != 1 || gotI[0].Error() != "x" {
+		t.Errorf("OfNonNil 接口 = %v", gotI)
+	}
+	// 数值零值
+	if got := OfNonNil(1, 0, 2).ToSlice(); !slices.Equal(got, []int{1, 2}) {
+		t.Errorf("OfNonNil 数值 = %v", got)
+	}
+	// 全 nil / 空参数
+	if got := OfNonNil[int]().ToSlice(); len(got) != 0 {
+		t.Errorf("空参数 = %v", got)
+	}
 }

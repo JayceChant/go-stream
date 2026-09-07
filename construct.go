@@ -154,3 +154,12 @@ var _ Sink[int] = skipBegin[int]{}
 func (s skipBegin[T]) Begin(int64)     {}
 func (s skipBegin[T]) Accept(v T) bool { return s.down.Accept(v) }
 func (s skipBegin[T]) End()            { s.down.End() }
+
+// OfNonNil 以可变参数构建流并过滤 nil（零值）元素——Java 9 Stream.ofNullable
+// 的 Go 惯用法：Go 无 null，语义为跳过零值（指针/接口/map/slice/channel 的
+// 零值即 nil，数值为零数）。T 须 comparable（nil/零值比较编译期合法；
+// slice/map/func 类型不可比较，需先经指针或接口包装）。
+func OfNonNil[T comparable](xs ...T) *Stream[T] {
+	var zero T
+	return Of(xs...).Filter(func(v T) bool { return v != zero })
+}

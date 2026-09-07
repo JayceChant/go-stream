@@ -212,3 +212,22 @@ func (s *NumberStream[N]) Max() (N, bool) {
 func (s *NumberStream[N]) Contains(target N) bool {
 	return Contains(&s.Stream, target)
 }
+
+// RangeClosed 构建整数区间数值流 [start, stop]（左闭右闭，步长 1；
+// start > stop 得空流，对齐 JDK rangeClosed 语义）。与 Range（左闭右开）
+// 并存；直接返回 *NumberStream（与 Range 一致）。
+// 实现基于 rangeSp（stop+1 转为右开）；stop 为类型最大值时 +1 溢出，
+// 以「[start, stop) ++ [stop]」数学等价拆分承接（该极端区间放弃 Sized
+// 特征，遍历语义不变）。
+func RangeClosed[I Integer](start, stop I) *NumberStream[I] {
+	if stop < start {
+		return wrapNumber(Empty[I]())
+	}
+	if excl := stop + 1; excl > stop { // 未溢出：直接右开区间
+		return wrapNumber(newHeadSplit(newRangeSp(start, excl, SpSized|SpOrdered)))
+	}
+	// 溢出（stop 为最大值）：拆分为 [start, stop) 与末元素 [stop]
+	return wrapNumber(Concat(
+		newHeadSplit(newRangeSp(start, stop, SpSized|SpOrdered)),
+		Of(stop)))
+}

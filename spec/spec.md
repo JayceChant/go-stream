@@ -110,15 +110,15 @@ Java Stream 的骨架是一棵**单继承类树**（`BaseStream` ← `AbstractPi
 
 ### Tier A：必做（Java Stream 对齐）
 
-**源（构造函数，全部惰性）**：`Of`/`FromSlice`/`FromSeq(iter.Seq)`/`FromChannel`/`FromMap[K,V] → *Stream[KV[K,V]]`/`FromFunc(next func() (T, bool, error))`/`Generate`/`Iterate`/`Range[I Integer] → *NumberStream[I]`（**Task 18 修订**：区间元素必然是数值，直接返回数值流，免去 `AsNumber(Range(...))` 二次收窄；泛型推断随接收者类型自动收窄，`Sum(Range(0,100))` 等既有用法不变）/`Concat`/`Empty`
+**源（构造函数，全部惰性）**：`Of`/`FromSlice`/`FromSeq(iter.Seq)`/`FromChannel`/`FromMap[K,V] → *Stream[KV[K,V]]`/`FromFunc(next func() (T, bool, error))`/`Generate`/`Iterate`/`Range[I Integer] → *NumberStream[I]`（**Task 18 修订**：区间元素必然是数值，直接返回数值流，免去 `AsNumber(Range(...))` 二次收窄；泛型推断随接收者类型自动收窄，`Sum(Range(0,100))` 等既有用法不变）/`Concat`/`Empty`（**Task 19~23 增补**：`RangeClosed[I Integer]`（闭区间 [start, stop]，start > stop 得空流）/`OfNonNil[T comparable]`（过滤 nil〔零值〕元素的可变参数源，Java 9 ofNullable 的 Go 惯用法））
 
 **无状态中间**：`Filter`/`Map[U]`/`FlatMap[U]`/`FlatMapSeq[U]`/`Peek`/`TakeWhile`/`DropWhile`
 
-**有状态中间**：`Limit(n)`/`Skip(n)`/`Sorted(cmp func(a,b T) int)`/`StableSorted(cmp func(a,b T) int)`/`DistinctBy(key)`/`Reverse`。**修订**：`Skip(0)` 恒等返回原流（不新增物化层、特征位透传、不触发并行降级；`Skip` 负参仍 panic，`n==0` 为唯一 no-op 特例，语义与 JDK `skip(0) returns this` 一致）。**修订（排序拆分）**：原 `Sorted` 的「稳定排序，对齐 `slices.SortFunc`」表述自相矛盾（`SortFunc` 本身不稳定）；现拆为 `Sorted`（不稳定，pdqsort，对齐 `slices.SortFunc`，默认选择，更快）与 `StableSorted`（稳定，对齐 `slices.SortStableFunc`，等键元素保持相遇顺序）。取舍：与 Java Stream `sorted()` 的稳定默认不同，转而对齐 Go 标准库 `SortFunc`/`SortStableFunc` 命名直觉；依赖稳定性的调用方迁移至 `StableSorted`。包级自然序 `Sorted` 委托方法随之为不稳定；不设包级自然序 `StableSorted`（`StableSorted(cmp.Compare[T])` 已覆盖，免过度展开 API 面）
+**有状态中间**：`Limit(n)`/`Skip(n)`/`Sorted(cmp func(a,b T) int)`/`StableSorted(cmp func(a,b T) int)`/`DistinctBy(key)`/`Reverse`（**Task 21 增补**：包级 `WindowSliding[T any](s, n int) *Stream[[]T]` 滑动窗口——只输出满窗，元素不足 n 时无输出，对齐 Java Gatherers.windowSliding）。**修订**：`Skip(0)` 恒等返回原流（不新增物化层、特征位透传、不触发并行降级；`Skip` 负参仍 panic，`n==0` 为唯一 no-op 特例，语义与 JDK `skip(0) returns this` 一致）。**修订（排序拆分）**：原 `Sorted` 的「稳定排序，对齐 `slices.SortFunc`」表述自相矛盾（`SortFunc` 本身不稳定）；现拆为 `Sorted`（不稳定，pdqsort，对齐 `slices.SortFunc`，默认选择，更快）与 `StableSorted`（稳定，对齐 `slices.SortStableFunc`，等键元素保持相遇顺序）。取舍：与 Java Stream `sorted()` 的稳定默认不同，转而对齐 Go 标准库 `SortFunc`/`SortStableFunc` 命名直觉；依赖稳定性的调用方迁移至 `StableSorted`。包级自然序 `Sorted` 委托方法随之为不稳定；不设包级自然序 `StableSorted`（`StableSorted(cmp.Compare[T])` 已覆盖，免过度展开 API 面）
 
-**终止**：`ForEach`/`ForEachUntil(f func(T) bool)`/`ToSlice`/`Count`/`Reduce(identity, op)`/`ReduceOpt(op) (T, bool)`/`Collect[A,R]`/`First`/`FindAny`（顺序下同 First）/`AnyMatch`/`AllMatch`/`NoneMatch`/`Min(cmp)`/`Max(cmp)`/`Err()`
+**终止**：`ForEach`/`ForEachUntil(f func(T) bool)`/`ToSlice`/`Count`/`Reduce(identity, op)`/`ReduceOpt(op) (T, bool)`/`Collect[A,R]`/`First`/`FindAny`（顺序下同 First）/`AnyMatch`/`AllMatch`/`NoneMatch`/`Min(cmp)`/`Max(cmp)`/`Err()`（**Task 19 增补**：`ToSeq() iter.Seq[T]` 出站适配——流交给 range-over-func 或任何接受 `iter.Seq` 的 API，详见「流扩展第一批」Requirement）
 
-**Collector 族**：`ToSlice`/`ToSet`/`ToMap`/`ToMapMerge`/`GroupingBy`/`Joining`/`Counting`/`Reducing`/`Mapping`
+**Collector 族**：`ToSlice`/`ToSet`/`ToMap`/`ToMapMerge`/`GroupingBy`/`Joining`/`Counting`/`Reducing`/`Mapping`（**Task 20 增补**：`GroupingByDownstream`/`PartitioningBy`/`PartitioningByDownstream`/`Teeing`/`Filtering`/`FlatMapping`/`CollectingAndThen`/`MinBy`/`MaxBy`；**Task 22 增补**：`Summarizing` 与 `SummaryStats` 结构）
 
 **Splitterator**：`TryAdvance(f func(T) bool) bool`/`ForEachRemaining`/`TrySplit()`/`EstimateSize()`/`Characteristics()`；特征位常量 SpSized/SpOrdered/SpSubSized/SpSorted/SpDistinct（Sp 前缀避免与 `Distinct` 函数等包级标识符冲突）；实现：slice（可二分）、range（可二分）、seq、channel、func 源（后三者不可分）
 
@@ -144,7 +144,7 @@ Java Stream 的骨架是一棵**单继承类树**（`BaseStream` ← `AbstractPi
 - ~~`onClose`/资源管理流：channel 源自然耗尽；需要时后续加~~（**Task 10 已实现**，见「生命周期与可重放」Requirement）
 - ~~可重放/可缓存流（memoize）：与一次性消费模型冲突~~（**Task 10 以 Cache 工厂形态实现**——不破坏一次性模型：物化一次、工厂每次产全新流，见「生命周期与可重放」Requirement）
 - Collector 错误化 Finisher：破坏组合简洁性
-- `flatMapToInt` 特化族、流上 `iterator()` 双向遍历：无场景
+- `flatMapToInt` 特化族、流上 `iterator()` 双向遍历：无场景（**Task 19 修订**：单向出站适配 `ToSeq() iter.Seq[T]` 已实现——对应 Java `stream.iterator()` 的 range-over-func 互通需求；双向遍历仍不做）
 - 限速/背压：channel 源天然具备，库层不掺和
 
 ### 建议摘要
@@ -163,7 +163,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - 新建 Go module：`github.com/JayceChant/go-stream`，go 1.27，根包 `stream`；另含低耦合子包 `collector`（收集器族，见「包结构」）
 - 核心类型：`Stream[T]`（嵌入 `pipeline[T]`）、`Sink[T]`、`Splitterator[T]`（嵌入 `baseSplitterator[T]`）、`collector.Collector[T,A,R]`、`KV[K,V]`、`Number`/复用 `cmp.Ordered` 约束
 - 求值引擎：Sink 链反向包装、单遍融合、短路、有状态分段物化、一次性消费、错误即值短路；并行分片求值（parallel.go）
-- API：Tier A + Tier B 全量 + `Parallel(n)`/`Sequential()`；**Task 18 增补**：`NumberStream` 数值流（收窄入口 + 19 个核心方法），`Range` 签名修订为返回 `*NumberStream[I]`
+- API：Tier A + Tier B 全量 + `Parallel(n)`/`Sequential()`；**Task 18 增补**：`NumberStream` 数值流（收窄入口 + 19 个核心方法），`Range` 签名修订为返回 `*NumberStream[I]`；**Task 19~23 增补**：`ToSeq()` 出站迭代适配、Collector 组合生态（GroupingByDownstream/PartitioningBy/Teeing/Filtering/FlatMapping/CollectingAndThen/MinBy/MaxBy）、`WindowSliding` 滑动窗口、`Summary`/`Summarizing`/`SummaryStats` 单遍统计、`RangeClosed`/`OfNonNil` 便捷源（见「流扩展第一批」Requirement）
 - 测试：单测 + `example_test.go`（可运行示例）+ 基准（vs 手写 for 循环）+ 并行加速比
 - 文档（Markdown，任务化）：`README.md`、`docs/design.md`（架构与 Java 对照）、`docs/api.md`（API 参考）
 
@@ -202,7 +202,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
   - `ops_stateless.go`（含 Err 变体；**Task 18 增补** `MapToNumber`，随 Map 同置）、`ops_stateful.go`（含 Scan/Chunk）、`op_ext.go`（Zip/Enumerate）
   - `terminal.go`（含 Err() 与并行终端）、`constraints/constraints.go`（Task 16：数值约束叶子包）、`collector/collector.go`（子包：Collector 与 11 个预置收集器）、`numeric.go`（包级 Sum/Avg/Sorted/Min/Max/Contains/Distinct）、`parallel.go`（Parallel/Sequential/Unordered/分片求值/无序流式合并）、`lifecycle.go`（Task 10：OnClose/Close/Cache）
   - `example/go.mod`（独立模块 + replace 指向根模块）与 `example/{basics,collectors,numeric,errors,parallel,lifecycle}/main.go`（Task 15：完整可运行示例目录，见「示例目录」Requirement；嵌套模块隔离覆盖率）
-  - `*_test.go`、`example_test.go`、`benchmark_test.go`、`parallel_test.go`、`collector/collector_test.go`
+  - `*_test.go`、`example_test.go`、`benchmark_test.go`、`parallel_test.go`、`collector/collector_test.go`（**Task 19~23 增补**：`terminal.go` 增 ToSeq、`op_ext.go` 增 WindowSliding、`numeric.go` 增 Summary、`construct.go` 增 RangeClosed/OfNonNil、`number_stream.go` 增 RangeClosed 收窄入口、`collector/collector.go` 增组合收集器族与 Summarizing/SummaryStats；配套 `collector_extra_test.go` 等）
   - `README.md`、`docs/design.md`、`docs/api.md`
   - `.github/workflows/{ci,govulncheck,scorecard,sonarcloud}.yml`、`codecov.yml`、`sonar-project.properties`（在线质量服务：Actions 测试矩阵 + lint、Codecov 覆盖率、官方 govulncheck 漏洞扫描、OpenSSF Scorecard、SonarCloud 质量门禁）
 
@@ -371,7 +371,66 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - **WHEN** `FromSlice(xs).Parallel(4).Unordered().Collect(c)`（可分源 + 显式 Unordered）
 - **THEN** 任一分片完成即可推入下游，不等待全部片；结果集合与串行一致
 
+### Requirement: 流扩展第一批（Task 19~23，对齐 Java 25 Stream 能力缺口）
+
+对标 Java 25（Gatherers + Collector 组合生态 + 历史便捷 API）补齐本库五项能力缺口，每项独立交付（实现一个、测试一个、提交一个）。
+
+**1. ToSeq 出站适配（Task 19）**
+- `(*Stream[T]).ToSeq() iter.Seq[T]`：终止求值语义（调用即消费本流），把流编译为 Go 1.23 push 迭代器——`for v := range s.ToSeq()` 或交任何接受 `iter.Seq` 的 API（如 `slices.Collect`、`maps.Insert`）。
+- 消费方提前 break 即短路（`yield` 返回 false → Accept 返回 false → 引擎停止推动源），错误即值语义保留（`Err()` 可查首错）；OnClose 回调链随求值结束照常触发。
+- 同一 `iter.Seq` 值可多次 range（每次 range 触发一次全新求值——但流本身一次性：首遍 range 后本流已消费，第二遍 range 将 panic，与全库一次性契约一致；文档明示）。
+- `(*NumberStream[N])` 经提升直接可用。
+
+**2. Collector 组合生态（Task 20）**
+- `GroupingByDownstream[K comparable, T, A, R any](keyF func(T) K, downstream Collector[T, A, R]) Collector[T, *map[K]R, map[K]R]`：两级汇聚——分组后每组交 downstream 收集（对应 Java `groupingBy(classifier, downstream)`），如分组计数、分组求和；Combiner 支持并行（按组合并组内结果），组内保持遇序。
+- `PartitioningBy[T, A, R any](p func(T) bool, downstream Collector[T, A, R]) Collector[T, *Partition[T, R], Partition[T, R]]`：布尔分组（`Partition[T, R]{True, False R}`，False 侧恒非 nil、空组为 downstream 零值结果）；`PartitioningBySlice[T any](p func(T) bool)` 为 ToSlice 下游便捷形态。对应 Java `partitioningBy`。
+- `Teeing[A1, R1, A2, R2, T, R any](c1 Collector[T, A1, R1], c2 Collector[T, A2, R2], merge func(R1, R2) R)`（累积容器 `teeAcc` 非导出）：一次遍历同时喂两个下游收集器，结束以 merge 合并双结果（对应 Java 12 teeing；Combiner 双侧均支持并行时才支持，任一 nil 则整体 nil → 串行降级）。
+- `Filtering[T, A, R any](p func(T) bool, downstream Collector[T, A, R])`：元素先过谓词再交下游（对应 Java 9 filtering，GroupingBy 下游常用）。
+- `FlatMapping[T, U, A, R any](f func(T) []U, downstream Collector[U, A, R])`：先 1:N 展开再交下游（对应 Java 9 flatMapping）。
+- `CollectingAndThen[T, A, R, RR any](c Collector[T, A, R], finish func(R) RR)`：finisher 包装（对应 Java collectingAndThen）。
+- `MinBy[T any](cmp func(a, b T) int) Collector[T, *minmaxAcc[T], T]` / `MaxBy`：收集器形态的最值（对应 Java minBy/maxBy；空流返回零值，与终端 Min/Max 的 (T, bool) 形态区分）。累积容器 `minmaxAcc` 非导出。
+- 全部新收集器 Combiner 语义：可并行合并的提供组合并，不可的返回 nil（Collect 自动降级串行）。
+
+**3. WindowSliding 滑动窗口（Task 21）**
+- 包级 `WindowSliding[T any](s *Stream[T], n int) *Stream[[]T]`：窗口逐元素滑动，只输出满窗（长度恰 n），元素少于 n 无输出——对齐 Java Gatherers `windowSliding(n)` 语义；`n <= 0` panic；nil 流返回 nil。
+- 单遍有状态（环形缓冲）→ 并行降级（splitN=nil）；特征位同 Chunk（清 Sized/Sorted/Distinct）。
+- 包级函数形态原因同 Chunk（方法返回 `Stream[[]T]` 触发实例化循环）。
+
+**4. Summarizing/SummaryStats 单遍统计（Task 22）**
+- `collector.SummaryStats[N Number]` 结构：`Count int64`/`Sum N`/`Min N`/`Max N`/`Avg() N`（方法，空流 Avg 返回 0）；`String()` 便于打印。
+- `collector.Summarizing[N Number]() Collector[N, *SummaryStats[N], SummaryStats[N]]`：单遍同时累积 count/sum/min/max（对应 Java summarizingInt/Long/Double 合并形态——Go 泛型单收集器覆盖全部数值类型）；Combiner 支持并行合并。
+- 根包便捷终端：`Summary[N Number](s *Stream[N]) SummaryStats[N]`（免 import 子包，与 Sum/Avg 同族，委托 Summarizing 实现）。
+
+**5. RangeClosed / OfNonNil（Task 23）**
+- `RangeClosed[I Integer](start, stop I) *NumberStream[I]`：闭区间 [start, stop]（含两端）；`start > stop` 得空流（对齐 JDK rangeClosed 语义，与 Range 左闭右开并存）。返回数值流（与 Range 一致）。
+- `OfNonNil[T comparable](xs ...T) *Stream[T]`：过滤 nil/零值元素的可变参数源（Java 9 `Stream.ofNullable` 的 Go 惯用法——Go 无 null，语义为跳过零值；`T comparable` 约束使 nil 检查编译期合法，指针/接口/map/slice 零值即 nil）。
+
+#### Scenario: ToSeq 接入 range-over-func
+- **WHEN** `for v := range FromSlice(xs).Map(f).ToSeq()` 且中途 break
+- **THEN** 已遍历元素正确产出，源遍历随 break 短路停止，`Err()` 返回 nil
+
+#### Scenario: 分组两级汇聚
+- **WHEN** `s.Collect(collector.GroupingByDownstream(keyF, collector.Counting[T]()))`
+- **THEN** 返回 `map[K]int64`，各键计数与串行逐组 Count 一致
+
+#### Scenario: Teeing 一次遍历双结果
+- **WHEN** `s.Collect(collector.Teeing(collector.Counting[T](), collector.Joining(strF, ","), merge))`
+- **THEN** 单遍求值产出合并结果，源只被遍历一次
+
+#### Scenario: 滑动窗口只出满窗
+- **WHEN** `stream.WindowSliding(stream.Of(1,2,3,4), 2).ToSlice()`
+- **THEN** 返回 `[[1 2] [2 3] [3 4]]`；元素少于 n（如 `WindowSliding(Of(1), 2)`）无输出
+
+#### Scenario: 单遍统计
+- **WHEN** `stream.Summary(stream.OfNumber(1, 2, 3, 4))`
+- **THEN** Count=4、Sum=10、Min=1、Max=4、Avg()=2（一次遍历内完成）
+
+#### Scenario: 闭区间与零值过滤
+- **WHEN** `stream.RangeClosed(1, 5).ToSlice()` 与 `stream.OfNonNil[int](1, 0, 2).ToSlice()`
+- **THEN** 分别返回 `[1 2 3 4 5]` 与 `[1 2]`
+
 ### Requirement: 文档（Markdown）
+
 SHALL 交付：`README.md`（简介/安装/快速上手/API 速览/与 Java 对照/设计要点/路线图）、`docs/design.md`（架构原理：管道/Sink/Splitterator/分段求值/错误模型/组合替代继承映射表/并行求值）、`docs/api.md`（分组 API 参考 + 示例）；`example_test.go` 提供可运行示例（与文档示例一致）。
 
 ### Requirement: 示例目录（example/，Task 15）

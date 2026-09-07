@@ -160,8 +160,8 @@
   - [x] `collector.SummaryStats[N]`（Count/Sum/Min/Max/Avg()/String()）、`collector.Summarizing`（Combiner 并行合并）、根包 `Summary` 便捷终端
   - [x] 单测：常规/空流/负数/浮点、并行 Collect 与串行等价
   - 依赖：Task 20（组合生态文件已扩容）——无硬依赖，仅同文件协作
-- [x] Task 23: `RangeClosed` / `OfNonNil` 便捷源
-  - [x] `RangeClosed[I Integer]` 闭区间（start > stop 空流）、`OfNonNil[T comparable]`（跳过零值；Java ofNullable 的 Go 惯用法）
+- [x] Task 23: `RangeClosed` / `OfNonZero` 便捷源
+  - [x] `RangeClosed[I Integer]` 闭区间（start > stop 空流）、`OfNonZero[T comparable]`（跳过零值；Java ofNullable 的 Go 惯用法；原名 OfNonNil 随用户反馈更名——zero 涵盖 nil，对齐 cmp.Or/lo.Compact 术语）
   - [x] 单测：区间边界（含溢出邻近值）、零值过滤（指针/接口/数值）、与 Range 语义对照
   - 依赖：无
 

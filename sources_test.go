@@ -286,25 +286,25 @@ func TestRangeClosed(t *testing.T) {
 	}
 }
 
-func TestOfNonNil(t *testing.T) {
+func TestOfNonZero(t *testing.T) {
 	// 指针：nil 被过滤
 	a, b := 1, 2
-	got := OfNonNil(&a, nil, &b).ToSlice()
+	got := OfNonZero(&a, nil, &b).ToSlice()
 	if len(got) != 2 || *got[0] != 1 || *got[1] != 2 {
-		t.Errorf("OfNonNil 指针 = %v", got)
+		t.Errorf("OfNonZero 指针 = %v", got)
 	}
 	// 接口零值
 	var nilErr error
-	gotI := OfNonNil(nilErr, errors.New("x")).ToSlice()
+	gotI := OfNonZero(nilErr, errors.New("x")).ToSlice()
 	if len(gotI) != 1 || gotI[0].Error() != "x" {
-		t.Errorf("OfNonNil 接口 = %v", gotI)
+		t.Errorf("OfNonZero 接口 = %v", gotI)
 	}
 	// 数值零值
-	if got := OfNonNil(1, 0, 2).ToSlice(); !slices.Equal(got, []int{1, 2}) {
-		t.Errorf("OfNonNil 数值 = %v", got)
+	if got := OfNonZero(1, 0, 2).ToSlice(); !slices.Equal(got, []int{1, 2}) {
+		t.Errorf("OfNonZero 数值 = %v", got)
 	}
 	// 全 nil / 空参数
-	if got := OfNonNil[int]().ToSlice(); len(got) != 0 {
+	if got := OfNonZero[int]().ToSlice(); len(got) != 0 {
 		t.Errorf("空参数 = %v", got)
 	}
 }

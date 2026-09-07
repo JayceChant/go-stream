@@ -11,7 +11,7 @@
 | 函数 | 说明 |
 |---|---|
 | `Of[T](xs ...T) *Stream[T]` | 少量元素直构 |
-| `OfNonNil[T comparable](xs ...T) *Stream[T]` | 过滤 nil（零值）元素的可变参数源（Java 9 `ofNullable` 的 Go 惯用法；Task 23） |
+| `OfNonZero[T comparable](xs ...T) *Stream[T]` | 过滤零值元素的可变参数源（zero 涵盖 nil，对齐 `cmp.Or` 官方术语；Java 9 `ofNullable` 的 Go 惯用法；Task 23） |
 | `FromSlice[T](s []T) *Stream[T]` | 零拷贝引用原切片（Sized/Ordered，可 TrySplit） |
 | `Empty[T]() *Stream[T]` | 空流 |
 | `FromSeq[T](seq iter.Seq[T]) *Stream[T]` | 适配 Go 1.23 range-over-func 迭代器 |

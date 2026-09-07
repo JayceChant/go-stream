@@ -30,7 +30,7 @@ Before Go 1.27, methods could not declare their own type parameters, so chained 
 - **Short-circuit evaluation**: `Limit`/`First`/`AnyMatch`/`TakeWhile` and friends stop source traversal as soon as the condition is met (safe for infinite streams)
 - **Errors as values**: expected errors (IO source failures, `MapErr` family callback errors) propagate as `error` values — first error short-circuits, partial results are preserved, query via `Err()`; unrecoverable misuses (double consumption, nil callbacks) panic
 - **Composition over inheritance**: Java's abstract class hierarchy (AbstractPipeline/StatelessOp/StatefulOp) is translated into "struct embedding + constructors + injected function values" with no simulated inheritance
-- **Java 25 parity highlights**: outbound iterator adaptation `ToSeq() iter.Seq[T]` (range-over-func interop), collector composition ecosystem (`GroupingByDownstream`/`PartitioningBy`/`Teeing`/`Filtering`/`FlatMapping`/`CollectingAndThen`/`MinBy`/`MaxBy`), sliding window `WindowSliding`, single-pass statistics `Summary`/`Summarizing` (`SummaryStats`), and convenience sources `RangeClosed`/`OfNonNil`
+- **Java 25 parity highlights**: outbound iterator adaptation `ToSeq() iter.Seq[T]` (range-over-func interop), collector composition ecosystem (`GroupingByDownstream`/`PartitioningBy`/`Teeing`/`Filtering`/`FlatMapping`/`CollectingAndThen`/`MinBy`/`MaxBy`), sliding window `WindowSliding`, single-pass statistics `Summary`/`Summarizing` (`SummaryStats`), and convenience sources `RangeClosed`/`OfNonZero`
 - **Zero third-party dependencies**: no third-party runtime dependencies in v1
 
 ## Installation
@@ -200,7 +200,7 @@ Performance note: each narrowing entry and element-preserving operator costs one
 
 | Category | APIs |
 |---|---|
-| Construction | `Of` `OfNonNil` `FromSlice` `FromSeq` `FromChannel` `FromMap` `FromFunc` `Generate` `Iterate` `Range` `RangeClosed` `Concat` `Empty` |
+| Construction | `Of` `OfNonZero` `FromSlice` `FromSeq` `FromChannel` `FromMap` `FromFunc` `Generate` `Iterate` `Range` `RangeClosed` `Concat` `Empty` |
 | Stateless intermediate | `Filter` `Map` `FlatMap` `FlatMapSeq` `Peek` `TakeWhile` `DropWhile` |
 | Err variants | `MapErr` `FilterErr` `FlatMapErr` `PeekErr` |
 | Stateful intermediate | `Limit` `Skip` `Sorted` `StableSorted` `DistinctBy` `Reverse` `Scan` |
@@ -236,7 +236,7 @@ For the full reference and examples, see [docs/api.md](./docs/api.md).
 | `Collectors.groupingBy(classifier, downstream)` | `collector.GroupingByDownstream` | Two-level reduction: group first, then collect each group with a downstream collector (combiner-supported for parallel) |
 | `Gatherers.windowSliding(n)` | `WindowSliding(s, n)` | Full windows only; fewer than n elements produce no output; package-level due to Go 1.27 instantiation-cycle limitation |
 | `summaryStatistics()` | `Summary`/`Summarizing` (`SummaryStats[N]`) | Single-pass count/sum/min/max, `Avg()` derived without a second pass |
-| `rangeClosed(a, b)` / `Stream.ofNullable` | `RangeClosed(a, b)` / `OfNonNil(xs...)` | Closed interval; skip nil (zero-value) elements — Go has no null, zero values are skipped |
+| `rangeClosed(a, b)` / `Stream.ofNullable` | `RangeClosed(a, b)` / `OfNonZero(xs...)` | Closed interval; skip zero-value elements (zero covers nil, aligned with `cmp.Or` terminology) |
 | Exception propagation | Errors as values (`Err()`/`MapErr` family) | Aligned with Go's official error style |
 | `stream.distinct()` | `DistinctBy[K comparable](key)` method / `Distinct` package-level | A method's own type parameters may carry the `comparable` constraint (keys are compile-time comparable, zero boxing); `Distinct` constrains the element `T` itself, and methods cannot constrain the receiver's `T`, so it stays package-level |
 

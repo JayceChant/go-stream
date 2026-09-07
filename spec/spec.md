@@ -110,7 +110,7 @@ Java Stream 的骨架是一棵**单继承类树**（`BaseStream` ← `AbstractPi
 
 ### Tier A：必做（Java Stream 对齐）
 
-**源（构造函数，全部惰性）**：`Of`/`FromSlice`/`FromSeq(iter.Seq)`/`FromChannel`/`FromMap[K,V] → *Stream[KV[K,V]]`/`FromFunc(next func() (T, bool, error))`/`Generate`/`Iterate`/`Range[I Integer] → *NumberStream[I]`（**Task 18 修订**：区间元素必然是数值，直接返回数值流，免去 `AsNumber(Range(...))` 二次收窄；泛型推断随接收者类型自动收窄，`Sum(Range(0,100))` 等既有用法不变）/`Concat`/`Empty`（**Task 19~23 增补**：`RangeClosed[I Integer]`（闭区间 [start, stop]，start > stop 得空流）/`OfNonNil[T comparable]`（过滤 nil〔零值〕元素的可变参数源，Java 9 ofNullable 的 Go 惯用法））
+**源（构造函数，全部惰性）**：`Of`/`FromSlice`/`FromSeq(iter.Seq)`/`FromChannel`/`FromMap[K,V] → *Stream[KV[K,V]]`/`FromFunc(next func() (T, bool, error))`/`Generate`/`Iterate`/`Range[I Integer] → *NumberStream[I]`（**Task 18 修订**：区间元素必然是数值，直接返回数值流，免去 `AsNumber(Range(...))` 二次收窄；泛型推断随接收者类型自动收窄，`Sum(Range(0,100))` 等既有用法不变）/`Concat`/`Empty`（**Task 19~23 增补**：`RangeClosed[I Integer]`（闭区间 [start, stop]，start > stop 得空流）/`OfNonZero[T comparable]`（过滤零值元素的可变参数源——zero 涵盖 nil；Java 9 ofNullable 的 Go 惯用法））
 
 **无状态中间**：`Filter`/`Map[U]`/`FlatMap[U]`/`FlatMapSeq[U]`/`Peek`/`TakeWhile`/`DropWhile`
 
@@ -163,7 +163,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - 新建 Go module：`github.com/JayceChant/go-stream`，go 1.27，根包 `stream`；另含低耦合子包 `collector`（收集器族，见「包结构」）
 - 核心类型：`Stream[T]`（嵌入 `pipeline[T]`）、`Sink[T]`、`Splitterator[T]`（嵌入 `baseSplitterator[T]`）、`collector.Collector[T,A,R]`、`KV[K,V]`、`Number`/复用 `cmp.Ordered` 约束
 - 求值引擎：Sink 链反向包装、单遍融合、短路、有状态分段物化、一次性消费、错误即值短路；并行分片求值（parallel.go）
-- API：Tier A + Tier B 全量 + `Parallel(n)`/`Sequential()`；**Task 18 增补**：`NumberStream` 数值流（收窄入口 + 19 个核心方法），`Range` 签名修订为返回 `*NumberStream[I]`；**Task 19~23 增补**：`ToSeq()` 出站迭代适配、Collector 组合生态（GroupingByDownstream/PartitioningBy/Teeing/Filtering/FlatMapping/CollectingAndThen/MinBy/MaxBy）、`WindowSliding` 滑动窗口、`Summary`/`Summarizing`/`SummaryStats` 单遍统计、`RangeClosed`/`OfNonNil` 便捷源（见「流扩展第一批」Requirement）
+- API：Tier A + Tier B 全量 + `Parallel(n)`/`Sequential()`；**Task 18 增补**：`NumberStream` 数值流（收窄入口 + 19 个核心方法），`Range` 签名修订为返回 `*NumberStream[I]`；**Task 19~23 增补**：`ToSeq()` 出站迭代适配、Collector 组合生态（GroupingByDownstream/PartitioningBy/Teeing/Filtering/FlatMapping/CollectingAndThen/MinBy/MaxBy）、`WindowSliding` 滑动窗口、`Summary`/`Summarizing`/`SummaryStats` 单遍统计、`RangeClosed`/`OfNonZero` 便捷源（见「流扩展第一批」Requirement）
 - 测试：单测 + `example_test.go`（可运行示例）+ 基准（vs 手写 for 循环）+ 并行加速比
 - 文档（Markdown，任务化）：`README.md`、`docs/design.md`（架构与 Java 对照）、`docs/api.md`（API 参考）
 
@@ -202,7 +202,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
   - `ops_stateless.go`（含 Err 变体；**Task 18 增补** `MapToNumber`，随 Map 同置）、`ops_stateful.go`（含 Scan/Chunk）、`op_ext.go`（Zip/Enumerate）
   - `terminal.go`（含 Err() 与并行终端）、`constraints/constraints.go`（Task 16：数值约束叶子包）、`collector/collector.go`（子包：Collector 与 11 个预置收集器）、`numeric.go`（包级 Sum/Avg/Sorted/Min/Max/Contains/Distinct）、`parallel.go`（Parallel/Sequential/Unordered/分片求值/无序流式合并）、`lifecycle.go`（Task 10：OnClose/Close/Cache）
   - `example/go.mod`（独立模块 + replace 指向根模块）与 `example/{basics,collectors,numeric,errors,parallel,lifecycle}/main.go`（Task 15：完整可运行示例目录，见「示例目录」Requirement；嵌套模块隔离覆盖率）
-  - `*_test.go`、`example_test.go`、`benchmark_test.go`、`parallel_test.go`、`collector/collector_test.go`（**Task 19~23 增补**：`terminal.go` 增 ToSeq、`op_ext.go` 增 WindowSliding、`numeric.go` 增 Summary、`construct.go` 增 RangeClosed/OfNonNil、`number_stream.go` 增 RangeClosed 收窄入口、`collector/collector.go` 增组合收集器族与 Summarizing/SummaryStats；配套 `collector_extra_test.go` 等）
+  - `*_test.go`、`example_test.go`、`benchmark_test.go`、`parallel_test.go`、`collector/collector_test.go`（**Task 19~23 增补**：`terminal.go` 增 ToSeq、`op_ext.go` 增 WindowSliding、`numeric.go` 增 Summary、`construct.go` 增 RangeClosed/OfNonZero、`number_stream.go` 增 RangeClosed 收窄入口、`collector/collector.go` 增组合收集器族与 Summarizing/SummaryStats；配套 `collector_extra_test.go` 等）
   - `README.md`、`docs/design.md`、`docs/api.md`
   - `.github/workflows/{ci,govulncheck,scorecard,sonarcloud}.yml`、`codecov.yml`、`sonar-project.properties`（在线质量服务：Actions 测试矩阵 + lint、Codecov 覆盖率、官方 govulncheck 漏洞扫描、OpenSSF Scorecard、SonarCloud 质量门禁）
 
@@ -401,9 +401,9 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - `collector.Summarizing[N Number]() Collector[N, *SummaryStats[N], SummaryStats[N]]`：单遍同时累积 count/sum/min/max（对应 Java summarizingInt/Long/Double 合并形态——Go 泛型单收集器覆盖全部数值类型）；Combiner 支持并行合并。
 - 根包便捷终端：`Summary[N Number](s *Stream[N]) SummaryStats[N]`（免 import 子包，与 Sum/Avg 同族，委托 Summarizing 实现）。
 
-**5. RangeClosed / OfNonNil（Task 23）**
+**5. RangeClosed / OfNonZero（Task 23）**
 - `RangeClosed[I Integer](start, stop I) *NumberStream[I]`：闭区间 [start, stop]（含两端）；`start > stop` 得空流（对齐 JDK rangeClosed 语义，与 Range 左闭右开并存）。返回数值流（与 Range 一致）。
-- `OfNonNil[T comparable](xs ...T) *Stream[T]`：过滤 nil/零值元素的可变参数源（Java 9 `Stream.ofNullable` 的 Go 惯用法——Go 无 null，语义为跳过零值；`T comparable` 约束使 nil 检查编译期合法，指针/接口/map/slice 零值即 nil）。
+- `OfNonZero[T comparable](xs ...T) *Stream[T]`：过滤零值元素的可变参数源（Java 9 `Stream.ofNullable` 的 Go 惯用法；`T comparable` 约束使零值比较编译期合法——nil 即引用类型零值，数值 0/空串同为零值被过滤）。**命名修订（随 Task 23 用户反馈）**：原 `OfNonNil` 名不副实——Go 语义中 zero ⊇ nil，nil 不涵盖 0/""，而本函数过滤的是全部零值；官方 `cmp.Or`（"not equal to the zero value"，指针 nil 场景亦只称 zero）与三方 `lo.Compact`（"non-zero elements"）均以 non-zero 表述该语义，nil 专属命名（如 `lo.IsNil`）对应反射判 nil，与本语义不符。
 
 #### Scenario: ToSeq 接入 range-over-func
 - **WHEN** `for v := range FromSlice(xs).Map(f).ToSeq()` 且中途 break
@@ -426,7 +426,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - **THEN** Count=4、Sum=10、Min=1、Max=4、Avg()=2（一次遍历内完成）
 
 #### Scenario: 闭区间与零值过滤
-- **WHEN** `stream.RangeClosed(1, 5).ToSlice()` 与 `stream.OfNonNil[int](1, 0, 2).ToSlice()`
+- **WHEN** `stream.RangeClosed(1, 5).ToSlice()` 与 `stream.OfNonZero[int](1, 0, 2).ToSlice()`
 - **THEN** 分别返回 `[1 2 3 4 5]` 与 `[1 2]`
 
 ### Requirement: 文档（Markdown）

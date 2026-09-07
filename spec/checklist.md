@@ -91,6 +91,6 @@
 - [x] Collector 组合生态（collector_combine.go）：GroupingByDownstream/PartitioningBy+Slice/Teeing/Filtering/FlatMapping/CollectingAndThen/MinBy/MaxBy 九收集器；下游 Combiner 可用则并行合并、任一 nil 整体降级串行
 - [x] `WindowSliding` 滑动窗口（op_ext.go）：环形缓冲单遍、只出满窗（不足 n 无输出）、n<=0 panic、nil 容错、特征位清 Sized/Sorted/Distinct、splitN 降级
 - [x] `SummaryStats[N]`/`Summarizing[N]()`/根包 `Summary`：单遍 count/sum/min/max、Avg 派生、String 可读、Combiner 并行合并与串行等价
-- [x] `RangeClosed`（闭区间、溢出拆分承接、可分保持）与 `OfNonNil`（零值过滤、comparable 约束）
+- [x] `RangeClosed`（闭区间、溢出拆分承接、可分保持）与 `OfNonZero`（零值过滤、comparable 约束；原 OfNonNil 随用户反馈更名——zero ⊇ nil，对齐 cmp.Or/lo.Compact 术语）
 - [x] 每任务独立提交（feat×5）；质量门槛全绿：go fix 无改写 / gofmt 空 / vet 无告警 / `go test -race -count=1 ./...` 全绿 / golangci-lint 0 issues
 - [x] README（Features/API Overview/Java 对照表）与 docs/api.md（构造/中间/终止/包级聚合/Collector 章节与示例）同步

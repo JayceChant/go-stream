@@ -178,3 +178,40 @@ func TestMinMaxBy(t *testing.T) {
 		t.Errorf("MaxBy 合并 = %d", gotC)
 	}
 }
+
+func TestSummarizing(t *testing.T) {
+	// 常规：count/sum/min/max/avg
+	got := acc(Summarizing[int](), []int{1, 2, 3, 4})
+	if got.Count != 4 || got.Sum != 10 || got.Min != 1 || got.Max != 4 || got.Avg() != 2 {
+		t.Errorf("Summarizing = %+v", got)
+	}
+
+	// 空流
+	gotE := acc(Summarizing[int](), nil)
+	if gotE.Count != 0 || gotE.Avg() != 0 {
+		t.Errorf("空流统计 = %+v", gotE)
+	}
+
+	// 负数与浮点
+	gotN := acc(Summarizing[float64](), []float64{-1.5, 2.5})
+	if gotN.Min != -1.5 || gotN.Max != 2.5 || gotN.Avg() != 0.5 {
+		t.Errorf("浮点统计 = %+v", gotN)
+	}
+
+	// Combiner 分片合并
+	gotC := combine(Summarizing[int](), []int{1, 5}, []int{-3, 7})
+	if gotC.Count != 4 || gotC.Sum != 10 || gotC.Min != -3 || gotC.Max != 7 {
+		t.Errorf("分片合并 = %+v", gotC)
+	}
+
+	// 空片让位
+	gotCE := combine(Summarizing[int](), nil, []int{2})
+	if gotCE.Count != 1 || gotCE.Max != 2 {
+		t.Errorf("空片合并 = %+v", gotCE)
+	}
+
+	// String 可读
+	if s := acc(Summarizing[int](), []int{1, 2, 3, 4}).String(); s != "count=4, sum=10, min=1, max=4, avg=2" {
+		t.Errorf("String = %q", s)
+	}
+}

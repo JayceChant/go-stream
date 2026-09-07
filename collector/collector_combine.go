@@ -9,6 +9,12 @@
 
 package collector
 
+import (
+	"fmt"
+
+	"github.com/JayceChant/go-stream/constraints"
+)
+
 // groupDownCollector 是 GroupingByDownstream 的实现：每键独立下游累积容器，
 // Finisher 时逐组 Finisher 收口。
 type groupDownCollector[K comparable, T, A, R any] struct {
@@ -297,4 +303,82 @@ func MinBy[T any](cmp func(a, b T) int) Collector[T, *minmaxAcc[T], T] {
 // MaxBy 收集器形态的最大值（依 cmp；空流返回零值，对应 Java maxBy）。
 func MaxBy[T any](cmp func(a, b T) int) Collector[T, *minmaxAcc[T], T] {
 	return minmaxCollector[T]{cmp: cmp, sign: 1}
+}
+
+// SummaryStats 是单遍数值统计结果：一次遍历同时累积计数、总和、最小、最大
+// （对应 Java IntSummaryStatistics/DoubleSummaryStatistics 的泛型合并形态——
+// Go 泛型单结构覆盖全部数值类型）。空流时 Count=0、Sum=0、Min/Max 为零值。
+type SummaryStats[N constraints.Number] struct {
+	Count int64
+	Sum   N
+	Min   N
+	Max   N
+}
+
+// Avg 返回平均值（空流返回 0；整数类型按整除语义截断，与 Averaging 一致）。
+func (s SummaryStats[N]) Avg() N {
+	if s.Count == 0 {
+		return 0
+	}
+	return s.Sum / N(s.Count)
+}
+
+// String 便于打印（"count=4, sum=10, min=1, max=4, avg=2"）。
+func (s SummaryStats[N]) String() string {
+	return fmt.Sprintf("count=%d, sum=%v, min=%v, max=%v, avg=%v",
+		s.Count, s.Sum, s.Min, s.Max, s.Avg())
+}
+
+// summarizeCollector 是 Summarizing 的实现：累积容器即 *SummaryStats[N]。
+type summarizeCollector[N constraints.Number] struct{}
+
+// 编译期检查：summarizeCollector 实现 Collector。
+var _ Collector[int, *SummaryStats[int], SummaryStats[int]] = summarizeCollector[int]{}
+
+func (summarizeCollector[N]) Supplier() *SummaryStats[N] { return new(SummaryStats[N]) }
+func (summarizeCollector[N]) Accumulator(s *SummaryStats[N], v N) {
+	if s.Count == 0 {
+		s.Min, s.Max = v, v
+	} else {
+		if v < s.Min {
+			s.Min = v
+		}
+		if v > s.Max {
+			s.Max = v
+		}
+	}
+	s.Sum += v
+	s.Count++
+}
+
+// Combiner 合并两片统计（空片让位）。
+func (summarizeCollector[N]) Combiner() func(a, b *SummaryStats[N]) *SummaryStats[N] {
+	return func(a, b *SummaryStats[N]) *SummaryStats[N] {
+		if b.Count == 0 {
+			return a
+		}
+		if a.Count == 0 {
+			*a = *b
+			return a
+		}
+		if b.Min < a.Min {
+			a.Min = b.Min
+		}
+		if b.Max > a.Max {
+			a.Max = b.Max
+		}
+		a.Sum += b.Sum
+		a.Count += b.Count
+		return a
+	}
+}
+
+func (summarizeCollector[N]) Finisher(s *SummaryStats[N]) SummaryStats[N] { return *s }
+
+// Summarizing 单遍数值统计收集器：一次遍历同时产出 count/sum/min/max
+// （Avg 由 SummaryStats.Avg() 派生，免二次遍历）。
+// 与 Summing/Averaging 同族；需要与其它收集器组合（如 GroupingByDownstream
+// 分组统计）时用本形态，整流一行闭环用根包 stream.Summary。
+func Summarizing[N constraints.Number]() Collector[N, *SummaryStats[N], SummaryStats[N]] {
+	return summarizeCollector[N]{}
 }

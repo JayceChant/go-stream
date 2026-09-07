@@ -61,3 +61,31 @@ func makeRange(start, stop int) []int {
 	}
 	return out
 }
+
+func TestSummaryTerminal(t *testing.T) {
+	// 根包便捷终端：单遍统计
+	got := Summary(Range(1, 5).AsStream())
+	if got.Count != 4 || got.Sum != 10 || got.Min != 1 || got.Max != 4 || got.Avg() != 2 {
+		t.Errorf("Summary = %+v", got)
+	}
+
+	// nil 流
+	if got := Summary[int](nil); got.Count != 0 {
+		t.Errorf("nil 流 Summary = %+v", got)
+	}
+
+	// 并行 Collect 与串行等价
+	want := Summary(FromSlice(makeRange(0, 1000)))
+	gotP := FromSlice(makeRange(0, 1000)).Parallel(4).Collect(collector.Summarizing[int]())
+	if gotP != want {
+		t.Errorf("并行统计 = %+v, 串行 = %+v", gotP, want)
+	}
+
+	// NumberStream 链上分组统计
+	gotG := Of(1, 2, 3, 4).Collect(
+		collector.GroupingByDownstream(func(v int) bool { return v%2 == 0 },
+			collector.Summarizing[int]()))
+	if gotG[true].Sum != 6 || gotG[false].Sum != 4 {
+		t.Errorf("分组统计 = %+v", gotG)
+	}
+}

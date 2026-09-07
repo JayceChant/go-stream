@@ -1,6 +1,10 @@
 package stream
 
-import "cmp"
+import (
+	"cmp"
+
+	"github.com/JayceChant/go-stream/collector"
+)
 
 // numeric.go：需要元素类型约束的包级便捷操作。
 //
@@ -81,4 +85,17 @@ func Max[T cmp.Ordered](s *Stream[T]) (T, bool) {
 		return zero, false
 	}
 	return s.Max(cmp.Compare[T])
+}
+
+// Summary 单遍数值统计：一次遍历同时产出 count/sum/min/max（Avg 经
+// collector.SummaryStats.Avg() 派生）。与 Sum/Avg 同族的便捷终端，
+// 免 import 子包；需与其它收集器组合（分组统计）时用
+// collector.Summarizing[N]()。链式方法形态见 (*NumberStream[N]) 经提升
+// 的 Collect(collector.Summarizing[N]())。
+// 空流返回零值统计（Count=0，Avg()=0）。
+func Summary[N Number](s *Stream[N]) collector.SummaryStats[N] {
+	if s == nil {
+		return collector.SummaryStats[N]{}
+	}
+	return s.Collect(collector.Summarizing[N]())
 }

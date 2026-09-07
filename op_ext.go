@@ -123,3 +123,58 @@ func Enumerate[T any](s *Stream[T]) *Stream[KV[int, T]] {
 	ns.splitN = nil
 	return ns
 }
+
+// windowSlidingSink 是 WindowSliding 的滑动窗口 sink：环形缓冲（覆盖最旧槽位），
+// 满窗后每个新元素产出一个新窗口。
+type windowSlidingSink[T any] struct {
+	down Sink[[]T]
+	n    int
+	buf  []T // 环形缓冲
+	i    int // 下一写入位
+	full bool
+}
+
+// 编译期检查：windowSlidingSink 实现 Sink。
+var _ Sink[int] = (*windowSlidingSink[int])(nil)
+
+func (w *windowSlidingSink[T]) Begin(int64) {
+	w.down.Begin(-1) // 输出个数未知（元素少于 n 时无输出）
+	w.buf = make([]T, w.n)
+}
+
+func (w *windowSlidingSink[T]) Accept(v T) bool {
+	w.buf[w.i] = v
+	w.i = (w.i + 1) % w.n
+	if !w.full && w.i == 0 {
+		w.full = true // 首个满窗
+	}
+	if w.full {
+		win := make([]T, w.n)
+		copy(win, w.buf[w.i:]) // 从最旧元素起按序展开
+		copy(win[w.n-w.i:], w.buf[:w.i])
+		return w.down.Accept(win)
+	}
+	return true
+}
+
+func (w *windowSlidingSink[T]) End() { w.down.End() }
+
+// WindowSliding 滑动窗口：窗口含 n 个连续元素、逐元素向后滑动，只输出
+// 满窗（长度恰 n），元素少于 n 时无输出（对齐 Java Gatherers windowSliding；
+// 定长不重叠分组用 Chunk）。
+//
+// 包级函数形态：同 Chunk（Go 1.27 泛型方法返回 Stream[[]T] 触发实例化循环）。
+// 有状态单遍（环形缓冲）→ 并行降级（splitN=nil）。n <= 0 panic；nil 流返回 nil。
+func WindowSliding[T any](s *Stream[T], n int) *Stream[[]T] {
+	if s == nil {
+		return nil
+	}
+	if n <= 0 {
+		panic("stream: WindowSliding 窗口大小必须为正")
+	}
+	ns := newStateless(s, func(down Sink[[]T], _ *evalCtx) Sink[T] {
+		return &windowSlidingSink[T]{down: down, n: n}
+	}, s.chars&^(SpSized|SpDistinct|SpSorted))
+	ns.splitN = nil
+	return ns
+}

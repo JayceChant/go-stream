@@ -154,3 +154,12 @@ var _ Sink[int] = skipBegin[int]{}
 func (s skipBegin[T]) Begin(int64)     {}
 func (s skipBegin[T]) Accept(v T) bool { return s.down.Accept(v) }
 func (s skipBegin[T]) End()            { s.down.End() }
+
+// OfNonZero 以可变参数构建流并过滤零值元素（对齐 cmp.Or 的官方术语：
+// nil 是引用类型的零值，zero 涵盖 nil——Java 9 Stream.ofNullable 的 Go
+// 惯用法）。T 须 comparable（零值比较编译期合法；slice/map/func 类型
+// 不可比较，需先经指针或接口包装）。
+func OfNonZero[T comparable](xs ...T) *Stream[T] {
+	var zero T
+	return Of(xs...).Filter(func(v T) bool { return v != zero })
+}

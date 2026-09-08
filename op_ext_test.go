@@ -2,6 +2,7 @@ package stream
 
 import (
 	"errors"
+	"slices"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -74,3 +75,60 @@ func TestZipPanicPropagation(t *testing.T) {
 type errStr string
 
 func (e errStr) Error() string { return string(e) }
+
+func TestWindowSliding(t *testing.T) {
+	// 基本滑动：每元素一窗
+	got := WindowSliding(Of(1, 2, 3, 4), 2).ToSlice()
+	want := [][]int{{1, 2}, {2, 3}, {3, 4}}
+	if len(got) != len(want) {
+		t.Fatalf("WindowSliding 输出 %d 窗, 期望 %d", len(got), len(want))
+	}
+	for i := range want {
+		if !slices.Equal(got[i], want[i]) {
+			t.Errorf("窗 %d = %v, 期望 %v", i, got[i], want[i])
+		}
+	}
+
+	// n == len：单窗即全部元素
+	got1 := WindowSliding(Of(1, 2, 3), 3).ToSlice()
+	if len(got1) != 1 || !slices.Equal(got1[0], []int{1, 2, 3}) {
+		t.Errorf("n==len = %v", got1)
+	}
+
+	// 元素少于 n：无输出
+	if got0 := WindowSliding(Of(1), 2).ToSlice(); len(got0) != 0 {
+		t.Errorf("不足 n 应无输出, got %v", got0)
+	}
+
+	// 空流
+	if gotE := WindowSliding(Empty[int](), 2).ToSlice(); len(gotE) != 0 {
+		t.Errorf("空流应无输出, got %v", gotE)
+	}
+
+	// 无限源 + Limit：滑动正常终止
+	gotInf := WindowSliding(Iterate(1, func(v int) int { return v + 1 }), 3).Limit(2).ToSlice()
+	if len(gotInf) != 2 || !slices.Equal(gotInf[0], []int{1, 2, 3}) || !slices.Equal(gotInf[1], []int{2, 3, 4}) {
+		t.Errorf("无限源滑动 = %v", gotInf)
+	}
+
+	// 环形回绕正确性：n=4 长序列抽查
+	gotW := WindowSliding(Of(1, 2, 3, 4, 5, 6), 4).ToSlice()
+	if len(gotW) != 3 || !slices.Equal(gotW[2], []int{3, 4, 5, 6}) {
+		t.Errorf("回绕窗 = %v", gotW)
+	}
+
+	// 边界：n <= 0 panic；nil 流返回 nil
+	expectPanic(t, "WindowSliding 非正", func() { WindowSliding(Of(1), 0) })
+	if WindowSliding[int](nil, 2) != nil {
+		t.Error("nil 流应返回 nil")
+	}
+
+	// 特征位与并行降级断言（同 Chunk 规则）
+	s := WindowSliding(Of(1, 2, 3), 2)
+	if s.chars&SpSized != 0 {
+		t.Error("WindowSliding 应清 SpSized")
+	}
+	if s.splitN != nil {
+		t.Error("WindowSliding 应并行降级（splitN=nil）")
+	}
+}

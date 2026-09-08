@@ -85,3 +85,12 @@
 - [x] 根包新增 coverage_extra_test.go：nil 参数 panic 矩阵 20 项、便捷函数 nil/空流边界、源级 TryAdvance 边界（slice/range/seq/channel）、短路穿透物化回放与 Scan 种子、Err 变体全路径、并行 Summing、mergeClosers 单侧、sliceTotal 类型容错与取消——100%
 - [x] 质量门槛全绿：gofmt 空 / vet 无告警 / `go test -count=1 ./...` 全绿 / `go test -race -count=1 ./...` 全绿
 - [x] `go tool cover -func` 总计 100%（根包与 collector 子包均 100%，0 计数块清零）
+
+## 流扩展第一批（Task 19~23，对齐 Java 25）
+- [x] `ToSeq() iter.Seq[T]` 出站适配（terminal.go）：终止求值语义、break 短路源遍历、错误即值与 OnClose 照常、二次 range panic（一次性契约）、NumberStream 提升可用
+- [x] Collector 组合生态（collector_combine.go）：GroupingByDownstream/PartitioningBy+Slice/Teeing/Filtering/FlatMapping/CollectingAndThen/MinBy/MaxBy 九收集器；下游 Combiner 可用则并行合并、任一 nil 整体降级串行
+- [x] `WindowSliding` 滑动窗口（op_ext.go）：环形缓冲单遍、只出满窗（不足 n 无输出）、n<=0 panic、nil 容错、特征位清 Sized/Sorted/Distinct、splitN 降级
+- [x] `SummaryStats[N]`/`Summarizing[N]()`/根包 `Summary`：单遍 count/sum/min/max、Avg 派生、String 可读、Combiner 并行合并与串行等价
+- [x] `RangeClosed`（闭区间、溢出拆分承接、可分保持）与 `OfNonZero`（零值过滤、comparable 约束；原 OfNonNil 随用户反馈更名——zero ⊇ nil，对齐 cmp.Or/lo.Compact 术语）
+- [x] 每任务独立提交（feat×5）；质量门槛全绿：go fix 无改写 / gofmt 空 / vet 无告警 / `go test -race -count=1 ./...` 全绿 / golangci-lint 0 issues
+- [x] README（Features/API Overview/Java 对照表）与 docs/api.md（构造/中间/终止/包级聚合/Collector 章节与示例）同步

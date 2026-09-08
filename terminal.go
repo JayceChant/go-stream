@@ -1,6 +1,10 @@
 package stream
 
-import "github.com/JayceChant/go-stream/collector"
+import (
+	"iter"
+
+	"github.com/JayceChant/go-stream/collector"
+)
 
 // terminal.go：终止操作（触发一次求值，返回新容器或聚合值）。
 //
@@ -272,6 +276,18 @@ func (s *Stream[T]) minmax(cmp func(a, b T) int, sign int) (T, bool) {
 // 无错误返回 nil；未求值前调用亦返回 nil。
 func (s *Stream[T]) Err() error {
 	return s.pipeline.err
+}
+
+// ToSeq 把流编译为 Go 1.23 push 迭代器（出站适配，对应 Java stream.iterator()）：
+// 供 range-over-func（for v := range s.ToSeq()）或任何接受 iter.Seq 的 API 消费。
+// 调用即消费本流（终止求值语义）；消费方提前 break 即短路——yield 返回 false
+// 使引擎立即停止推动源；错误即值语义保留（求值后 Err() 可查首错），OnClose
+// 回调链随求值结束照常触发。二次 range 同一 seq 将 panic（流本身一次性，
+// 首遍 range 已将其消费，与全库一次性契约一致）。
+func (s *Stream[T]) ToSeq() iter.Seq[T] {
+	return func(yield func(T) bool) {
+		s.pipeline.evaluate(sinkFunc[T](yield))
+	}
 }
 
 // Collect 以自定义收集器汇聚元素（泛型方法，支持 A→R 类型迁移）。

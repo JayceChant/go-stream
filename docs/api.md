@@ -11,6 +11,7 @@
 | 函数 | 说明 |
 |---|---|
 | `Of[T](xs ...T) *Stream[T]` | 少量元素直构 |
+| `OfNonZero[T comparable](xs ...T) *Stream[T]` | 过滤零值元素的可变参数源（zero 涵盖 nil，对齐 `cmp.Or` 官方术语；Java 9 `ofNullable` 的 Go 惯用法；Task 23） |
 | `FromSlice[T](s []T) *Stream[T]` | 零拷贝引用原切片（Sized/Ordered，可 TrySplit） |
 | `Empty[T]() *Stream[T]` | 空流 |
 | `FromSeq[T](seq iter.Seq[T]) *Stream[T]` | 适配 Go 1.23 range-over-func 迭代器 |
@@ -20,6 +21,7 @@
 | `Generate[T](f func() T) *Stream[T]` | 无限生成器 |
 | `Iterate[T](seed T, next func(T) T) *Stream[T]` | 无限迭代（seed, f(seed), ...） |
 | `Range[I Integer](start, stop I) *NumberStream[I]` | 左闭右开整数区间（可 TrySplit）；直接返回数值流（Task 18），需 `*Stream` 时经 `AsStream()` 桥接 |
+| `RangeClosed[I Integer](start, stop I) *NumberStream[I]` | 闭区间 [start, stop]（含两端；start > stop 空流；Task 23），与 `Range` 左闭右开并存 |
 | `Concat[T](a, b *Stream[T]) *Stream[T]` | 顺序拼接两流 |
 
 ```go
@@ -76,6 +78,7 @@ Err 变体（错误即值：回调返回错误 → 首错短路、部分结果�
 | `Sorted[T cmp.Ordered](s) *Stream[T]` | 自然序排序（不稳定；稳定形态用 `s.StableSorted(cmp.Compare[T])`） |
 | `Chunk[T](s, n int) *Stream[[]T]` | 定长分组（尾组可不足 n） |
 | `Enumerate[T](s) *Stream[KV[int, T]]` | 附加索引（对应 `for i, v := range`） |
+| `WindowSliding[T](s, n int) *Stream[[]T]` | 滑动窗口：只输出满窗（长度恰 n，元素少于 n 无输出；对齐 Java Gatherers `windowSliding`；Task 21），环形缓冲单遍实现，支持无限源 |
 
 双流：
 
@@ -141,6 +144,7 @@ f().ForEach(use)   // 重放：零拷贝
 | `NoneMatch(p func(T) bool) bool` *短路* | 无满足（空流 true） |
 | `Min(cmp func(a, b T) int) (T, bool)` | 最小（空流零值+false） |
 | `Max(cmp func(a, b T) int) (T, bool)` | 最大 |
+| `ToSeq() iter.Seq[T]` | 出站适配：流编译为 Go 1.23 push 迭代器，供 `for v := range` 或任何接受 `iter.Seq` 的 API 消费（Task 19）；调用即消费，消费方 break 短路源遍历，错误即值与 OnClose 照常生效 |
 | `Err() error` | 最近一次求值的首错（错误即值） |
 
 包级聚合（约束补偿设计；链式方法形态见下节 NumberStream）：
@@ -149,6 +153,7 @@ f().ForEach(use)   // 重放：零拷贝
 |---|---|
 | `Sum[N Number](s *Stream[N]) N` | 求和 |
 | `Avg[N Number](s *Stream[N]) N` | 平均（空流 0） |
+| `Summary[N Number](s *Stream[N]) collector.SummaryStats[N]` | 单遍统计 count/sum/min/max（Avg 派生免二次遍历；Task 22），收集器形态见 `collector.Summarizing` |
 | `Contains[T comparable](s, target T) bool` *短路* | 包含判断 |
 | `Min[T cmp.Ordered](s) (T, bool)` / `Max[T cmp.Ordered](s)` | 自然序最值 |
 | `Distinct[T comparable](s) *Stream[T]` | 元素自身去重（保首见遇序） |
@@ -225,6 +230,15 @@ type Collector[T, A, R any] interface {
 | `collector.Mapping[T, U, A, R](f, downstream)` | 先变换再汇聚（组合子） |
 | `collector.Summing[N constraints.Number]()` | 数值求和 |
 | `collector.Averaging[N constraints.Number]()` | 数值平均（和 + 计数同行累积，单遍；空流 0；整型整除） |
+| `collector.GroupingByDownstream[K, T, A, R](keyF, downstream)` | 两级汇聚：分组后每组交 downstream 收集（如分组计数/求和；Java `groupingBy(classifier, downstream)`；Task 20），下游 Combiner 可用时支持并行合并 |
+| `collector.PartitioningBy[T, A, R](p, downstream)` | 布尔分组：`Partition[T, R]{True, False}` 双侧各自交 downstream 汇聚（Java `partitioningBy`；Task 20） |
+| `collector.PartitioningBySlice[T](p)` | PartitioningBy + ToSlice 便捷形态（空侧为 nil 切片） |
+| `collector.Teeing[T, A1, R1, A2, R2, R](c1, c2, merge)` | 一次遍历同时喂两个下游收集器，结束以 merge 合并双结果（Java 12 `teeing`；Task 20） |
+| `collector.Filtering[T, A, R](p, downstream)` | 元素先过谓词再交下游（Java 9 `filtering`；Task 20） |
+| `collector.FlatMapping[T, U, A, R](f, downstream)` | 先 1:N 展开再交下游（Java 9 `flatMapping`；Task 20） |
+| `collector.CollectingAndThen[T, A, R, RR](c, finish)` | finisher 包装（Java `collectingAndThen`；Task 20） |
+| `collector.MinBy[T](cmp)` / `collector.MaxBy[T](cmp)` | 收集器形态最值（空流返回零值，区别于终端 Min/Max 的 (T, bool)；Java `minBy`/`maxBy`；Task 20） |
+| `collector.Summarizing[N constraints.Number]()` | 单遍统计：`SummaryStats[N]`（Count/Sum/Min/Max + `Avg()` 派生 + `String()`；Task 22），Combiner 支持并行合并 |
 
 ```go
 // Mapping 组合子：分组后求每组的和
@@ -239,6 +253,22 @@ total := stream.FromSlice(orders).Collect(collector.ToMapMerge(
     func(o Order) int { return o.Amount },
     func(oldV, newV int) int { return oldV + newV },
 ))
+
+// GroupingByDownstream（Task 20）：一次遍历分组计数
+counts := stream.FromSlice(orders).Collect(collector.GroupingByDownstream(
+    func(o Order) string { return o.Region },
+    collector.Counting[Order](),
+))
+
+// Teeing（Task 20）：一次遍历同时求和与计数，合并为均值
+avg := stream.FromSlice(amounts).Collect(collector.Teeing(
+    collector.Summing[int](), collector.Counting[int](),
+    func(s int, n int64) float64 { return float64(s) / float64(n) },
+))
+
+// Summary（Task 22）：单遍 count/sum/min/max，Avg 派生
+stats := stream.Summary(stream.FromSlice(amounts))
+fmt.Println(stats) // count=3, sum=..., min=..., max=..., avg=...
 ```
 
 ## 语义约定

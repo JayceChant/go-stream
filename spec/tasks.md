@@ -141,6 +141,30 @@
   - [x] README/docs/api.md/example/numeric 同步；质量门槛全绿（go fix/gofmt 空/vet 无告警/test -race 全绿/golangci-lint 0 issues/覆盖率 100.0% 保持，number_stream.go 全函数 100%）
   - 依赖：无（纯增量 API；Range 签名修订为唯一Breaking 点，随本任务迁移）
 
+# 后续 TODO（Task 19~23，随「流扩展第一批：对齐 Java 25」goal 立项）
+- [x] Task 19: `ToSeq() iter.Seq[T]` 出站适配
+  - [x] 终止求值语义：调用即消费；返回 push 迭代器供 range-over-func / 任何 `iter.Seq` 消费方
+  - [x] 短路互通：消费方 break → 引擎停止推动源；错误即值保留（Err() 可查）；OnClose 照常触发
+  - [x] 单测：range 全量/中途 break 短路、与 slices.Collect 互通、错误流 Err、二次 range panic（一次性契约）、NumberStream 提升
+  - 依赖：无（引擎已稳定）
+- [x] Task 20: Collector 组合生态
+  - [x] `GroupingByDownstream`（两级汇聚，Combiner 并行组合并）、`PartitioningBy`/`PartitioningBySlice`（布尔分组）
+  - [x] `Teeing`（一次遍历双下游 + merge；Combiner 双侧可并行才并行）、`Filtering`/`FlatMapping`（Java 9 下游收集器）、`CollectingAndThen`（finisher 包装）、`MinBy`/`MaxBy`
+  - [x] 单测：各收集器语义（空流/边界）、并行 Collect 合并等价、分组保序、teeing 单遍验证（源计数探针）
+  - 依赖：无
+- [x] Task 21: `WindowSliding` 滑动窗口（包级函数，同 Chunk 形态）
+  - [x] 只输出满窗、元素少于 n 无输出；n <= 0 panic；nil 流返回 nil；环形缓冲单遍实现；splitN 降级
+  - [x] 单测：基本滑动、n==len 边界、不足 n、无限源+Limit、特征位与 splitN 降级断言
+  - 依赖：无
+- [x] Task 22: `Summary`/`Summarizing`/`SummaryStats` 单遍统计
+  - [x] `collector.SummaryStats[N]`（Count/Sum/Min/Max/Avg()/String()）、`collector.Summarizing`（Combiner 并行合并）、根包 `Summary` 便捷终端
+  - [x] 单测：常规/空流/负数/浮点、并行 Collect 与串行等价
+  - 依赖：Task 20（组合生态文件已扩容）——无硬依赖，仅同文件协作
+- [x] Task 23: `RangeClosed` / `OfNonZero` 便捷源
+  - [x] `RangeClosed[I Integer]` 闭区间（start > stop 空流）、`OfNonZero[T comparable]`（跳过零值；Java ofNullable 的 Go 惯用法；原名 OfNonNil 随用户反馈更名——zero 涵盖 nil，对齐 cmp.Or/lo.Compact 术语）
+  - [x] 单测：区间边界（含溢出邻近值）、零值过滤（指针/接口/数值）、与 Range 语义对照
+  - 依赖：无
+
 # Task Dependencies
 - [Task 2] depends on [Task 1]
 - [Task 3]、[Task 4]、[Task 5] depends on [Task 2]（三组可并行开发）

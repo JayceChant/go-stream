@@ -33,9 +33,19 @@ jobs:
           cache: false
 
       # 官方 action：自动完成构建追踪与数据库分析（Go 为无构建语言，编译自动完成）
+      # tools 显式锁定版本，避免默认跟随 action 捆绑版本漂移；
+      # CodeQL CLI 2.26.4 的 Go extractor 在并发提取含泛型方法的包时会触发
+      # "concurrent map read and map write" 崩溃（上游修复见 github/codeql#22399），
+      # 暂以下方单 goroutine workaround 规避；修复版 bundle 发布后显式升级 tools 并移除。
       - uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
         with:
           languages: go
+          tools: 2.26.4
+
+      # workaround：单 goroutine 提取，规避 extractor 全局 map 并发读写崩溃
+      # （同 github/codeql#22399），待修复版 CLI 发布后可移除。
+      - name: Work around CodeQL Go extractor concurrent map crash
+        run: echo "CODEQL_EXTRACTOR_GO_MAX_GOROUTINES=1" >> "$GITHUB_ENV"
 
       - uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
         with:

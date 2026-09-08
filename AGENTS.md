@@ -28,4 +28,5 @@
   - 依赖最小化：v1 不引入第三方运行时依赖（测试工具除外）
   - 不过度设计：不实现 spec 未要求的功能（Tier C 明确不做清单见 spec）
   - 文件组织遵循 spec「Impact」一节的文件布局；新增文件需在 spec 中补记
+- **coding-agent 使用指引同步维护**：本仓库向下游用户提供 [`skills/go-stream/SKILL.md`](./skills/go-stream/SKILL.md)（供用户安装到各自 coding agent 的使用指引）。新增或变更公开 API（含语义/签名调整）时，必须同步更新该文件对应条目（含「Method vs package-level」清单与内置收集器列表），确保其与实际 API 面一致。
 - Go 语言规范（工具链、泛型方法约束、错误模型、比较器签名、现代写法清单）与质量门槛命令见 [`agents/go.md`](./agents/go.md)。

@@ -1,0 +1,24 @@
+# 发布自动化：release-please 基于 Conventional Commits 维护 CHANGELOG 与 Release
+# 日常 push 到 master → 自动创建/更新 Release PR（chore(master): release X.Y.Z）；
+# 人工审阅并合并该 PR → 自动打 tag vX.Y.Z 并发布 GitHub Release（notes 取自 CHANGELOG）。
+# 前提（一次性仓库设置）：Settings → Actions → General →
+#   勾选 Allow GitHub Actions to create and approve pull requests。
+name: release-please
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: write # 打 tag、创建 GitHub Release
+  pull-requests: write # 创建 Release PR
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

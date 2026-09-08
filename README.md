@@ -64,7 +64,7 @@ s.AnyMatch(p)
 s.Collect(collector.GroupingBy(keyOf, valOf))
 ```
 
-More runnable examples: [example_test.go](./example_test.go) (verified by `go test`) and the [example/](./example) directory — six standalone, copy-paste-ready programs covering the full API surface:
+More runnable examples: [example_test.go](./example_test.go) (verified by `go test`) and the [example/](./example) directory — seven standalone, copy-paste-ready programs covering the full API surface:
 
 ```bash
 go -C example run ./basics      # sources → intermediate → terminal operations
@@ -73,6 +73,7 @@ go -C example run ./numeric     # numeric aggregation, Scan, infinite sources, Z
 go -C example run ./errors      # errors-as-value model (FromFunc/MapErr family/Err())
 go -C example run ./parallel    # Parallel(n)/Unordered, order-preserving merge, auto fallback
 go -C example run ./lifecycle   # OnClose/Close resource management, Cache replayable factory
+go -C example run ./extensions  # Java 25 parity: ToSeq/collector composition/WindowSliding/Summary/RangeClosed/OfNonZero
 ```
 
 `example/` is a separate Go module (not part of the library's tests or coverage) so each file can be copied into your project as-is.
@@ -254,6 +255,7 @@ See [docs/design.md](./docs/design.md) for architecture details.
 - [x] v1 sequential evaluation engine, full operator set, Collector system, errors-as-values model
 - [x] **Parallel evaluation `Parallel(n)` / `Sequential()`**: recursive TrySplit splitting + goroutine-parallel execution + `Collector.Combiner` merging; order-preserving merge by shard order (Ordered); automatic fallback to sequential after short-circuit terminals or materializing operators (correctness first); measured speedup of ~3.3x (4 shards) on CPU-bound workloads
 - [x] v1.x: **`onClose`/resource management** (`OnClose(f)` triggered automatically at end of evaluation + idempotent explicit `Close()`), **replayable streams** (`Cache(s)` factory: materialize once, produce a brand-new one-shot stream each time without breaking the one-shot model), **Unordered streaming merge** (`Unordered()` clears the order flag; under parallelism shards push results as they complete, reducing end-to-end latency)
+- [x] v1.x: **Java 25 parity batch** — outbound `ToSeq() iter.Seq[T]` (range-over-func interop with short-circuit on break), collector composition ecosystem (`GroupingByDownstream`/`PartitioningBy`/`Teeing`/`Filtering`/`FlatMapping`/`CollectingAndThen`/`MinBy`/`MaxBy`, combiner-aware for parallel), sliding window `WindowSliding`, single-pass statistics `Summary`/`Summarizing` (`SummaryStats`), convenience sources `RangeClosed`/`OfNonZero` (zero covers nil, aligned with `cmp.Or` terminology)
 
 ## License
 

@@ -30,6 +30,7 @@ Go 1.27 之前方法不能声明自有类型参数，`Map[U]` 这类链式 API �
 - **短路求值**：`Limit`/`First`/`AnyMatch`/`TakeWhile` 等满足条件即停止源遍历（无限流安全）
 - **错误即值**：可预期错误（IO 源失败、`MapErr` 族回调错误）以 `error` 值传播——首错短路、部分结果保留、`Err()` 查询；不可恢复错误（重复消费、nil 回调）panic
 - **组合替代继承**：Java 的抽象类层次（AbstractPipeline/StatelessOp/StatefulOp）转换为「结构体嵌入 + 构造函数 + 函数值注入」，无模拟继承
+- **对齐 Java 25 Stream 能力**：出站迭代适配 `ToSeq() iter.Seq[T]`（range-over-func 互通）、Collector 组合生态（`GroupingByDownstream`/`PartitioningBy`/`Teeing`/`Filtering`/`FlatMapping`/`CollectingAndThen`/`MinBy`/`MaxBy`）、滑动窗口 `WindowSliding`、单遍统计 `Summary`/`Summarizing`（`SummaryStats`）、便捷源 `RangeClosed`/`OfNonZero`
 - **零第三方依赖**：v1 运行时无第三方依赖
 
 ## 安装
@@ -63,7 +64,7 @@ s.AnyMatch(p)
 s.Collect(collector.GroupingBy(keyOf, valOf))
 ```
 
-更多可运行示例：[example_test.go](./example_test.go)（`go test` 即验证）与 [example/](./example) 目录——六个独立完整、可整文件复制的示例程序，覆盖全部 API 面：
+更多可运行示例：[example_test.go](./example_test.go)（`go test` 即验证）与 [example/](./example) 目录——七个独立完整、可整文件复制的示例程序，覆盖全部 API 面：
 
 ```bash
 go -C example run ./basics      # 构造 → 中间 → 终止全流程
@@ -72,6 +73,7 @@ go -C example run ./numeric     # 数值聚合、Scan 前缀和、无限源、Zi
 go -C example run ./errors      # 错误即值模型（FromFunc/Err 族/Err()）
 go -C example run ./parallel    # 并行 Parallel(n)/Unordered、保序合并、自动降级
 go -C example run ./lifecycle   # OnClose/Close 资源管理、Cache 可重放
+go -C example run ./extensions  # 对齐 Java 25：ToSeq/收集器组合/WindowSliding/Summary/RangeClosed/OfNonZero
 ```
 
 `example/` 为独立 Go 模块（不参与库的测试与覆盖率统计），每个文件都可直接复制进你的项目改用。
@@ -172,17 +174,17 @@ result := stream.FromSlice(orders).
 
 | 类别 | API |
 |---|---|
-| 构造 | `Of` `FromSlice` `FromSeq` `FromChannel` `FromMap` `FromFunc` `Generate` `Iterate` `Range` `Concat` `Empty` |
+| 构造 | `Of` `OfNonZero` `FromSlice` `FromSeq` `FromChannel` `FromMap` `FromFunc` `Generate` `Iterate` `Range` `RangeClosed` `Concat` `Empty` |
 | 无状态中间 | `Filter` `Map` `FlatMap` `FlatMapSeq` `Peek` `TakeWhile` `DropWhile` |
 | Err 变体 | `MapErr` `FilterErr` `FlatMapErr` `PeekErr` |
 | 有状态中间 | `Limit` `Skip` `Sorted` `StableSorted` `DistinctBy` `Reverse` `Scan` |
 | 并行控制 | `Parallel(n)` `Sequential()` `Unordered()` |
-| 包级中间 | `Distinct` `Sorted`（自然序）`Chunk` `Enumerate` |
+| 包级中间 | `Distinct` `Sorted`（自然序）`Chunk` `Enumerate` `WindowSliding` |
 | 双流 | `Zip` |
 | 生命周期 | `OnClose(f)` `Close()` `Cache(s)`（可重放工厂） |
-| 终止 | `ForEach` `ForEachUntil` `ToSlice` `Count` `Reduce` `ReduceOpt` `Collect` `First` `FindAny` `AnyMatch` `AllMatch` `NoneMatch` `Min` `Max` `Err` |
-| 收集器（子包 `collector`） | `ToSlice` `ToSet` `ToMap` `ToMapMerge` `GroupingBy` `Joining` `Counting` `Reducing` `Mapping` `Summing` `Averaging` |
-| 包级聚合 | `Sum` `Avg` `Contains` `Min` `Max` |
+| 终止 | `ForEach` `ForEachUntil` `ToSlice` `ToSeq` `Count` `Reduce` `ReduceOpt` `Collect` `First` `FindAny` `AnyMatch` `AllMatch` `NoneMatch` `Min` `Max` `Err` |
+| 收集器（子包 `collector`） | `ToSlice` `ToSet` `ToMap` `ToMapMerge` `GroupingBy` `GroupingByDownstream` `PartitioningBy` `PartitioningBySlice` `Teeing` `Filtering` `FlatMapping` `CollectingAndThen` `MinBy` `MaxBy` `Joining` `Counting` `Reducing` `Mapping` `Summing` `Averaging` `Summarizing`（`SummaryStats`） |
+| 包级聚合 | `Sum` `Avg` `Summary` `Contains` `Min` `Max` |
 | NumberStream 数值流（Task 18） | 嵌入 `Stream[N]` 的收窄包装 + 收窄入口 `Range`（直接返回 `*NumberStream`）`OfNumber` `FromNumberSlice` `MapToNumber` `AsNumber`/`AsStream`；收窄方法 `Sum()` `Avg()` `Min()` `Max()` `Contains()` `Sorted()` `StableSorted()` `Distinct()` |
 
 完整参考与示例见 [docs/api.md](./docs/api.md)。
@@ -202,6 +204,12 @@ result := stream.FromSlice(orders).
 | `stream.parallel()` | `Parallel(n)` / `Sequential()` | TrySplit 分片 + goroutine；短路终止与物化算子后自动降级串行 |
 | `stream.unordered()` | `Unordered()` | 清除 SpOrdered；并行下分片结果先完成先推（流式合并） |
 | `stream.onClose(f)` / `close()` | `OnClose(f)` / `Close()` | 求值结束（含短路/错误/panic 路径）自动触发；显式关闭幂等；回调出错经 `Err()` 查询 |
+| `stream.iterator()` | `ToSeq() iter.Seq[T]` | 出站适配 Go 1.23 range-over-func；消费方 break 即短路源遍历 |
+| `Collectors.teeing` | `collector.Teeing` | 一次遍历喂两个下游收集器，merge 合并双结果 |
+| `Collectors.groupingBy(classifier, downstream)` | `collector.GroupingByDownstream` | 两级汇聚：分组后每组交下游收集器（Combiner 可用则支持并行） |
+| `Gatherers.windowSliding(n)` | `WindowSliding(s, n)` | 只输出满窗（不足 n 无输出）；包级函数（Go 1.27 实例化循环限制） |
+| `summaryStatistics()` | `Summary`/`Summarizing`（`SummaryStats[N]`） | 单遍 count/sum/min/max，`Avg()` 派生免二次遍历 |
+| `rangeClosed(a, b)` / `Stream.ofNullable` | `RangeClosed(a, b)` / `OfNonZero(xs...)` | 闭区间；跳过零值元素（zero 涵盖 nil，对齐 `cmp.Or` 官方术语） |
 | 异常穿透 | 错误即值（`Err()`/`MapErr` 族） | 对齐 Go 官方错误风格 |
 | `stream.distinct()` | `DistinctBy[K comparable](key)` 方法 / `Distinct` 包级 | 方法自有类型参数可带 `comparable` 约束（键类型编译期可比较、零装箱）；`Distinct` 约束的是元素 `T` 本身，方法不能约束接收者的 `T`，故仍为包级 |
 
@@ -219,6 +227,7 @@ result := stream.FromSlice(orders).
 - [x] v1 串行求值引擎、全量算子、Collector 体系、错误即值模型
 - [x] **并行求值 `Parallel(n)` / `Sequential()`**：TrySplit 递归分片 + goroutine 并行执行 + Collector.Combiner 合并；按分片序合并保序（Ordered）、短路终止族与物化算子后自动降级串行（正确性优先）；CPU 密集场景实测加速比 ~3.3x（4 分片）
 - [x] v1.x：**`onClose`/资源管理**（`OnClose(f)` 求值结束自动触发 + `Close()` 幂等显式释放）、**可重放流**（`Cache(s)` 工厂：物化一次、每次产全新一次性流，不破坏一次性模型）、**Unordered 流式合并**（`Unordered()` 清序标志，并行下分片先完成先推，降低端到端延迟）
+- [x] v1.x：**对齐 Java 25 能力批次**——出站 `ToSeq() iter.Seq[T]`（range-over-func 互通、break 短路）、Collector 组合生态（`GroupingByDownstream`/`PartitioningBy`/`Teeing`/`Filtering`/`FlatMapping`/`CollectingAndThen`/`MinBy`/`MaxBy`，Combiner 可用则并行合并）、滑动窗口 `WindowSliding`、单遍统计 `Summary`/`Summarizing`（`SummaryStats`）、便捷源 `RangeClosed`/`OfNonZero`（zero 涵盖 nil，对齐 `cmp.Or` 术语）
 
 ## License
 

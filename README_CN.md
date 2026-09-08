@@ -227,7 +227,8 @@ result := stream.FromSlice(orders).
 > 项目当前处于 **v0.x** 阶段：API 尚不稳定，**不作兼容性承诺**——尽量以新增特性为主，但仍可能在 Minor 版本之间引入破坏性变更。自 v1 起才开始稳定性承诺。
 
 - [x] **v0.1**（已发布，tag `v0.1.0`）：串行求值引擎、全量算子、Collector 体系、错误即值模型；**并行求值 `Parallel(n)` / `Sequential()`**（TrySplit 递归分片 + goroutine 并行执行 + Collector.Combiner 合并；按分片序合并保序，短路终止族与物化算子后自动降级串行，CPU 密集场景 4 分片实测加速比 ~3.3x）；**生命周期与流式批次**——`OnClose(f)`/`Close()` 资源管理、可重放 `Cache(s)` 工厂、`Unordered()` 流式合并
-- [ ] v0.2：**对齐 Java 25 能力批次**——出站 `ToSeq() iter.Seq[T]`（range-over-func 互通、break 短路）、Collector 组合生态（`GroupingByDownstream`/`PartitioningBy`/`Teeing`/`Filtering`/`FlatMapping`/`CollectingAndThen`/`MinBy`/`MaxBy`，Combiner 可用则并行合并）、滑动窗口 `WindowSliding`、单遍统计 `Summary`/`Summarizing`（`SummaryStats`）、便捷源 `RangeClosed`/`OfNonZero`（zero 涵盖 nil，对齐 `cmp.Or` 术语）；**NumberStream 数值收窄**（`NumberStream[N]` + `MapToNumber`/`AsNumber` 桥接）——已实现，待发布
+- [x] **v0.2**（已发布，tag `v0.2.0`）：**对齐 Java 25 能力批次**——出站 `ToSeq() iter.Seq[T]`（range-over-func 互通、break 短路）、Collector 组合生态（`GroupingByDownstream`/`PartitioningBy`/`Teeing`/`Filtering`/`FlatMapping`/`CollectingAndThen`/`MinBy`/`MaxBy`，Combiner 可用则并行合并）、滑动窗口 `WindowSliding`、单遍统计 `Summary`/`Summarizing`（`SummaryStats`）、便捷源 `RangeClosed`/`OfNonZero`（zero 涵盖 nil，对齐 `cmp.Or` 术语）；**NumberStream 数值收窄**（`NumberStream[N]` + `MapToNumber`/`AsNumber` 桥接）；**排序语义拆分**——`Sorted`（不稳定 pdqsort，默认）与 `StableSorted`（稳定保相遇序，对齐 `slices.SortStableFunc`）；**Collector 接口化**（行为只读防误改，附性能回测）；新增 `Averaging` 数值平均收集器；数值约束下沉 `constraints` 子包（`Summing` 迁入 collector）；`Sorted`/`Reverse` 就地变换独占物化缓冲（省一次全量克隆）
+- [ ] **v0.3**：范围待定——基于 v0.2 的实际使用反馈立项；方向建议欢迎提 issue
 
 ## License
 

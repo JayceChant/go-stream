@@ -204,6 +204,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
   - `example/go.mod`（独立模块 + replace 指向根模块）与 `example/{basics,collectors,numeric,errors,parallel,lifecycle}/main.go`（Task 15：完整可运行示例目录，见「示例目录」Requirement；嵌套模块隔离覆盖率）
   - `*_test.go`、`example_test.go`、`benchmark_test.go`、`parallel_test.go`、`collector/collector_test.go`（**Task 19~23 增补**：`terminal.go` 增 ToSeq、`op_ext.go` 增 WindowSliding、`numeric.go` 增 Summary、`construct.go` 增 RangeClosed/OfNonZero、`number_stream.go` 增 RangeClosed 收窄入口、`collector/collector.go` 增组合收集器族与 Summarizing/SummaryStats；配套 `collector_extra_test.go` 等）
   - `README.md`、`docs/design.md`、`docs/api.md`
+  - `AGENTS.md`（协作规范入口：项目专属约定与引用骨架）、`agents/common.md`（语言无关通用规范）、`agents/go.md`（Go 语言规范与质量门槛）——协作规范拆分，`agents/` 下两文件可整体复用到其它项目
   - `.github/workflows/{ci,govulncheck,scorecard,sonarcloud}.yml`、`codecov.yml`、`sonar-project.properties`（在线质量服务：Actions 测试矩阵 + lint、Codecov 覆盖率、官方 govulncheck 漏洞扫描、OpenSSF Scorecard、SonarCloud 质量门禁）
 
 ## ADDED Requirements

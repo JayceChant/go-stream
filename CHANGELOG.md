@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 由 [release-please](https://github.com/googleapis/release-please) 基于中文 Conventional Commits 自动维护；v0.1.0 及之前为人工回填。
 
+## [0.2.1](https://github.com/JayceChant/go-stream/compare/v0.2.0...v0.2.1) (2026-09-08)
+
+
+### Documentation
+
+* **skill:** 新增面向用户的 coding-agent 使用指引并约定 API 同步维护 ([2953d60](https://github.com/JayceChant/go-stream/commit/2953d605bf05f8fa1487eef7f653256b5b18e46d))
+
 ## [0.2.0](https://github.com/JayceChant/go-stream/compare/v0.1.0...v0.2.0) (2026-09-08)
 
 本版本聚焦一次排序语义拆分与两块能力扩展：`Sorted` 改为不稳定 pdqsort（对齐 `slices.SortFunc`，默认更快），稳定语义由新增的 `StableSorted` 承接；新增 `NumberStream` 数值流与配套数值收集器（`Summing`/`Averaging`/`Summarizing` 等）；落地流扩展第一批（`ToSeq`、`WindowSliding`、Collector 组合生态、`RangeClosed`/`OfNonZero`，对齐 Java 25 能力缺口）。工程上接入 release-please 发布自动化，CHANGELOG 与 GitHub Release 自本版起由 Conventional Commits 自动维护。

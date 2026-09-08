@@ -29,6 +29,7 @@
   - 示例：`feat(<scope>): 实现 Map/Filter 无状态算子`、`docs(spec): 修订错误处理模型`
 - 一次提交只做一件事；只 `git add` 与本任务相关的文件，**不得** 将用户未提交的无关改动混入。
 - 中文 message：按第 3 节在 Git Bash 中执行时可直接 `git commit -m "中文"`（UTF-8 全链路，已实测验证）；**回退**到 PowerShell/cmd 时，必须将 message 写入 **UTF-8 文件**并用 `git commit -F <file>` 提交，提交后用 `git log` 验证无乱码。临时 message 文件用后即删。
+- `git merge` 统一使用 `--no-ff -m "<message>"`：`--no-ff` 保留分支合并拓扑；`-m` 显式给出 merge message（沿用 `Merge branch '<分支名>'` 风格）。禁止不带 `-m` 的 merge——未配置编辑器的终端（EDITOR/core.editor 缺失）会弹出 vi 编辑 `MERGE_MSG`，阻塞非交互命令执行。
 - 遵守常规 git 安全约定：禁止 force push、禁止未授权的历史改写（`reset --hard`/`checkout .`/`restore` 等）、禁止提交含密钥的文件。
 
 ## 3. 命令执行环境（Shell 优先级，强制）

@@ -252,10 +252,10 @@ See [docs/design.md](./docs/design.md) for architecture details.
 
 ## Roadmap
 
-- [x] v1 sequential evaluation engine, full operator set, Collector system, errors-as-values model
-- [x] **Parallel evaluation `Parallel(n)` / `Sequential()`**: recursive TrySplit splitting + goroutine-parallel execution + `Collector.Combiner` merging; order-preserving merge by shard order (Ordered); automatic fallback to sequential after short-circuit terminals or materializing operators (correctness first); measured speedup of ~3.3x (4 shards) on CPU-bound workloads
-- [x] v1.x: **`onClose`/resource management** (`OnClose(f)` triggered automatically at end of evaluation + idempotent explicit `Close()`), **replayable streams** (`Cache(s)` factory: materialize once, produce a brand-new one-shot stream each time without breaking the one-shot model), **Unordered streaming merge** (`Unordered()` clears the order flag; under parallelism shards push results as they complete, reducing end-to-end latency)
-- [x] v1.x: **Java 25 parity batch** — outbound `ToSeq() iter.Seq[T]` (range-over-func interop with short-circuit on break), collector composition ecosystem (`GroupingByDownstream`/`PartitioningBy`/`Teeing`/`Filtering`/`FlatMapping`/`CollectingAndThen`/`MinBy`/`MaxBy`, combiner-aware for parallel), sliding window `WindowSliding`, single-pass statistics `Summary`/`Summarizing` (`SummaryStats`), convenience sources `RangeClosed`/`OfNonZero` (zero covers nil, aligned with `cmp.Or` terminology)
+> The project is in the **v0.x** stage: the API is not yet stable and **no compatibility is promised** — new features are the priority, but breaking changes may still land between minor releases. Stability guarantees begin with v1.
+
+- [x] **v0.1** (released, tag `v0.1.0`): sequential evaluation engine, full operator set, Collector system, errors-as-values model; **parallel evaluation `Parallel(n)` / `Sequential()`** (recursive TrySplit splitting + goroutine-parallel execution + `Collector.Combiner` merging; order-preserving merge by shard order, automatic fallback to sequential after short-circuit terminals or materializing operators, measured speedup of ~3.3x with 4 shards on CPU-bound workloads); **lifecycle & streaming batch** — `OnClose(f)`/`Close()` resource management, replayable `Cache(s)` factory, `Unordered()` streaming merge
+- [ ] v0.2: **Java 25 parity batch** — outbound `ToSeq() iter.Seq[T]` (range-over-func interop with short-circuit on break), collector composition ecosystem (`GroupingByDownstream`/`PartitioningBy`/`Teeing`/`Filtering`/`FlatMapping`/`CollectingAndThen`/`MinBy`/`MaxBy`, combiner-aware for parallel), sliding window `WindowSliding`, single-pass statistics `Summary`/`Summarizing` (`SummaryStats`), convenience sources `RangeClosed`/`OfNonZero` (zero covers nil, aligned with `cmp.Or` terminology); **NumberStream** numeric narrowing (`NumberStream[N]` + `MapToNumber`/`AsNumber` bridges) — implemented, awaiting release
 
 ## License
 

@@ -94,3 +94,11 @@
 - [x] `RangeClosed`（闭区间、溢出拆分承接、可分保持）与 `OfNonZero`（零值过滤、comparable 约束；原 OfNonNil 随用户反馈更名——zero ⊇ nil，对齐 cmp.Or/lo.Compact 术语）
 - [x] 每任务独立提交（feat×5）；质量门槛全绿：go fix 无改写 / gofmt 空 / vet 无告警 / `go test -race -count=1 ./...` 全绿 / golangci-lint 0 issues
 - [x] README（Features/API Overview/Java 对照表）与 docs/api.md（构造/中间/终止/包级聚合/Collector 章节与示例）同步
+
+## 时间窗口重采样（Task 24）
+- [x] `TimeWindow[T](s, ts, d) *Stream[TimeBucket[T]]`：`ts(v).Truncate(d)` 桶化 + GroupBy 语义（桶序=键首现序、桶内保遇序、晚到并入既有桶不拆分、不产空桶）；`TimeBucket[T]{Start, Items}` 导出类型
+- [x] 桶级聚合不设独立入口（用户 amend 裁撤 TimeWindowBy）：由 `Map` 组合表达，桶内可内联聚合或经 FromSlice 子流交任意 collector
+- [x] 独立新文件交付（用户 amend：不与既有实现混置）：time_window.go / time_window_test.go / time_window_example_test.go；独立内联两段式，不改 newStateful 既有签名
+- [x] 包级函数形态实测论证：方法返回 Stream[TimeBucket[T]]（T 的派生类型）触发实例化循环（T instantiated as TimeBucket[T]）
+- [x] 物化型 → 并行降级、不支持无限源（可先 Limit）；特征位置 SpSized/SpSubSized 清 SpSorted/SpDistinct；上游出错不产出（Err() 可查）；ts/d 非法 panic、nil 流返回 nil
+- [x] 单测覆盖上述语义与 panic 矩阵（time_window.go 覆盖率 100%）；质量门槛全绿（go fix/gofmt/vet/`go test -race`/golangci-lint）；README/README_CN/docs/api.md/SKILL.md 同步

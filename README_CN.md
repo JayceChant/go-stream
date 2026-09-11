@@ -31,6 +31,7 @@ Go 1.27 之前方法不能声明自有类型参数，`Map[U]` 这类链式 API �
 - **错误即值**：可预期错误（IO 源失败、`MapErr` 族回调错误）以 `error` 值传播——首错短路、部分结果保留、`Err()` 查询；不可恢复错误（重复消费、nil 回调）panic
 - **组合替代继承**：Java 的抽象类层次（AbstractPipeline/StatelessOp/StatefulOp）转换为「结构体嵌入 + 构造函数 + 函数值注入」，无模拟继承
 - **对齐 Java 25 Stream 能力**：出站迭代适配 `ToSeq() iter.Seq[T]`（range-over-func 互通）、Collector 组合生态（`GroupingByDownstream`/`PartitioningBy`/`Teeing`/`Filtering`/`FlatMapping`/`CollectingAndThen`/`MinBy`/`MaxBy`）、滑动窗口 `WindowSliding`、单遍统计 `Summary`/`Summarizing`（`SummaryStats`）、便捷源 `RangeClosed`/`OfNonZero`
+- **时间窗口重采样**：`TimeWindow` 以 `ts(v).Truncate(d)` 把元素分入对齐时间网格的翻转窗口——固定时间间隔而非固定元素个数（对标 Julia/Scala 时间窗口）；桶级聚合由 `.Map(...)` 组合表达（内联聚合，或 `FromSlice(b.Items)` 交任意收集器）
 - **零第三方依赖**：v1 运行时无第三方依赖
 
 ## 安装
@@ -64,7 +65,7 @@ s.AnyMatch(p)
 s.Collect(collector.GroupingBy(keyOf, valOf))
 ```
 
-更多可运行示例：[example_test.go](./example_test.go)（`go test` 即验证）与 [example/](./example) 目录——七个独立完整、可整文件复制的示例程序，覆盖全部 API 面：
+更多可运行示例：[example_test.go](./example_test.go)（`go test` 即验证）与 [example/](./example) 目录——八个独立完整、可整文件复制的示例程序，覆盖全部 API 面：
 
 ```bash
 go -C example run ./basics      # 构造 → 中间 → 终止全流程
@@ -74,6 +75,7 @@ go -C example run ./errors      # 错误即值模型（FromFunc/Err 族/Err()）
 go -C example run ./parallel    # 并行 Parallel(n)/Unordered、保序合并、自动降级
 go -C example run ./lifecycle   # OnClose/Close 资源管理、Cache 可重放
 go -C example run ./extensions  # 对齐 Java 25：ToSeq/收集器组合/WindowSliding/Summary/RangeClosed/OfNonZero
+go -C example run ./timewindow  # 时间窗口重采样：TimeWindow 分桶 + Map 组合聚合
 ```
 
 `example/` 为独立 Go 模块（不参与库的测试与覆盖率统计），每个文件都可直接复制进你的项目改用。
@@ -179,7 +181,7 @@ result := stream.FromSlice(orders).
 | Err 变体 | `MapErr` `FilterErr` `FlatMapErr` `PeekErr` |
 | 有状态中间 | `Limit` `Skip` `Sorted` `StableSorted` `DistinctBy` `Reverse` `Scan` |
 | 并行控制 | `Parallel(n)` `Sequential()` `Unordered()` |
-| 包级中间 | `Distinct` `Sorted`（自然序）`Chunk` `Enumerate` `WindowSliding` |
+| 包级中间 | `Distinct` `Sorted`（自然序）`Chunk` `Enumerate` `WindowSliding` `TimeWindow` |
 | 双流 | `Zip` |
 | 生命周期 | `OnClose(f)` `Close()` `Cache(s)`（可重放工厂） |
 | 终止 | `ForEach` `ForEachUntil` `ToSlice` `ToSeq` `Count` `Reduce` `ReduceOpt` `Collect` `First` `FindAny` `AnyMatch` `AllMatch` `NoneMatch` `Min` `Max` `Err` |
@@ -208,6 +210,7 @@ result := stream.FromSlice(orders).
 | `Collectors.teeing` | `collector.Teeing` | 一次遍历喂两个下游收集器，merge 合并双结果 |
 | `Collectors.groupingBy(classifier, downstream)` | `collector.GroupingByDownstream` | 两级汇聚：分组后每组交下游收集器（Combiner 可用则支持并行） |
 | `Gatherers.windowSliding(n)` | `WindowSliding(s, n)` | 只输出满窗（不足 n 无输出）；包级函数（Go 1.27 实例化循环限制） |
+| Julia/Scala 时间窗口（Akka `groupedWithin`、Spark 翻转窗口） | `TimeWindow(s, ts, d)` | 以 `ts(v).Truncate(d)` 桶化的对齐翻转窗口（GroupBy 语义：桶序=键首现序、桶内保遇序、晚到并入既有桶、不产空桶）；桶级聚合由 `.Map(...)` 组合表达；包级函数（返回 `Stream[TimeBucket[T]]` 为 T 的派生类型，同样触发实例化循环） |
 | `summaryStatistics()` | `Summary`/`Summarizing`（`SummaryStats[N]`） | 单遍 count/sum/min/max，`Avg()` 派生免二次遍历 |
 | `rangeClosed(a, b)` / `Stream.ofNullable` | `RangeClosed(a, b)` / `OfNonZero(xs...)` | 闭区间；跳过零值元素（zero 涵盖 nil，对齐 `cmp.Or` 官方术语） |
 | 异常穿透 | 错误即值（`Err()`/`MapErr` 族） | 对齐 Go 官方错误风格 |

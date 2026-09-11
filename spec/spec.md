@@ -202,7 +202,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
   - `ops_stateless.go`（含 Err 变体；**Task 18 增补** `MapToNumber`，随 Map 同置）、`ops_stateful.go`（含 Scan/Chunk）、`op_ext.go`（Zip/Enumerate）
   - `terminal.go`（含 Err() 与并行终端）、`constraints/constraints.go`（Task 16：数值约束叶子包）、`collector/collector.go`（子包：Collector 与 11 个预置收集器）、`numeric.go`（包级 Sum/Avg/Sorted/Min/Max/Contains/Distinct）、`parallel.go`（Parallel/Sequential/Unordered/分片求值/无序流式合并）、`lifecycle.go`（Task 10：OnClose/Close/Cache）
   - `example/go.mod`（独立模块 + replace 指向根模块）与 `example/{basics,collectors,numeric,errors,parallel,lifecycle}/main.go`（Task 15：完整可运行示例目录，见「示例目录」Requirement；嵌套模块隔离覆盖率）
-  - `*_test.go`、`example_test.go`、`benchmark_test.go`、`parallel_test.go`、`collector/collector_test.go`（**Task 19~23 增补**：`terminal.go` 增 ToSeq、`op_ext.go` 增 WindowSliding、`numeric.go` 增 Summary、`construct.go` 增 RangeClosed/OfNonZero、`number_stream.go` 增 RangeClosed 收窄入口、`collector/collector.go` 增组合收集器族与 Summarizing/SummaryStats；配套 `collector_extra_test.go` 等）
+  - `*_test.go`、`example_test.go`、`benchmark_test.go`、`parallel_test.go`、`collector/collector_test.go`（**Task 19~23 增补**：`terminal.go` 增 ToSeq、`op_ext.go` 增 WindowSliding、`numeric.go` 增 Summary、`construct.go` 增 RangeClosed/OfNonZero、`number_stream.go` 增 RangeClosed 收窄入口、`collector/collector.go` 增组合收集器族与 Summarizing/SummaryStats；配套 `collector_extra_test.go` 等；**Task 24 增补**：新文件 `time_window.go`（TimeWindow/TimeBucket，独立内联两段式）、`time_window_test.go`、`time_window_example_test.go` 与 `example/timewindow/main.go` 独立示例，不改动既有实现文件）
   - `README.md`、`docs/design.md`、`docs/api.md`
   - `skills/go-stream/SKILL.md`（面向下游用户的 coding-agent 使用指引，供用户整目录安装到各自 coding agent 的 skills 目录；英文编写、与 API 面同步维护——`AGENTS.md` 项目专属约定已增补对应同步维护要求）
   - `AGENTS.md`（协作规范入口：项目专属约定与引用骨架）、`agents/common.md`（语言无关通用规范）、`agents/go.md`（Go 语言规范与质量门槛）——协作规范拆分，`agents/` 下两文件可整体复用到其它项目
@@ -431,6 +431,32 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 #### Scenario: 闭区间与零值过滤
 - **WHEN** `stream.RangeClosed(1, 5).ToSlice()` 与 `stream.OfNonZero[int](1, 0, 2).ToSlice()`
 - **THEN** 分别返回 `[1 2 3 4 5]` 与 `[1 2]`
+
+### Requirement: 时间窗口重采样（Task 24）
+
+对标 Julia（TimeSeries resample/collapse）/Scala（Akka Streams groupedWithin、Spark window）的时间窗口能力，补齐「按时间而非按元素个数分窗」的重采样缺口——固定时间间隔的翻转窗口（tumbling window，桶互不重叠、对齐时间网格），与 `WindowSliding`（逐元素滑动）/`Chunk`（定长计数分组）互补：
+
+- 包级 `TimeWindow[T any](s *Stream[T], ts func(T) time.Time, d time.Duration) *Stream[TimeBucket[T]]`：以 `ts(v).Truncate(d)` 为桶键把元素分入对齐时间网格的窗口桶。语义为「time.Truncate 桶化 + GroupBy」：**桶输出顺序为桶键首现序、桶内保持相遇序**（对齐 `collector.GroupingBy` 保遇序）；**乱序/晚到元素并入其桶键对应的既有桶（桶不拆分）**；**不产空桶**（无元素的窗口不存在——GroupBy 语义的自然结果，需要补空窗/补零的重采样场景由调用方后处理）。`TimeBucket[T]{Start time.Time; Items []T}` 为导出桶类型（Start 即桶键，Items 为桶内元素按相遇序的切片）。
+- **桶级聚合不设独立入口**（随用户 amend 指令裁撤原 TimeWindowBy 设想）：由 `Map` 组合表达——`TimeWindow(s, ts, d).Map(...)` 桶内内联聚合（求和/均值/计数），或对 `b.Items` 以 `FromSlice` 建子流交任意 collector（`Counting`/`Summing`/`Teeing` 等预置与组合收集器均可），见 `time_window_example_test.go`。
+- 实现为独立新文件 `time_window.go`（随用户 amend 指令：代码/测试/示例均为新增文件，不与既有实现混置）：内联「物化 → 变换回放」两段式（协议同 `newStateful`，但不改其既有签名）；物化型有状态 → 并行降级（splitN 不继承）、不支持无限源（配合 Limit 先行截断可用）；特征位置 SpSized/SpSubSized（桶数物化后已知）、清 SpSorted/SpDistinct（分组重排顺序关系）；上游出错（错误即值）时不产出任何桶，`Err()` 可查。
+- 参数契约：`ts == nil` / `d <= 0` panic（对齐 WindowSliding/nil 回调惯例）；`s == nil` 返回 nil。
+- 包级函数形态（实测复现）：方法返回 `Stream[TimeBucket[T]]`（`TimeBucket[T]` 含 `Items []T`，为 T 的派生类型）触发 Go 1.27 实例化循环（`T instantiated as TimeBucket[T]`），同 Chunk/WindowSliding 之因。
+
+#### Scenario: 按分钟分桶重采样
+- **WHEN** 传感器读数流（时间戳跨 3 个对齐分钟）执行 `TimeWindow(s, ts, time.Minute)`
+- **THEN** 输出 3 个 TimeBucket，Start 为各分钟网格起点，Items 保持相遇序
+
+#### Scenario: 桶级聚合组合表达
+- **WHEN** `TimeWindow(s, ts, time.Minute).Map(func(b) int64 { return int64(len(b.Items)) })`
+- **THEN** 每桶产出计数，与逐桶 Count 一致（不设独立聚合入口）
+
+#### Scenario: 乱序晚到并入既有桶
+- **WHEN** 时间序为 [t3, t1, t3]（t1 与 t3 分属不同桶，d 整分）执行 `TimeWindow(s, ts, d)`
+- **THEN** 输出 2 桶（t3 桶含 2 个元素、t1 桶 1 个），t3 桶不被拆分、桶序为 [t3, t1]
+
+#### Scenario: 上游出错不产出
+- **WHEN** FromFunc 源在第 k 个元素返回错误，流经 `TimeWindow`
+- **THEN** 输出为空（变换不执行）、Begin(0)/End 配对、`Err()` 返回首错
 
 ### Requirement: 文档（Markdown）
 

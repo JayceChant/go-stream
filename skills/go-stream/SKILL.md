@@ -35,7 +35,7 @@ import (
 
 Go 1.27 methods cannot constrain the receiver's existing type parameter, nor return a derived type of it. Several APIs are therefore intentionally package-level. Never refactor them into methods:
 
-- Package-level only: `Distinct[T comparable]`, `Contains[T comparable]`, natural-order `Sorted` / `Min` / `Max[T cmp.Ordered]`, `Sum` / `Avg[T Number]`, `Chunk(s, n)`, `Enumerate(s)`, `WindowSliding(s, n)`, `Concat`, `Cache`.
+- Package-level only: `Distinct[T comparable]`, `Contains[T comparable]`, natural-order `Sorted` / `Min` / `Max[T cmp.Ordered]`, `Sum` / `Avg[T Number]`, `Chunk(s, n)`, `Enumerate(s)`, `WindowSliding(s, n)`, `TimeWindow(s, ts, d)`, `Concat`, `Cache`.
 - Method forms that DO exist: `DistinctBy[K comparable](key)` on the stream, comparator-based `Sorted(cmp)`, `s1.Zip(s2, f)`; and on `NumberStream`: `Sum()` / `Avg()` / `Min()` / `Max()` / `Contains()` / `Sorted()` / `Distinct()`.
 
 ## Parallelism & lifecycle

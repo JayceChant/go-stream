@@ -79,6 +79,19 @@ Err 变体（错误即值：回调返回错误 → 首错短路、部分结果�
 | `Chunk[T](s, n int) *Stream[[]T]` | 定长分组（尾组可不足 n） |
 | `Enumerate[T](s) *Stream[KV[int, T]]` | 附加索引（对应 `for i, v := range`） |
 | `WindowSliding[T](s, n int) *Stream[[]T]` | 滑动窗口：只输出满窗（长度恰 n，元素少于 n 无输出；对齐 Java Gatherers `windowSliding`；Task 21），环形缓冲单遍实现，支持无限源 |
+| `TimeWindow[T](s, ts func(T) time.Time, d time.Duration) *Stream[TimeBucket[T]]` | 时间窗口分桶（重采样）：以 `ts(v).Truncate(d)` 为桶键分入对齐时间网格的翻转窗口——固定时间间隔而非固定元素个数（对标 Julia/Scala 时间窗口）。GroupBy 语义：桶序=键首现序、桶内保遇序、乱序/晚到并入既有桶（桶不拆分）、不产空桶；`TimeBucket[T]{Start time.Time; Items []T}`。桶级聚合由 `.Map(...)` 组合表达（桶内内联聚合，或 `FromSlice(b.Items)` 交任意收集器）；物化型（并行降级、不支持无限源，可先 Limit）；上游出错不产出（Task 24） |
+
+```go
+// 每分钟计数：TimeWindow 分桶 + Map 组合聚合（桶序=键首现序、桶内保遇序）
+counts := stream.TimeWindow(stream.FromSlice(ticks), tsOf, time.Minute).
+    Map(func(b stream.TimeBucket[Tick]) stream.KV[time.Time, int64] {
+        return stream.KV[time.Time, int64]{
+            Key:   b.Start,
+            Value: stream.FromSlice(b.Items).Collect(collector.Counting[Tick]()),
+        }
+    }).
+    ToSlice()
+```
 
 双流：
 

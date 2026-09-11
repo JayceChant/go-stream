@@ -2,7 +2,7 @@ package stream
 
 import "sync"
 
-// op_ext.go：双流算子（Zip）与需要元素类型约束的包级便捷算子。
+// op_ext.go：双流算子（Zip/Join）与需要元素类型约束的包级便捷算子。
 //
 // Go 1.27 限制：方法无法对接收者的 T 追加 comparable 约束，因此
 // "天然去重"只能以包级函数提供（调用方写 stream.Distinct(s)）。
@@ -82,6 +82,98 @@ func pullFromDrive[T any](drive driveFunc[T], ec *evalCtx) (next func() (T, bool
 		return v, ok
 	}
 	return next, stop
+}
+
+// joinStreams 是 Join/LeftJoin 的共享构造：right 流全量物化后单遍驱动
+// left 流，对每个左元素按右流物化序逐对执行 on 判定，命中即产出 combine(t, u)。
+//
+// keepUnmatched 区分两种语义：
+//   - false（方法 Join，InnerJoin）：仅产出命中对，无命中的左元素不产出
+//   - true（方法 LeftJoin，左外连接）：无命中的左元素以 U 零值恰好产出一条
+//
+// 产出序左主右从（外层左流遇序、内层右流物化序）。on 为任意谓词（无键可
+// 提取），嵌套循环共 O(|left|·|right|) 次判定，不引入 hash join。
+func joinStreams[T, U, R any](
+	left *Stream[T], right *Stream[U],
+	on func(T, U) bool, combine func(T, U) R, keepUnmatched bool,
+) *Stream[R] {
+	left.checkLinked()
+	right.checkLinked()
+	driveLeft, driveRight := left.drive, right.drive
+	chars := left.chars & right.chars &^ (SpSized | SpSubSized | SpSorted | SpDistinct)
+	return &Stream[R]{pipeline[R]{
+		drive: func(down Sink[R], ec *evalCtx) {
+			// 第一段：right 流全量物化——条件配对需对每个左元素访问全部
+			// 右元素，而流是一次性的（right 必须有限；无限 right 将求值到
+			// 耗尽或首错）。两侧均在发起 goroutine 求值，回调 panic 原样传播。
+			rc := &collectingSink[U]{limit: -1}
+			driveRight(rc, ec)
+			var zero U                // LeftJoin 无命中左元素的右侧取零值（SQL NULL 的 Go 惯用等价物）
+			down.Begin(-1)            // 产出个数取决于命中数，未知
+			if ec.firstErr() == nil { // right 物化出错：不再驱动 left（错误即值，End 正常收尾）
+				driveLeft(sinkFunc[T](func(t T) bool {
+					matched := false
+					for _, u := range rc.buf {
+						if on(t, u) {
+							matched = true
+							if !down.Accept(combine(t, u)) {
+								return false // 下游取消：停止驱动 left
+							}
+						}
+					}
+					if keepUnmatched && !matched {
+						return down.Accept(combine(t, zero))
+					}
+					return true
+				}), ec)
+			}
+			down.End()
+		},
+		chars: chars,
+		// Join 嵌套循环单侧物化双流，不参与并行分片（splitN 降级为 nil）
+		closers: mergeClosers(left.closers, right.closers), // 双方回调链按 left 先 right 后继承（与 Zip 同规则）
+	}}
+}
+
+// Join 按条件把本流（左侧）与 other（右侧）内连接为一条新流：
+// 对左元素 t 与右元素 u，on(t, u) 返回 true 表明该元素对可组合，
+// 产出 combine(t, u)；无任何命中的左元素不产出。
+//
+// 产出序左主右从：每个左元素的全部命中按右流遇序连续产出。求值开始时先
+// 完整物化右流（右流必须有限）；左流单遍流式驱动，可为无限源（配合短路
+// 终止使用）。两条流均被标记消费。other/on/combine 为 nil 时 panic。
+//
+// 左外连接形态见 LeftJoin；右外连接以右流作为接收者调 LeftJoin 即得。
+func (s *Stream[T]) Join[U, R any](other *Stream[U], on func(T, U) bool, combine func(T, U) R) *Stream[R] {
+	if other == nil {
+		panic("stream: Join 另一流为 nil")
+	}
+	if on == nil {
+		panic("stream: Join 匹配条件为 nil")
+	}
+	if combine == nil {
+		panic("stream: Join 组合函数为 nil")
+	}
+	return joinStreams(s, other, on, combine, false)
+}
+
+// LeftJoin 按条件把本流（左侧）与 other（右侧）左外连接为一条新流：
+// 语义同 Join（内连接），另保证无任何命中的左元素以 U 的零值
+// 恰好产出一条 combine 结果（至少执行一次组合函数）。
+//
+// 不设 RightJoin 版本：以右流作为接收者调本方法即可（元素对集合等价）。
+// other/on/combine 为 nil 时 panic。
+func (s *Stream[T]) LeftJoin[U, R any](other *Stream[U], on func(T, U) bool, combine func(T, U) R) *Stream[R] {
+	if other == nil {
+		panic("stream: LeftJoin 另一流为 nil")
+	}
+	if on == nil {
+		panic("stream: LeftJoin 匹配条件为 nil")
+	}
+	if combine == nil {
+		panic("stream: LeftJoin 组合函数为 nil")
+	}
+	return joinStreams(s, other, on, combine, true)
 }
 
 // Distinct 依据元素自身可比较性去重（保留首见，保持遇序）。

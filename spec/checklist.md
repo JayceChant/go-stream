@@ -94,3 +94,12 @@
 - [x] `RangeClosed`（闭区间、溢出拆分承接、可分保持）与 `OfNonZero`（零值过滤、comparable 约束；原 OfNonNil 随用户反馈更名——zero ⊇ nil，对齐 cmp.Or/lo.Compact 术语）
 - [x] 每任务独立提交（feat×5）；质量门槛全绿：go fix 无改写 / gofmt 空 / vet 无告警 / `go test -race -count=1 ./...` 全绿 / golangci-lint 0 issues
 - [x] README（Features/API Overview/Java 对照表）与 docs/api.md（构造/中间/终止/包级聚合/Collector 章节与示例）同步
+
+## 双流条件连接 Join（Task 24）
+- [x] 方法 `Join[U, R]`（InnerJoin：仅命中 `on(t,u)` 的元素对产出 `combine`）+ 方法 `LeftJoin[U, R]`（左外连接：无命中左元素以 U 零值恰好产出一条）——**修订：原「包级 Join」随用户反馈统一方法化**；不设 RightJoin（以右流作接收者调 `LeftJoin` 代替）
+- [x] 求值形态：right 流 collectingSink 全量物化（不可无限）+ left 流单遍流式驱动（可无限，短路正常）；产出序左主右从（外层左流遇序、内层右流物化序）
+- [x] 特征位双侧按位与清 Sized/SubSized/Sorted/Distinct；双流算子 splitN 降级（并行自动串行）；双流一次性（双侧 checkLinked）；OnClose 回调链 mergeClosers 继承
+- [x] 错误即值：right 物化/left 驱动首错记入共享 evalCtx、短路、部分结果保留、`Err()` 可查；回调 panic 原样传播（全程发起 goroutine，无后台中转）
+- [x] nil 容错：`on`/`combine`/`other` nil panic（对齐 Zip；原包级版 nil 返回空流容错随方法化移除）
+- [x] 单测 + fuzz 等价（FuzzJoinEquivalence）；质量门槛全绿：go fix 无改写 / gofmt 空 / vet 无告警 / `go test -race -count=1 ./...` 全绿 / golangci-lint 0 issues / 覆盖率保持 100%
+- [x] 文档同步：example_test.go、README/README_CN、docs/api.md、docs/design.md、skills/go-stream/SKILL.md

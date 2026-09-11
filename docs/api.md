@@ -85,6 +85,8 @@ Err 变体（错误即值：回调返回错误 → 首错短路、部分结果�
 | 方法 | 说明 |
 |---|---|
 | `Zip[U, R](other *Stream[U], f func(T, U) R) *Stream[R]` | 按位置配对，取短；两条流均被消费 |
+| `Join[U, R](other *Stream[U], on func(T, U) bool, combine func(T, U) R) *Stream[R]` | 内连接（Task 24）：仅命中 `on(t, u)` 的元素对产出 `combine(t, u)`，无命中的左元素不产出；产出序左主右从（外层左流遇序、内层右流遇序）；右流求值开始时完整物化（必须有限），左流单遍流式驱动（可为无限源）；两条流均被消费 |
+| `LeftJoin[U, R](other *Stream[U], on func(T, U) bool, combine func(T, U) R) *Stream[R]` | 左外连接（Task 24）：语义同 `Join`，另保证无任何命中的左元素以 U 零值恰好产出一条；右外连接不设独立 API——以右流作为接收者调 `LeftJoin` 即得 |
 
 并行控制：
 
@@ -180,7 +182,7 @@ f().ForEach(use)   // 重放：零拷贝
 | 标志/生命周期 | `Parallel(n)` `Sequential()` `Unordered()` `OnClose(f)` |
 | 收窄终端 | `Sum()` `Avg()` `Min()` `Max()` `Contains(target)` |
 
-逃逸规则：未被覆写的提升方法保持 Stream 语义——类型迁移（`Map[U]`/`FlatMap` 族/`Scan`/`Zip`）自然返回 `*Stream`；值终端（`ToSlice`/`Count`/`First`/`Collect`/`Err` 等）直接可用；被自然序版遮蔽的比较器形态（`Sorted(cmp)`/`StableSorted(cmp)`/`Min(cmp)`/`Max(cmp)`）经显式出口 `AsStream()` 使用（消费本流，返回独立句柄）。
+逃逸规则：未被覆写的提升方法保持 Stream 语义——类型迁移（`Map[U]`/`FlatMap` 族/`Scan`/`Zip`/`LeftJoin`）自然返回 `*Stream`；值终端（`ToSlice`/`Count`/`First`/`Collect`/`Err` 等）直接可用；被自然序版遮蔽的比较器形态（`Sorted(cmp)`/`StableSorted(cmp)`/`Min(cmp)`/`Max(cmp)`）经显式出口 `AsStream()` 使用（消费本流，返回独立句柄）。
 
 性能注记：每级元素保持算子与收窄入口相对等价 Stream 版多一次句柄分配（构造期一次性，实测深度 4 纯构造链 +5 allocs/+560B/+~300ns；n=100 约 +10%；n≥1e6 持平），求值热路径零差异（`BenchmarkNumberStreamVsStream`）。重构造轻求值的极端场景（每请求重建短链且元素极少）可先以 `*Stream` 串联中间操作、末步 `AsNumber` 收窄后仅接终端。
 

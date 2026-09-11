@@ -132,3 +132,221 @@ func TestWindowSliding(t *testing.T) {
 		t.Error("WindowSliding 应并行降级（splitN=nil）")
 	}
 }
+
+func TestJoinInnerBasic(t *testing.T) {
+	// 多命中笛卡尔段：左 [2,3,4] × 右 [6,4]，on 为 t 整除 u
+	on := func(t, u int) bool { return u%t == 0 }
+	got := Of(2, 3, 4).Join(Of(6, 4), on, func(t, u int) int { return t*10 + u }).ToSlice()
+	// 左序（外层）：2→(6,4)、3→(6)、4→(4)；右序（内层）：6 在 4 前
+	want := []int{26, 24, 36, 44}
+	if !slices.Equal(got, want) {
+		t.Errorf("Join = %v, 期望 %v", got, want)
+	}
+}
+
+func TestJoinInnerNoMatch(t *testing.T) {
+	got := Of(1, 2, 3).Join(Empty[int](), func(t, u int) bool { return true },
+		func(t, u int) int { return t }).ToSlice()
+	if len(got) != 0 {
+		t.Errorf("右流为空时 InnerJoin 应为空, got %v", got)
+	}
+	got2 := Empty[int]().Join(Of(1, 2), func(t, u int) bool { return true },
+		func(t, u int) int { return t }).ToSlice()
+	if len(got2) != 0 {
+		t.Errorf("左流为空时 Join 应为空, got %v", got2)
+	}
+}
+
+func TestJoinLeftUnmatchedZero(t *testing.T) {
+	// 未命中左元素以 U 零值恰产出一条；命中元素产出全部命中对
+	type pair struct {
+		l int
+		r string
+	}
+	got := Of(1, 2, 3).LeftJoin(
+		Of("even:2", "even:4"),
+		func(t int, u string) bool {
+			n, _ := strconv.Atoi(u[len(u)-1:])
+			return n%t == 0 // 1 全命中；2 命中 2/4；3 无命中
+		},
+		func(t int, u string) pair { return pair{t, u} },
+	).ToSlice()
+	want := []pair{
+		{1, "even:2"}, {1, "even:4"},
+		{2, "even:2"}, {2, "even:4"},
+		{3, ""}, // 未命中：右元素零值 ""
+	}
+	if !slices.EqualFunc(got, want, func(a, b pair) bool { return a == b }) {
+		t.Errorf("LeftJoin = %v, 期望 %v", got, want)
+	}
+
+	// 右流为空：每个左元素恰一条零值产出
+	got2 := Of(7, 8).LeftJoin(Empty[string](), func(int, string) bool { return true },
+		func(t int, u string) pair { return pair{t, u} }).ToSlice()
+	if len(got2) != 2 || got2[0].r != "" || got2[1].r != "" {
+		t.Errorf("右流为空时 LeftJoin 应逐元素零值保底, got %v", got2)
+	}
+}
+
+func TestJoinRightJoinViaLeftJoin(t *testing.T) {
+	// RightJoin 语义 = 以右流作接收者调 LeftJoin：每个右元素至少出现一次，
+	// 无命中的右元素以左侧零值保底（[0 4]）；命中对与 InnerJoin 一致
+	on := func(t, u int) bool { return t == u }
+	inner := Of(1, 2, 3).Join(Of(2, 4), on, func(t, u int) [2]int { return [2]int{t, u} }).ToSlice()
+	rightOuter := Of(2, 4).LeftJoin(Of(1, 2, 3), func(u, t int) bool { return t == u }, // 参数顺序对调
+		func(u, t int) [2]int { return [2]int{t, u} }).ToSlice()
+	if !slices.Equal(inner, [][2]int{{2, 2}}) {
+		t.Errorf("Join = %v, 期望 [[2 2]]", inner)
+	}
+	if !slices.Equal(rightOuter, [][2]int{{2, 2}, {0, 4}}) {
+		t.Errorf("RightJoin(以 LeftJoin 表达) = %v, 期望 [[2 2] [0 4]]", rightOuter)
+	}
+}
+
+func TestJoinStreamsConsumedOnce(t *testing.T) {
+	// 双流一次性：Join 产物复用 / 输入流复用均 panic
+	left, right := Of(1, 2), Of(2)
+	s := left.Join(right, func(t, u int) bool { return t == u }, func(t, u int) int { return t })
+	s.ToSlice()
+	expectPanic(t, "Join 产物复用", func() { s.ToSlice() })
+	expectPanic(t, "Join 左流复用", func() { left.Count() })
+	expectPanic(t, "Join 右流复用", func() { right.Count() })
+}
+
+func TestJoinInfiniteLeftShortCircuit(t *testing.T) {
+	// 左流无限 + 输出短路：正常终止且只拉取必要的左元素。
+	// 组合函数须容错零值右侧（LeftJoin 未命中元素以 0 传入）
+	var gen atomic.Int32
+	got := Generate(func() int { return int(gen.Add(1)) }).
+		LeftJoin(Of(2), func(t, u int) bool { return t%u == 0 },
+			func(t, u int) int {
+				if u == 0 {
+					return -t // 未命中：右侧零值的标记输出
+				}
+				return t / u
+			}).
+		Limit(3).ToSlice()
+	if !slices.Equal(got, []int{-1, 1, -3}) { // 1 未命中→-1、2 命中→1、3 未命中→-3
+		t.Errorf("无限左流 LeftJoin+Limit = %v, 期望 [-1 1 -3]", got)
+	}
+	if g := gen.Load(); g > 4 { // 短路后源应及时停止
+		t.Errorf("左源被拉动 %d 次, 应及时停止", g)
+	}
+}
+
+func TestJoinErrPropagation(t *testing.T) {
+	boom := errStr("join 失败")
+	// right 物化出错：不驱动 left、产出为空、Err() 可查
+	right := FromFunc(func() (int, bool, error) { return 0, false, boom })
+	var leftDriven atomic.Int32
+	left := Of(1, 2, 3).Peek(func(int) { leftDriven.Add(1) })
+	s := left.Join(right, func(t, u int) bool { return true }, func(t, u int) int { return t })
+	got := s.ToSlice()
+	if len(got) != 0 {
+		t.Errorf("right 出错时 Join 产出 = %v, 期望空", got)
+	}
+	if !errors.Is(s.pipeline.err, boom) {
+		t.Errorf("Join err = %v, 期望 boom", s.pipeline.err)
+	}
+	if leftDriven.Load() != 0 {
+		t.Errorf("right 出错时 left 不应被驱动, 实际拉动 %d 次", leftDriven.Load())
+	}
+
+	// left 驱动中出错：保留已产出部分结果、Err() 返回首错
+	leftErr := Of(1, 2, 3).MapErr(func(t int) (int, error) {
+		if t == 3 {
+			return 0, boom
+		}
+		return t, nil
+	})
+	s2 := leftErr.Join(Of(1), func(t, u int) bool { return true }, func(t, u int) int { return t*10 + u })
+	got2 := s2.ToSlice()
+	if !slices.Equal(got2, []int{11, 21}) {
+		t.Errorf("left 出错时部分结果 = %v, 期望 [11 21]", got2)
+	}
+	if !errors.Is(s2.pipeline.err, boom) {
+		t.Errorf("left 出错时 err = %v, 期望 boom", s2.pipeline.err)
+	}
+}
+
+func TestJoinPanicPropagation(t *testing.T) {
+	// on/combiner 回调 panic 原样传播（全程发起 goroutine，无中转）
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("on 回调 panic 应传播")
+		}
+	}()
+	Of(1).Join(Of(1), func(t, u int) bool { panic("on panic") },
+		func(t, u int) int { return t }).ToSlice()
+}
+
+func TestJoinLeftPanicPropagation(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("combiner 回调 panic 应传播")
+		}
+	}()
+	Of(1).LeftJoin(Of(2), func(t, u int) bool { return true },
+		func(t, u int) int { panic("combiner panic") }).ToSlice()
+}
+
+func TestJoinCharsAndDowngrade(t *testing.T) {
+	// 特征位：双侧按位与后清 Sized/SubSized/Sorted/Distinct；splitN 降级
+	s := FromSlice([]int{1, 2, 3}).Join(FromSlice([]int{4, 5}),
+		func(t, u int) bool { return true }, func(t, u int) int { return t })
+	if s.chars&SpSized != 0 || s.chars&SpSubSized != 0 {
+		t.Error("Join 应清 SpSized/SpSubSized")
+	}
+	if s.chars&SpSorted != 0 || s.chars&SpDistinct != 0 {
+		t.Error("Join 应清 SpSorted/SpDistinct")
+	}
+	if s.chars&SpOrdered == 0 {
+		t.Error("双侧有序时 Join 应保 SpOrdered")
+	}
+	if s.splitN != nil {
+		t.Error("Join 应并行降级（splitN=nil）")
+	}
+	// 有序性经 Unordered 一侧清除
+	s2 := FromSlice([]int{1}).Join(FromMap(map[int]int{1: 1}).Map(func(kv KV[int, int]) int { return kv.Key }),
+		func(t, u int) bool { return true }, func(t, u int) int { return t })
+	if s2.chars&SpOrdered != 0 {
+		t.Error("右侧 Unordered 时 Join 应失 SpOrdered")
+	}
+}
+
+func TestJoinNilArgs(t *testing.T) {
+	// 方法形态：other/on/combiner nil panic（对齐 Zip；Join 与 LeftJoin 双方法并存）
+	expectPanic(t, "Join other nil", func() {
+		Of(1).Join(nil, func(t, u int) bool { return true }, func(t, u int) int { return t })
+	})
+	expectPanic(t, "Join on nil", func() {
+		Of(1).Join(Of(1), nil, func(t, u int) int { return t })
+	})
+	expectPanic(t, "Join combiner nil", func() {
+		Of(1).Join[int, int](Of(1), func(t, u int) bool { return true }, nil)
+	})
+	expectPanic(t, "LeftJoin other nil", func() {
+		Of(1).LeftJoin(nil, func(t, u int) bool { return true }, func(t, u int) int { return t })
+	})
+	expectPanic(t, "LeftJoin on nil", func() {
+		Of(1).LeftJoin(Of(1), nil, func(t, u int) int { return t })
+	})
+	expectPanic(t, "LeftJoin combiner nil", func() {
+		Of(1).LeftJoin[int, int](Of(1), func(t, u int) bool { return true }, nil)
+	})
+}
+
+func TestJoinOutputShortCircuit(t *testing.T) {
+	// 输出短路：downstream 取消后停止驱动左流（右流已物化属预期）
+	var leftSeen atomic.Int32
+	got := Of(1, 2, 3, 4).Peek(func(int) { leftSeen.Add(1) }).
+		Join(FromSlice([]int{1, 1, 1}), func(t, u int) bool { return true },
+			func(t, u int) int { return t }).
+		Limit(2).ToSlice()
+	if !slices.Equal(got, []int{1, 1}) {
+		t.Errorf("短路输出 = %v, 期望 [1 1]", got)
+	}
+	if leftSeen.Load() != 1 {
+		t.Errorf("下游取消后左流应停止（拉动 %d 次, 期望 1）", leftSeen.Load())
+	}
+}

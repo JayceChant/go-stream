@@ -165,6 +165,18 @@
   - [x] 单测：区间边界（含溢出邻近值）、零值过滤（指针/接口/数值）、与 Range 语义对照
   - 依赖：无
 
+# 后续 TODO（Task 24，随「双流条件连接 Join」用户指令立项；独立分支 feat/join + worktree）
+- [x] Task 24: `Join` / `LeftJoin` 双流条件连接（逻辑类似 SQL Join）
+  - [x] spec 修订：新增「双流条件连接 Join」Requirement（双形态分工/嵌套循环单侧物化/顺序确定性/特征位与降级/错误即值/nil 容错）、Tier B 表增行、What Changes/Impact 同步
+  - [x] 实现（op_ext.go，随 Zip 双流算子同置）：共享 `joinStreams` 构造——right 流经 collectingSink 全量物化、left 流单遍流式驱动逐对判定 `on`、命中即 `combine` 产出；方法 `Join`（InnerJoin，必须匹配才产出）与方法 `LeftJoin`（左外连接，无命中左元素以 U 零值恰好产出一条）**（修订：InnerJoin 原定包级函数形态，随用户反馈统一方法化——方法名不冲突、实现无泛型硬限制，项目原则明确为「仅受 Go 泛型方法硬限制的 API 才用包级函数」）**；不设 RightJoin（以右流作接收者调 LeftJoin 代替）
+  - [x] 语义细节：产出序左主右从（外层左流遇序、内层右流物化序）；left/输出短路正常（Accept false 即停）；特征位双侧按位与清 Sized/SubSized/Sorted/Distinct；splitN 降级；双流一次性（checkLinked 双侧）；mergeClosers 继承（left 先 right 后）；OnClose 随求值结束触发
+  - [x] nil 容错：`on`/`combine`/`other` nil panic（对齐 Zip；原包级版「任一侧 nil 返回空流」容错随方法化移除）
+  - [x] 单测（op_ext_test.go）：基本语义（多命中笛卡尔段）、产出顺序（左主右从）、LeftJoin 未命中零值恰一条、空流双侧、RightJoin 用 LeftJoin 表达的等价性、双流一次性（复用 panic）、错误即值（right 物化错/left 驱动错 → 部分结果 + Err()）、回调 panic 原样传播、无限 left + Limit 短路、特征位与 splitN 降级断言、nil 参数矩阵
+  - [x] fuzz（fuzz_test.go）：FuzzJoinEquivalence——随机双侧数据 + 模运算谓词，InnerJoin/LeftJoin 与参考嵌套循环逐元素等价
+  - [x] 文档同步：example_test.go（Example_join/Example_joinLeft）、README.md/README_CN.md（API 速览双流行）、docs/api.md（双流表）、docs/design.md（降级清单补 Join）、skills/go-stream/SKILL.md（Method vs package-level 清单 + Join 语义条目）
+  - [x] 质量门槛：go fix / gofmt 空 / vet 无告警 / `go test -race -count=1 ./...` 全绿 / golangci-lint 0 issues / 覆盖率保持 100%
+  - 依赖：无（双流引擎路径已稳定，复用 collectingSink/mergeClosers/sinkFunc）
+
 # Task Dependencies
 - [Task 2] depends on [Task 1]
 - [Task 3]、[Task 4]、[Task 5] depends on [Task 2]（三组可并行开发）

@@ -180,7 +180,7 @@ result := stream.FromSlice(orders).
 | 有状态中间 | `Limit` `Skip` `Sorted` `StableSorted` `DistinctBy` `Reverse` `Scan` |
 | 并行控制 | `Parallel(n)` `Sequential()` `Unordered()` |
 | 包级中间 | `Distinct` `Sorted`（自然序）`Chunk` `Enumerate` `WindowSliding` |
-| 双流 | `Zip` |
+| 双流 | `Zip` `Join`（内连接）`LeftJoin`（左外连接；右外连接 = 以右流调 `LeftJoin`） |
 | 生命周期 | `OnClose(f)` `Close()` `Cache(s)`（可重放工厂） |
 | 终止 | `ForEach` `ForEachUntil` `ToSlice` `ToSeq` `Count` `Reduce` `ReduceOpt` `Collect` `First` `FindAny` `AnyMatch` `AllMatch` `NoneMatch` `Min` `Max` `Err` |
 | 收集器（子包 `collector`） | `ToSlice` `ToSet` `ToMap` `ToMapMerge` `GroupingBy` `GroupingByDownstream` `PartitioningBy` `PartitioningBySlice` `Teeing` `Filtering` `FlatMapping` `CollectingAndThen` `MinBy` `MaxBy` `Joining` `Counting` `Reducing` `Mapping` `Summing` `Averaging` `Summarizing`（`SummaryStats`） |

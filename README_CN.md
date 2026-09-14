@@ -64,7 +64,7 @@ s.AnyMatch(p)
 s.Collect(collector.GroupingBy(keyOf, valOf))
 ```
 
-更多可运行示例：[example_test.go](./example_test.go)（`go test` 即验证）与 [example/](./example) 目录——七个独立完整、可整文件复制的示例程序，覆盖全部 API 面：
+更多可运行示例：[example_test.go](./example_test.go)（`go test` 即验证）与 [example/](./example) 目录——八个独立完整、可整文件复制的示例程序，覆盖全部 API 面：
 
 ```bash
 go -C example run ./basics      # 构造 → 中间 → 终止全流程
@@ -74,6 +74,7 @@ go -C example run ./errors      # 错误即值模型（FromFunc/Err 族/Err()）
 go -C example run ./parallel    # 并行 Parallel(n)/Unordered、保序合并、自动降级
 go -C example run ./lifecycle   # OnClose/Close 资源管理、Cache 可重放
 go -C example run ./extensions  # 对齐 Java 25：ToSeq/收集器组合/WindowSliding/Summary/RangeClosed/OfNonZero
+go -C example run ./join        # 双流条件连接：Join（内连接）、LeftJoin（左外连接）、以右流调 LeftJoin 表达右外连接
 ```
 
 `example/` 为独立 Go 模块（不参与库的测试与覆盖率统计），每个文件都可直接复制进你的项目改用。

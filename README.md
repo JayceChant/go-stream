@@ -64,7 +64,7 @@ s.AnyMatch(p)
 s.Collect(collector.GroupingBy(keyOf, valOf))
 ```
 
-More runnable examples: [example_test.go](./example_test.go) (verified by `go test`) and the [example/](./example) directory — seven standalone, copy-paste-ready programs covering the full API surface:
+More runnable examples: [example_test.go](./example_test.go) (verified by `go test`) and the [example/](./example) directory — eight standalone, copy-paste-ready programs covering the full API surface:
 
 ```bash
 go -C example run ./basics      # sources → intermediate → terminal operations
@@ -74,6 +74,7 @@ go -C example run ./errors      # errors-as-value model (FromFunc/MapErr family/
 go -C example run ./parallel    # Parallel(n)/Unordered, order-preserving merge, auto fallback
 go -C example run ./lifecycle   # OnClose/Close resource management, Cache replayable factory
 go -C example run ./extensions  # Java 25 parity: ToSeq/collector composition/WindowSliding/Summary/RangeClosed/OfNonZero
+go -C example run ./join        # conditional two-stream joins: Join (inner), LeftJoin, right join via LeftJoin
 ```
 
 `example/` is a separate Go module (not part of the library's tests or coverage) so each file can be copied into your project as-is.

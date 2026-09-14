@@ -202,7 +202,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
   - `go.mod`、`stream.go`（Stream 类型/约束/KV）、`pipeline.go`（引擎+错误槽+consumed+newHead+evaluate+分片）、`sink.go`、`spliterator.go`、`op.go`（newStateless/newStateful）、`sources.go`（各源 Splitterator 实现）、`construct.go`（包级构造函数）、`number_stream.go`（**Task 18**：NumberStream 数值流类型/收窄入口 Range〔构造函数自 construct.go 迁入，与其余收窄入口同置〕、OfNumber、FromNumberSlice、AsNumber、AsStream/19 个核心方法）
   - `ops_stateless.go`（含 Err 变体；**Task 18 增补** `MapToNumber`，随 Map 同置）、`ops_stateful.go`（含 Scan/Chunk）、`op_ext.go`（Zip/Enumerate；**Task 24 增补**：方法 `Join`（InnerJoin）与 `LeftJoin`（左外连接）随双流算子同置）
   - `terminal.go`（含 Err() 与并行终端）、`constraints/constraints.go`（Task 16：数值约束叶子包）、`collector/collector.go`（子包：Collector 与 11 个预置收集器）、`numeric.go`（包级 Sum/Avg/Sorted/Min/Max/Contains/Distinct）、`parallel.go`（Parallel/Sequential/Unordered/分片求值/无序流式合并）、`lifecycle.go`（Task 10：OnClose/Close/Cache）
-  - `example/go.mod`（独立模块 + replace 指向根模块）与 `example/{basics,collectors,numeric,errors,parallel,lifecycle}/main.go`（Task 15：完整可运行示例目录，见「示例目录」Requirement；嵌套模块隔离覆盖率）
+  - `example/go.mod`（独立模块 + replace 指向根模块）与 `example/{basics,collectors,numeric,errors,parallel,lifecycle,join}/main.go`（Task 15：完整可运行示例目录，见「示例目录」Requirement；嵌套模块隔离覆盖率；`join` 为 Task 24 增补）
   - `*_test.go`、`example_test.go`、`benchmark_test.go`、`parallel_test.go`、`collector/collector_test.go`（**Task 19~23 增补**：`terminal.go` 增 ToSeq、`op_ext.go` 增 WindowSliding、`numeric.go` 增 Summary、`construct.go` 增 RangeClosed/OfNonZero、`number_stream.go` 增 RangeClosed 收窄入口、`collector/collector.go` 增组合收集器族与 Summarizing/SummaryStats；配套 `collector_extra_test.go` 等）
   - `README.md`、`docs/design.md`、`docs/api.md`
   - `skills/go-stream/SKILL.md`（面向下游用户的 coding-agent 使用指引，供用户整目录安装到各自 coding agent 的 skills 目录；英文编写、与 API 面同步维护——`AGENTS.md` 项目专属约定已增补对应同步维护要求）
@@ -485,6 +485,7 @@ SHALL 交付：`README.md`（简介/安装/快速上手/API 速览/与 Java 对�
 - `example/errors/main.go`：错误即值模型（FromFunc 可失败源、MapErr/FilterErr/FlatMapErr/PeekErr 首错短路、部分结果保留、Err() 查询）
 - `example/parallel/main.go`：并行求值（Parallel(n)/Sequential/Unordered、保序合并、物化算子后自动降级演示）
 - `example/lifecycle/main.go`：生命周期与可重放（OnClose/Close 求值结束自动触发与幂等、Cache 可重放工厂）
+- `example/join/main.go`（**Task 24 增补**）：双流条件连接（Join 内连接仅命中对、LeftJoin 未命中零值保底、以右流调 LeftJoin 表达右外连接、无限左流+短路、连接后聚合；各段以工厂函数构造新流演示一次性语义）
 
 **覆盖率例外（强制）**：`example/` 为可执行示例而非测试代码，以**独立 Go module**（`example/go.mod` + `replace` 指向根模块）承载——根模块的 `go test ./...` 与 coverprofile 完全不含 example 包（Go 1.22+ 会把无测试文件的包以 0% 计入 coverprofile，嵌套模块从根模块的 `./...` 中彻底隔离，规避该污染，保证 100% 基线不受影响）；CI 增加独立步骤对 example 模块执行 `go vet`/`go build`/golangci-lint（示例保持可编译、不烂尾）；SonarCloud 按文件系统分析（不受 module 边界影响），`sonar-project.properties` `sonar.exclusions` 排除 `example/**`；根包 `example_test.go` 的 Example 函数仍照常运行（属根模块测试，不受本例外影响）。
 

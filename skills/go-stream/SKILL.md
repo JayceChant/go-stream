@@ -58,5 +58,5 @@ Custom collectors implement the `Collector[T, A, R]` interface (Supplier / Accum
 
 - API reference: <https://github.com/JayceChant/go-stream/blob/master/docs/api.md>
 - Design doc: <https://github.com/JayceChant/go-stream/blob/master/docs/design.md>
-- Runnable examples: <https://github.com/JayceChant/go-stream/tree/master/example> (basics, collectors, numeric, errors, parallel, lifecycle, extensions) and `example_test.go` in the repo root
+- Runnable examples: <https://github.com/JayceChant/go-stream/tree/master/example> (basics, collectors, numeric, errors, parallel, lifecycle, extensions, join) and `example_test.go` in the repo root
 - Java-to-go-stream mapping table: "Comparison with Java Stream" section of the README

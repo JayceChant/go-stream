@@ -197,6 +197,7 @@
   - [x] 用户 amend：仅保留 TimeWindow（裁撤 TimeWindowBy 设想，桶级聚合由 Map 组合）；代码/测试/示例均为新增文件
   - [x] 单测（time_window_test.go）：分桶/Truncate 网格对齐/Map 聚合/乱序晚到/错误路径/panic 矩阵/特征位与并行降级/无限源+Limit/短路终端；示例（time_window_example_test.go）2 个 + example/timewindow 独立示例程序（分桶 + Map 组合聚合：内联/collector/NumberStream 三种形态）
   - [x] 增补（评审）：桶键 `.UTC()` 规范化——time.Time 作 map 键按结构体 ==（含 Location 指针）判等，混合时区表示的等值瞬间曾被拆成两桶；规范化后同一瞬间恒同桶、Start 恒为 UTC 网格点（TestTimeWindowMixedLocations 守护）
+  - [x] fuzz（fuzz_test.go）：FuzzTimeWindowEquivalence——随机序列 + 随机窗口宽度，与参考 map 分桶逐桶等价（首现序/保遇序/UTC 键）+ 展平元素数守恒
   - [x] 文档同步：README/README_CN（Features/API 速览/对照表）、docs/api.md、skills/go-stream/SKILL.md
   - 依赖：无（引擎已稳定；独立文件不触碰既有实现）
 

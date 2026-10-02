@@ -27,7 +27,10 @@ type TimeBucket[T any] struct {
 // 语义（time.Truncate 桶化 + GroupBy）：桶输出顺序为桶键首现序、桶内
 // 保持相遇序（对齐 collector.GroupingBy 保遇序）；乱序/晚到的元素并入
 // 其桶键对应的既有桶（桶不拆分）；不产空桶（无元素的窗口不存在，
-// 需要补空窗/补零时由调用方后处理）。
+// 需要补空窗/补零时由调用方后处理）。桶键以 ts(v).Truncate(d).UTC()
+// 统一规范化：同一瞬间恒落同一桶（time.Time 作 map 键含 Location 判等，
+// 混合时区表示的等值瞬间否则会被拆桶），Start 恒为 UTC 网格点——需要
+// 本地时区网格或展示时，由调用方对 Start 做 .In(loc) 后处理。
 //
 // 桶级聚合（重采样）由 Map 组合表达，不设独立聚合入口：
 //
@@ -64,7 +67,12 @@ func TimeWindow[T any](s *Stream[T], ts func(T) time.Time, d time.Duration) *Str
 			if ec.firstErr() == nil {
 				idx := make(map[time.Time]int, len(cs.buf)) // 桶键 → out 下标（首现序）
 				for _, v := range cs.buf {
-					k := ts(v).Truncate(d)
+					// Truncate 以绝对时间网格对齐（同一瞬间的不同 Location 表示
+					// 截断后仍为等值瞬间），但 time.Time 作 map 键按结构体 ==
+					// （含 Location 指针）判等，混合 Location 的数据会把同一
+					// 瞬间拆成两个桶——统一 .UTC() 规范化键表示。Start 因此恒为
+					// UTC 网格点；需要本地时区展示时由调用方对 Start 做 .In(loc)。
+					k := ts(v).Truncate(d).UTC()
 					i, ok := idx[k]
 					if !ok { // 新桶：按键首现序追加
 						i = len(out)

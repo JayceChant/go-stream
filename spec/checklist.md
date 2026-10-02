@@ -121,3 +121,4 @@
 - [x] 物化型 → 并行降级、不支持无限源（可先 Limit）；特征位置 SpSized/SpSubSized 清 SpSorted/SpDistinct；上游出错不产出（Err() 可查）；ts/d 非法 panic、nil 流返回 nil
 - [x] 单测覆盖上述语义与 panic 矩阵（time_window.go 覆盖率 100%）；质量门槛全绿（go fix/gofmt/vet/`go test -race`/golangci-lint）；README/README_CN/docs/api.md/SKILL.md 同步
 - [x] 合并 master 后增补：特征位补 SpLimited（对齐物化型统一规则；TimeWindow 输出可作 Join/LeftJoin 右流，TestTimeWindowJoinRight 守护——曾随 feat/join 并行开发缺失而误触有限性守卫 panic）
+- [x] 增补（评审）：桶键 `.UTC()` 规范化——time.Time 作 map 键按结构体 ==（含 Location 指针）判等，混合时区表示的等值瞬间曾被拆成两桶；TestTimeWindowMixedLocations 守护

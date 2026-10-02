@@ -496,7 +496,7 @@ Task 24 随 Join 落地确立项目形态原则：**仅在实现上受 Go 1.27 �
 
 对标 Julia（TimeSeries resample/collapse）/Scala（Akka Streams groupedWithin、Spark window）的时间窗口能力，补齐「按时间而非按元素个数分窗」的重采样缺口——固定时间间隔的翻转窗口（tumbling window，桶互不重叠、对齐时间网格），与 `WindowSliding`（逐元素滑动）/`Chunk`（定长计数分组）互补：
 
-- 包级 `TimeWindow[T any](s *Stream[T], ts func(T) time.Time, d time.Duration) *Stream[TimeBucket[T]]`：以 `ts(v).Truncate(d)` 为桶键把元素分入对齐时间网格的窗口桶。语义为「time.Truncate 桶化 + GroupBy」：**桶输出顺序为桶键首现序、桶内保持相遇序**（对齐 `collector.GroupingBy` 保遇序）；**乱序/晚到元素并入其桶键对应的既有桶（桶不拆分）**；**不产空桶**（无元素的窗口不存在——GroupBy 语义的自然结果，需要补空窗/补零的重采样场景由调用方后处理）。`TimeBucket[T]{Start time.Time; Items []T}` 为导出桶类型（Start 即桶键，Items 为桶内元素按相遇序的切片）。
+- 包级 `TimeWindow[T any](s *Stream[T], ts func(T) time.Time, d time.Duration) *Stream[TimeBucket[T]]`：以 `ts(v).Truncate(d)` 为桶键把元素分入对齐时间网格的窗口桶。语义为「time.Truncate 桶化 + GroupBy」：**桶输出顺序为桶键首现序、桶内保持相遇序**（对齐 `collector.GroupingBy` 保遇序）；**乱序/晚到元素并入其桶键对应的既有桶（桶不拆分）**；**不产空桶**（无元素的窗口不存在——GroupBy 语义的自然结果，需要补空窗/补零的重采样场景由调用方后处理）。**桶键经 `.UTC()` 规范化（增补，Task 26）**：`time.Truncate` 以绝对时间网格对齐（等值瞬间的不同 Location 表示截断后仍等值），但 `time.Time` 作 map 键按结构体 `==`（含 Location 指针）判等，混合时区数据的同一瞬间否则会被拆成两桶——规范化后**同一瞬间恒落同一桶，`Start` 恒为 UTC 网格点**（本地时区网格/展示由调用方对 `Start` 做 `.In(loc)` 后处理）。`TimeBucket[T]{Start time.Time; Items []T}` 为导出桶类型（Start 即桶键，Items 为桶内元素按相遇序的切片）。
 - **桶级聚合不设独立入口**（随用户 amend 指令裁撤原 TimeWindowBy 设想）：由 `Map` 组合表达——`TimeWindow(s, ts, d).Map(...)` 桶内内联聚合（求和/均值/计数），或对 `b.Items` 以 `FromSlice` 建子流交任意 collector（`Counting`/`Summing`/`Teeing` 等预置与组合收集器均可），见 `time_window_example_test.go`。
 - 实现为独立新文件 `time_window.go`（随用户 amend 指令：代码/测试/示例均为新增文件，不与既有实现混置）：内联「物化 → 变换回放」两段式（协议同 `newStateful`，但不改其既有签名）；物化型有状态 → 并行降级（splitN 不继承）、不支持无限源（配合 Limit 先行截断可用）；特征位置 SpSized/SpSubSized（桶数物化后已知）、**SpLimited（物化型强制置位——随 feat/join 并入后的统一规则同步增补，输出可作 Join/LeftJoin 右流）**、清 SpSorted/SpDistinct（分组重排顺序关系）；上游出错（错误即值）时不产出任何桶，`Err()` 可查。
 - 参数契约：`ts == nil` / `d <= 0` panic（对齐 WindowSliding/nil 回调惯例）；`s == nil` 返回 nil。
@@ -513,6 +513,10 @@ Task 24 随 Join 落地确立项目形态原则：**仅在实现上受 Go 1.27 �
 #### Scenario: 乱序晚到并入既有桶
 - **WHEN** 时间序为 [t3, t1, t3]（t1 与 t3 分属不同桶，d 整分）执行 `TimeWindow(s, ts, d)`
 - **THEN** 输出 2 桶（t3 桶含 2 个元素、t1 桶 1 个），t3 桶不被拆分、桶序为 [t3, t1]
+
+#### Scenario: 混合时区表示的等值瞬间并入同桶
+- **WHEN** 元素时间戳为同一瞬间的不同 Location 表示（如 UTC 与 +08:00）执行 `TimeWindow(s, ts, d)`
+- **THEN** 输出单桶（Start 为 UTC 网格点）；桶键以 `.UTC()` 规范化——time.Time 作 map 键按结构体 ==（含 Location 指针）判等，未规范化时等值瞬间会被拆成两桶
 
 #### Scenario: 上游出错不产出
 - **WHEN** FromFunc 源在第 k 个元素返回错误，流经 `TimeWindow`

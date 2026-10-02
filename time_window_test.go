@@ -208,6 +208,31 @@ func TestTimeWindowLimitInfinite(t *testing.T) {
 	}
 }
 
+func TestTimeWindowMixedLocations(t *testing.T) {
+	// 桶键规范化（UTC）：同一瞬间的不同 Location 表示恒落同一桶
+	// （time.Time 作 map 键按结构体 ==（含 Location 指针）判等，曾把
+	// 混合时区数据的等值瞬间拆成两桶）；Start 恒为 UTC 网格点。
+	base := time.Date(2026, 9, 11, 1, 30, 0, 0, time.UTC)
+	cst := time.FixedZone("CST", 8*3600)
+	nepal := time.FixedZone("+0545", 5*3600+45*60)
+	rs := []twReading{
+		{base, 1},                // UTC 表示
+		{base.In(cst), 2},        // 同一瞬间 +08:00 表示
+		{base.In(nepal), 3},      // 同一瞬间 +05:45 表示
+		{base.Add(time.Hour), 4}, // 下一小时（不同瞬间）
+	}
+	got := TimeWindow(FromSlice(rs), twTS, time.Hour).ToSlice()
+	if len(got) != 2 {
+		t.Fatalf("混合 Location 的等值瞬间应并入同桶：桶数 = %d, 期望 2（%v）", len(got), got)
+	}
+	if got[0].Start.Location() != time.UTC || !got[0].Start.Equal(base.Truncate(time.Hour)) {
+		t.Errorf("首桶 Start = %v, 期望 UTC 网格点 %v", got[0].Start, base.Truncate(time.Hour))
+	}
+	if len(got[0].Items) != 3 {
+		t.Errorf("首桶应含 3 个等值瞬间元素, got %d", len(got[0].Items))
+	}
+}
+
 func TestTimeWindowJoinRight(t *testing.T) {
 	// 合并集成回归：TimeWindow 输出物化后已知有限（SpLimited），作
 	// Join/LeftJoin 右流不被有限性守卫误拦（特征位曾随 feat/join 并行

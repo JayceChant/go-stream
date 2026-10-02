@@ -47,7 +47,9 @@ func FromMap[K comparable, V any](m map[K]V) *Stream[KV[K, V]] {
 			}
 		}
 	}))
-	sp.baseSplitterator.chars &^= SpOrdered // 遍历序不确定：Unordered
+	// 遍历序不确定：Unordered；但 len(m) 已知有限——声明 Limited
+	// （不声明 Sized：本源不报告大小）
+	sp.baseSplitterator.chars = SpLimited
 	return newHead(sp)
 }
 
@@ -123,6 +125,9 @@ func Concat[T any](a, b *Stream[T]) *Stream[T] {
 	b.checkLinked()
 	driveA, driveB := a.drive, b.drive
 	chars := (a.chars | b.chars) & ^SpSized // 长度不再精确
+	if a.chars&SpLimited == 0 || b.chars&SpLimited == 0 {
+		chars &^= SpLimited // 有限性双侧 AND：任一侧无限/未知即整体未知
+	}
 	return &Stream[T]{pipeline[T]{
 		drive: func(down Sink[T], ec *evalCtx) {
 			driveA(suppressEnd[T]{down}, ec) // a 段：Begin 下传、End 吞掉

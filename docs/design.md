@@ -113,15 +113,16 @@ func newStateful[T any](up *Stream[T], limit int64, process func([]T) []T, chars
 
 ### 特征位传播
 
-`SpSized`/`SpOrdered`/`SpSubSized`/`SpSorted`/`SpDistinct` 沿管道传播（对齐 Java StreamOpFlag）：
+`SpSized`/`SpOrdered`/`SpSubSized`/`SpSorted`/`SpDistinct`/`SpLimited` 沿管道传播（对齐 Java StreamOpFlag；`SpLimited` 为 Task 24 增补）：
 
 - `Filter`：保留全部（不改变结构性质）
 - `Map`/`MapErr`（1:1）：保留 `SpSized`（下游按 size 预分配），清 `SpSorted`/`SpDistinct`
 - `FlatMap` 族（1:N）：清 `SpSized`/`SpSorted`/`SpDistinct`
 - `TakeWhile`/`DropWhile`：清 `SpSized`
 - 物化后：置 `SpSized`+`SpSubSized`，`Sorted` 置 `SpSorted`
+- `SpLimited`（有限性声明，仅已知有限置位）：源侧——`SpSized ⇒ SpLimited` 不变式（Of/FromSlice/Empty/Range/RangeClosed）、`FromMap` 置位（有限但遍历序不定、不报大小）、`FromFunc`/`FromSeq`/`FromChannel`（大小未知）与 `Generate`/`Iterate`（设计无限）不置位；传播——透传类算子自然保留（有限进有限出），物化类算子（Limit/Skip/Sorted/StableSorted/DistinctBy/Reverse）强制置位（Limit 给出上界、物化输出=缓冲长度），双流算子（Concat/Zip/Join）双侧 AND
 
-特征位当前用于 size 预分配优化，并为并行拆分（TrySplit 均衡性、有序合并）预留决策依据。
+特征位当前用于 size 预分配优化，并为并行拆分（TrySplit 均衡性、有序合并）预留决策依据；`SpLimited` 另被 Join/LeftJoin 用作右流有限性守卫（链接期 fail-fast，杜绝无限右流运行期挂死）。
 
 ## 4. Splitterator：数据源抽象
 

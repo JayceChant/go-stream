@@ -80,11 +80,13 @@ func main() {
 		ToSlice()
 	fmt.Println(rightRows) // [Alice@研发 空缺@市场 空缺@销售]
 
-	// ---------- 4. 语义要点：右流物化、左流流式 ----------
-	// 求值开始时右流被完整物化（右流必须有限）；左流单遍流式驱动，
-	// 可为无限源——配合 Limit 等短路终止按需取前 N 条连接结果。
+	// ---------- 4. 语义要点：右流须已知有限、左流流式 ----------
+	// 求值开始时右流被完整物化——右流必须已声明有限（SpLimited 特征位）：
+	// Generate/Iterate 等无限源与 FromFunc/FromSeq/FromChannel 等大小未知源
+	// 作右流会在链接时 panic（逃生：换作左流，或先 .Limit(上界)/物化）。
+	// 左流单遍流式驱动，可为无限源——配合 Limit 等短路终止按需取前 N 条。
 	fmt.Println("\n== 无限左流 + 短路 ==")
-	heads := stream.Generate(func() int { return 1 }). // 恒为 1 的无限流
+	heads := stream.Generate(func() int { return 1 }). // 无限流放左侧：合法且短路友好
 								Join(stream.Of(1, 2, 3), func(t, u int) bool { return u%t == 0 }, // 1 整除全部：每元素命中 3 对
 				func(t, u int) int { return t*10 + u }).
 		Limit(2). // 短路：首个左元素产出 2 对即停（左流只被拉动一次）

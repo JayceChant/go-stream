@@ -96,6 +96,6 @@ func emptyWithErr[T any](err error) *Stream[T] {
 			down.End()
 			ec.fail(err)
 		},
-		chars: SpSized,
+		chars: SpSized | SpLimited, // 空流必有限（维持 Sized ⇒ Limited 不变式）
 	}}
 }

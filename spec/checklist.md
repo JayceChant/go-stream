@@ -102,4 +102,5 @@
 - [x] 错误即值：right 物化/left 驱动首错记入共享 evalCtx、短路、部分结果保留、`Err()` 可查；回调 panic 原样传播（全程发起 goroutine，无后台中转）
 - [x] nil 容错：`on`/`combine`/`other` nil panic（对齐 Zip；原包级版 nil 返回空流容错随方法化移除）
 - [x] 单测 + fuzz 等价（FuzzJoinEquivalence）；质量门槛全绿：go fix 无改写 / gofmt 空 / vet 无告警 / `go test -race -count=1 ./...` 全绿 / golangci-lint 0 issues / 覆盖率保持 100%
+- [x] **SpLimited 有限性守卫**：特征位仅已知有限置位（Sized⇒Limited 不变式、FromMap 置位、FromFunc/FromSeq/FromChannel/Generate/Iterate 不置位）；透传类保留、物化类强制置位、双流双侧 AND；Join/LeftJoin 链接期右流缺 SpLimited 即 panic（fail-fast）；TestSpLimitedCharacteristics/Propagation/TestJoinFiniteGuard 覆盖
 - [x] 文档同步：example_test.go、example/join/main.go（独立可运行示例）、README/README_CN（含示例清单）、docs/api.md、docs/design.md、skills/go-stream/SKILL.md

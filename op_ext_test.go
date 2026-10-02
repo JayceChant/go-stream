@@ -237,7 +237,7 @@ func TestJoinInfiniteLeftShortCircuit(t *testing.T) {
 func TestJoinErrPropagation(t *testing.T) {
 	boom := errStr("join 失败")
 	// right 物化出错：不驱动 left、产出为空、Err() 可查
-	right := FromFunc(func() (int, bool, error) { return 0, false, boom })
+	right := Of(1, 2, 3).MapErr(func(int) (int, error) { return 0, boom }) // Of 源已声明有限（SpLimited 守卫）
 	var leftDriven atomic.Int32
 	left := Of(1, 2, 3).Peek(func(int) { leftDriven.Add(1) })
 	s := left.Join(right, func(t, u int) bool { return true }, func(t, u int) int { return t })
@@ -348,5 +348,110 @@ func TestJoinOutputShortCircuit(t *testing.T) {
 	}
 	if leftSeen.Load() != 1 {
 		t.Errorf("下游取消后左流应停止（拉动 %d 次, 期望 1）", leftSeen.Load())
+	}
+}
+
+func TestSpLimitedCharacteristics(t *testing.T) {
+	// 已知有限：slice/range 族（Sized ⇒ Limited）与 FromMap（有限但不报大小）
+	for name, s := range map[string]*Stream[int]{
+		"Of":          Of(1, 2),
+		"FromSlice":   FromSlice([]int{1}),
+		"Empty":       Empty[int](),
+		"Range":       Range(0, 3).AsStream(),
+		"RangeClosed": RangeClosed(0, 3).AsStream(),
+	} {
+		if s.chars&SpLimited == 0 {
+			t.Errorf("%s 源应置 SpLimited", name)
+		}
+	}
+	if s := FromMap(map[int]int{1: 1}); s.chars&SpLimited == 0 || s.chars&SpSized != 0 {
+		t.Errorf("FromMap 应置 SpLimited 且不置 SpSized, got %b", s.chars)
+	}
+	// 大小未知 / 设计无限：不置位
+	for name, s := range map[string]*Stream[int]{
+		"FromFunc":    FromFunc(func() (int, bool, error) { return 0, false, nil }),
+		"FromSeq":     FromSeq(func(yield func(int) bool) { yield(1) }),
+		"FromChannel": FromChannel(make(chan int)),
+		"Generate":    Generate(func() int { return 1 }),
+		"Iterate":     Iterate(1, func(v int) int { return v + 1 }),
+	} {
+		if s.chars&SpLimited != 0 {
+			t.Errorf("%s 源不应置 SpLimited", name)
+		}
+	}
+}
+
+func TestSpLimitedPropagation(t *testing.T) {
+	seq1 := func() *Stream[int] { return FromSeq(func(yield func(int) bool) { yield(1) }) }
+	// 透传类：有限进有限出（清 Sized 的算子仍保 Limited）；未知源不虚标
+	if c := Of(1, 2).FlatMap(func(v int) []int { return []int{v} }).chars; c&SpLimited == 0 || c&SpSized != 0 {
+		t.Errorf("FlatMap 后应保 SpLimited 清 SpSized, got %b", c)
+	}
+	if c := Of(1, 2).TakeWhile(func(int) bool { return true }).chars; c&SpLimited == 0 {
+		t.Errorf("TakeWhile 后应保 SpLimited, got %b", c)
+	}
+	if c := seq1().Filter(func(int) bool { return true }).chars; c&SpLimited != 0 {
+		t.Errorf("未知源 Filter 后不应虚标 SpLimited, got %b", c)
+	}
+	// 物化类：强制置位（含无限/未知上游）
+	if c := Generate(func() int { return 1 }).Limit(3).chars; c&SpLimited == 0 {
+		t.Errorf("Generate+Limit 后应置 SpLimited, got %b", c)
+	}
+	if c := seq1().Sorted(func(a, b int) int { return a - b }).chars; c&SpLimited == 0 {
+		t.Errorf("Sorted 后应置 SpLimited, got %b", c)
+	}
+	// 双流：双侧 AND
+	if c := Concat(Of(1), Of(2)).chars; c&SpLimited == 0 {
+		t.Errorf("Concat 双侧有限应置 SpLimited, got %b", c)
+	}
+	if c := Concat(Of(1), Generate(func() int { return 1 })).chars; c&SpLimited != 0 {
+		t.Errorf("Concat 一侧无限不应置 SpLimited, got %b", c)
+	}
+	if c := Of(1).Zip(Of(2), func(a, b int) int { return a }).chars; c&SpLimited == 0 {
+		t.Errorf("Zip 双侧有限应置 SpLimited, got %b", c)
+	}
+	if c := Of(1).Zip(Generate(func() int { return 1 }), func(a, b int) int { return a }).chars; c&SpLimited != 0 {
+		t.Errorf("Zip 一侧无限不应置 SpLimited, got %b", c)
+	}
+	// Join 产物：右流经守卫必有限，左流有限则产物置位
+	if c := Of(1, 2).Join(Of(1), func(t, u int) bool { return true }, func(t, u int) int { return t }).chars; c&SpLimited == 0 {
+		t.Errorf("Join 双侧有限产物应置 SpLimited, got %b", c)
+	}
+	if c := seq1().Join(Of(1), func(t, u int) bool { return true }, func(t, u int) int { return t }).chars; c&SpLimited != 0 {
+		t.Errorf("Join 左侧大小未知时产物不应置 SpLimited, got %b", c)
+	}
+}
+
+func TestJoinFiniteGuard(t *testing.T) {
+	// 未声明有限（无限或大小未知）的右流：链接期 panic（求值前 fail-fast）
+	bad := map[string]func() *Stream[int]{
+		"Generate":    func() *Stream[int] { return Generate(func() int { return 1 }) },
+		"Iterate":     func() *Stream[int] { return Iterate(1, func(v int) int { return v + 1 }) },
+		"FromFunc":    func() *Stream[int] { return FromFunc(func() (int, bool, error) { return 0, false, nil }) },
+		"FromSeq":     func() *Stream[int] { return FromSeq(func(yield func(int) bool) { yield(1) }) },
+		"FromChannel": func() *Stream[int] { return FromChannel(make(chan int)) },
+		"TakeWhile 无限": func() *Stream[int] {
+			return Iterate(1, func(v int) int { return v + 1 }).TakeWhile(func(int) bool { return true })
+		},
+		"Concat 含无限": func() *Stream[int] { return Concat(Of(1), Generate(func() int { return 1 })) },
+	}
+	for name, mk := range bad {
+		expectPanic(t, "Join 右流 "+name, func() {
+			Of(1).Join(mk(), func(t, u int) bool { return true }, func(t, u int) int { return t })
+		})
+		expectPanic(t, "LeftJoin 右流 "+name, func() {
+			Of(1).LeftJoin(mk(), func(t, u int) bool { return true }, func(t, u int) int { return t })
+		})
+	}
+	// 逃生路径：Limit 上界（物化置位）；无限源换作左流
+	if got := Of(2, 3).
+		Join(Generate(func() int { return 1 }).Limit(1), func(t, u int) bool { return true },
+			func(t, u int) int { return t*10 + u }).ToSlice(); !slices.Equal(got, []int{21, 31}) {
+		t.Errorf("Generate+Limit 作右流 = %v, 期望 [21 31]", got)
+	}
+	if got := Generate(func() int { return 1 }).
+		Join(Of(1), func(t, u int) bool { return true },
+			func(t, u int) int { return t }).Limit(2).ToSlice(); len(got) != 2 {
+		t.Errorf("无限源作左流应正常, got %v", got)
 	}
 }

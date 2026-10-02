@@ -173,6 +173,7 @@
   - [x] nil 容错：`on`/`combine`/`other` nil panic（对齐 Zip；原包级版「任一侧 nil 返回空流」容错随方法化移除）
   - [x] 单测（op_ext_test.go）：基本语义（多命中笛卡尔段）、产出顺序（左主右从）、LeftJoin 未命中零值恰一条、空流双侧、RightJoin 用 LeftJoin 表达的等价性、双流一次性（复用 panic）、错误即值（right 物化错/left 驱动错 → 部分结果 + Err()）、回调 panic 原样传播、无限 left + Limit 短路、特征位与 splitN 降级断言、nil 参数矩阵
   - [x] fuzz（fuzz_test.go）：FuzzJoinEquivalence——随机双侧数据 + 模运算谓词，InnerJoin/LeftJoin 与参考嵌套循环逐元素等价
+  - [x] **SpLimited 有限性守卫（随用户反馈增补）**：新增特征位 `SpLimited`（仅已知有限置位——`SpSized ⇒ SpLimited` 不变式由 newSliceSp/newRangeSp 统一维护、FromMap 显式置位〔有限但不报大小〕、FromFunc/FromSeq/FromChannel〔大小未知〕与 Generate/Iterate〔设计无限〕不置位）；传播规则：透传类自然保留（有限进有限出，零改动）、物化类（Limit/Skip/Sorted/StableSorted/DistinctBy/Reverse）强制置位、双流（Concat/Zip/Join）双侧 AND（Concat 特判清除）；Join/LeftJoin 链接期检查右流缺 SpLimited 即 panic（fail-fast，杜绝无限右流运行期挂死；逃生：换左流 / `.Limit(上界)` / 先物化）；新增 TestSpLimitedCharacteristics/TestSpLimitedPropagation/TestJoinFiniteGuard，既有 FromFunc 右流用例改 MapErr 表达；spec「Splitterator 抽象与特征位」与「双流条件连接 Join」Requirement 同步
   - [x] 文档同步：example_test.go（Example_join/Example_joinLeft）、example/join/main.go（独立可运行示例：内连接/左外/右外表达/无限左流短路/连接后聚合）、README.md/README_CN.md（API 速览双流行 + 示例清单）、docs/api.md（双流表）、docs/design.md（降级清单补 Join）、skills/go-stream/SKILL.md（Method vs package-level 清单 + Join 语义条目 + 示例清单）
   - [x] 质量门槛：go fix / gofmt 空 / vet 无告警 / `go test -race -count=1 ./...` 全绿 / golangci-lint 0 issues / 覆盖率保持 100%
   - 依赖：无（双流引擎路径已稳定，复用 collectingSink/mergeClosers/sinkFunc）

@@ -264,6 +264,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 
 ### Requirement: Splitterator 抽象与特征位
 接口五方法 + 特征位；slice/range 可二分 TrySplit（前后半段不重叠、并集完整）；seq/channel/func 不可分（返回 nil）；特征位沿管道传播规则（**修订**：Map/MapErr 为 1:1 变换，对齐 Java StreamOpFlag 只清 Sorted/Distinct、保留 Sized，使下游可按 size 预分配；Filter 保留全部；FlatMap 族 1:N 变换清 Sized/Sorted/Distinct；TakeWhile/DropWhile 清 Sized；Stateful 后段 SubSized...）。
+**Task 24 增补 `SpLimited`（有限性声明，随用户反馈立项）**：区分「已知有限」与「无限或大小未知」。置位规则（**仅已知有限置位**）：`SpSized ⇒ SpLimited` 不变式（Of/FromSlice/Empty/Range/RangeClosed）；`FromMap` 置位（len 已知有限、遍历序不定、不报大小）；`FromFunc`/`FromSeq`/`FromChannel`（大小未知，库无法替调用方断言）与 `Generate`/`Iterate`（设计上无限）**不置位**。传播规则：透传类算子（Filter/Map/Peek/Err 族/TakeWhile/DropWhile/Scan/Chunk/FlatMap 族/WindowSliding/标志类）自然保留（有限进有限出）；物化类算子（Limit/Skip/Sorted/StableSorted/DistinctBy/Reverse）**强制置位**（Limit 给出上界、物化输出=缓冲长度，求值能完成即有限）；双流算子（Concat/Zip/Join/LeftJoin）**双侧 AND**（任一侧无限/未知即整体未知）。消费方：Join/LeftJoin 以之作右流有限性守卫（见「双流条件连接 Join」Requirement）。
 
 ### Requirement: 错误即值模型
 可预期错误（FromFunc/Err 族）以 error 值传播：首错短路、部分结果保留、`Err()` 查询；不可恢复错误（重复消费、nil 回调）panic 且信息清晰；回调 panic 原样传播。
@@ -447,7 +448,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 设计要点：
 
 - **求值形态（嵌套循环，单侧物化）**：实现上将 right 流物化为 `[]U`（经 collectingSink 全量收集，含首错短路），再单遍驱动 left 流；对每个左元素扫描全部右元素执行 `on` 判定与 `combine`。**产物顺序确定性**：外层按左流相遇序、内层按右流物化序——同一流的求值产出序是本库既定语义（保序流与 Unordered 流均成立；Unordered 下流本身的产出序不保证，但 Join 不额外引入不确定性）。
-- **物化与短路**：right 侧不可无限——物化阶段无 limit 截断（Join 语义需要全部右元素参与匹配；无限 right 流将求值到耗尽或首错）。left 侧与输出侧短路语义正常：左流 Accept 返回 false 即停（如 Join 结果接 `Limit`），此时 right 已全量物化属预期（与 `Sorted` 等物化算子的既定行为一致）。
+- **物化与短路**：right 侧必须有限——物化阶段无 limit 截断（Join 语义需要全部右元素参与匹配）。**有限性守卫（Task 24 增补，随用户反馈立项）**：链接期检查 `right.chars&SpLimited == 0` 即 panic（fail-fast，对齐库内「编程错误即 panic」模型），把无限右流的运行期挂死提前为构造期明确报错；置位/传播规则见「Splitterator 抽象与特征位」Requirement（口径：仅已知有限置位——`FromFunc`/`FromSeq`/`FromChannel` 作右流同样被拦，需先 `.Limit(上界)` 或换左流；`Generate(…).Limit(n)` 因物化置位而合法；`Iterate(…).TakeWhile(p)` 类「可能有限」保守拒绝）。left 侧与输出侧短路语义正常：左流 Accept 返回 false 即停（如 Join 结果接 `Limit`），此时 right 已全量物化属预期（与 `Sorted` 等物化算子的既定行为一致——既有物化算子不加守卫，仅随 Join 诞生引入，此不对称为有意决策）。
 - **一次性语义**：两条流均被标记消费（checkLinked）；Join 产物为新的一次性流。
 - **nil 回调 panic / nil 流**：`on`/`combine`/`other` 为 nil 时 panic（编程错误，与 Zip 一致——方法接收者语境下 nil 另一侧更可能是编程错误；原包级版「任一侧 nil 返回空流」容错随方法化移除）。
 - **特征位与并行**：输出特征位为两侧特征位按位与后清 `SpSized`/`SpSubSized`/`SpSorted`/`SpDistinct`（元素数为乘性/选择相关，不再精确；序保左流序但 Sorted/Distinct 语义无从谈起）；splitN 置 nil（双流算子并行降级，与 Zip/Concat 同列降级清单）。
@@ -466,6 +467,10 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 #### Scenario: RightJoin 以 LeftJoin 表达
 - **WHEN** 需要 RightJoin 语义
 - **THEN** 调用方执行 `right.LeftJoin(left, …)`（右流作为方法接收者/左角色），库不提供第三形态
+
+#### Scenario: 右流未声明有限被拦截
+- **WHEN** 以 `Generate`/`Iterate`（设计无限）或 `FromFunc`/`FromSeq`/`FromChannel`（大小未知）构建的流作 Join/LeftJoin 的右流（未经物化算子）
+- **THEN** 链接时（求值前）panic，信息指明三条出路：换左流 / 右流 `.Limit(上界)` / 先物化；`Generate(…).Limit(n)` 等已置位 SpLimited 的流正常通过
 
 #### Scenario: 错误即值与部分结果
 - **WHEN** right 物化中或 left 驱动中回调/源出错

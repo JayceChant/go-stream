@@ -208,7 +208,7 @@ Performance note: each narrowing entry and element-preserving operator costs one
 | Stateful intermediate | `Limit` `Skip` `Sorted` `StableSorted` `DistinctBy` `Reverse` `Scan` |
 | Parallelism control | `Parallel(n)` `Sequential()` `Unordered()` |
 | Package-level intermediate | `Distinct` `Sorted` (natural order) `Chunk` `Enumerate` `WindowSliding` |
-| Two-stream | `Zip` `Join` (inner) `LeftJoin` (left outer; right outer = call `LeftJoin` on the right stream) |
+| Two-stream | `Zip` `Join` (inner) `LeftJoin` (left outer; right outer = call `LeftJoin` on the right stream) — Join/LeftJoin require a known-finite right stream (`SpLimited`, link-time panic otherwise: swap sides / `.Limit(n)` / materialize) |
 | Lifecycle | `OnClose(f)` `Close()` `Cache(s)` (replayable factory) |
 | Terminal | `ForEach` `ForEachUntil` `ToSlice` `ToSeq` `Count` `Reduce` `ReduceOpt` `Collect` `First` `FindAny` `AnyMatch` `AllMatch` `NoneMatch` `Min` `Max` `Err` |
 | Collectors (subpackage `collector`) | `ToSlice` `ToSet` `ToMap` `ToMapMerge` `GroupingBy` `GroupingByDownstream` `PartitioningBy` `PartitioningBySlice` `Teeing` `Filtering` `FlatMapping` `CollectingAndThen` `MinBy` `MaxBy` `Joining` `Counting` `Reducing` `Mapping` `Summing` `Averaging` `Summarizing` (`SummaryStats`) |

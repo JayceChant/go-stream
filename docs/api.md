@@ -85,8 +85,8 @@ Err 变体（错误即值：回调返回错误 → 首错短路、部分结果�
 | 方法 | 说明 |
 |---|---|
 | `Zip[U, R](other *Stream[U], f func(T, U) R) *Stream[R]` | 按位置配对，取短；两条流均被消费 |
-| `Join[U, R](other *Stream[U], on func(T, U) bool, combine func(T, U) R) *Stream[R]` | 内连接（Task 24）：仅命中 `on(t, u)` 的元素对产出 `combine(t, u)`，无命中的左元素不产出；产出序左主右从（外层左流遇序、内层右流遇序）；右流求值开始时完整物化（必须有限），左流单遍流式驱动（可为无限源）；两条流均被消费 |
-| `LeftJoin[U, R](other *Stream[U], on func(T, U) bool, combine func(T, U) R) *Stream[R]` | 左外连接（Task 24）：语义同 `Join`，另保证无任何命中的左元素以 U 零值恰好产出一条；右外连接不设独立 API——以右流作为接收者调 `LeftJoin` 即得 |
+| `Join[U, R](other *Stream[U], on func(T, U) bool, combine func(T, U) R) *Stream[R]` | 内连接（Task 24）：仅命中 `on(t, u)` 的元素对产出 `combine(t, u)`，无命中的左元素不产出；产出序左主右从（外层左流遇序、内层右流遇序）；**右流必须已知有限（`SpLimited`）——Generate/Iterate 等无限源与 FromFunc/FromSeq/FromChannel 等大小未知源作右流在链接时 panic，逃生：换左流 / 右流 `.Limit(上界)` / 先物化（`Generate(…).Limit(n)` 合法）**；左流单遍流式驱动（可为无限源）；两条流均被消费 |
+| `LeftJoin[U, R](other *Stream[U], on func(T, U) bool, combine func(T, U) R) *Stream[R]` | 左外连接（Task 24）：语义同 `Join`（含右流 `SpLimited` 有限性守卫），另保证无任何命中的左元素以 U 零值恰好产出一条；右外连接不设独立 API——以右流作为接收者调 `LeftJoin` 即得 |
 
 并行控制：
 

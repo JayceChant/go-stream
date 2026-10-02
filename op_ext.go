@@ -97,6 +97,13 @@ func joinStreams[T, U, R any](
 	left *Stream[T], right *Stream[U],
 	on func(T, U) bool, combine func(T, U) R, keepUnmatched bool,
 ) *Stream[R] {
+	// 有限性守卫：右流未声明 SpLimited（无限或大小未知）时 fail-fast，
+	// 把无限右流的运行期挂死提前为链接期明确报错（置位/传播规则见 spec）。
+	if right.chars&SpLimited == 0 {
+		panic("stream: Join/LeftJoin 右流必须已知有限（SpLimited 缺失）：" +
+			"Generate/Iterate 等无限源与 FromFunc/FromSeq/FromChannel 等大小未知源" +
+			"请改作左流，或先施加 Limit 上界/物化")
+	}
 	left.checkLinked()
 	right.checkLinked()
 	driveLeft, driveRight := left.drive, right.drive
@@ -140,7 +147,8 @@ func joinStreams[T, U, R any](
 // 产出 combine(t, u)；无任何命中的左元素不产出。
 //
 // 产出序左主右从：每个左元素的全部命中按右流遇序连续产出。求值开始时先
-// 完整物化右流（右流必须有限）；左流单遍流式驱动，可为无限源（配合短路
+// 完整物化右流（右流必须已知有限：链接期检查 SpLimited，未声明有限的右流
+// panic——换左流、追加 Limit 上界或先物化）；左流单遍流式驱动，可为无限源（配合短路
 // 终止使用）。两条流均被标记消费。other/on/combine 为 nil 时 panic。
 //
 // 左外连接形态见 LeftJoin；右外连接以右流作为接收者调 LeftJoin 即得。

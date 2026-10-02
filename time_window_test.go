@@ -157,10 +157,13 @@ func TestTimeWindowCharsAndDegrade(t *testing.T) {
 	base := time.Date(2026, 9, 11, 10, 0, 0, 0, time.UTC)
 	rs := []twReading{{base, 1}, {base.Add(time.Second), 2}}
 
-	// 特征位：物化后置 SpSized/SpSubSized，清 SpSorted/SpDistinct；splitN 零值（并行降级）
+	// 特征位：物化后置 SpSized/SpSubSized/SpLimited，清 SpSorted/SpDistinct；splitN 零值（并行降级）
 	s := TimeWindow(FromSlice(rs), twTS, time.Minute)
 	if s.chars&SpSized == 0 || s.chars&SpSubSized == 0 {
 		t.Error("TimeWindow 应置 SpSized/SpSubSized（桶数物化后已知）")
+	}
+	if s.chars&SpLimited == 0 {
+		t.Error("TimeWindow 应置 SpLimited（物化输出已知有限，对齐物化型统一规则）")
 	}
 	if s.chars&SpSorted != 0 || s.chars&SpDistinct != 0 {
 		t.Error("TimeWindow 应清 SpSorted/SpDistinct")
@@ -202,5 +205,28 @@ func TestTimeWindowLimitInfinite(t *testing.T) {
 	// 时间戳 1..5s，2s 网格：1s→0s 桶（1 个）、2s/3s→2s 桶（2 个）、4s/5s→4s 桶（2 个）
 	if len(got) != 3 || len(got[0].Items) != 1 || len(got[1].Items) != 2 || len(got[2].Items) != 2 {
 		t.Errorf("无限源+Limit 分桶 = %v, 期望 [1 2 2]", got)
+	}
+}
+
+func TestTimeWindowJoinRight(t *testing.T) {
+	// 合并集成回归：TimeWindow 输出物化后已知有限（SpLimited），作
+	// Join/LeftJoin 右流不被有限性守卫误拦（特征位曾随 feat/join 并行
+	// 开发缺失，FromFunc 上游 + Join 右流曾 panic）。
+	base := time.Date(2026, 9, 11, 10, 0, 0, 0, time.UTC)
+	rs := []twReading{
+		{base, 1},
+		{base.Add(30 * time.Second), 2}, // 同分钟桶（2 元素）
+		{base.Add(time.Minute), 3},      // 次分钟桶（1 元素）
+	}
+	right := func() *Stream[TimeBucket[twReading]] { return TimeWindow(FromSlice(rs), twTS, time.Minute) }
+	on := func(n int, b TimeBucket[twReading]) bool { return len(b.Items) == n }
+	combine := func(n int, b TimeBucket[twReading]) int { return n * len(b.Items) }
+
+	if got := Of(1, 2, 3).Join(right(), on, combine).ToSlice(); !slices.Equal(got, []int{1, 4}) {
+		t.Errorf("TimeWindow 作 Join 右流 = %v, 期望 [1 4]（n=1 命中次桶、n=2 命中首桶、n=3 无命中不产出）", got)
+	}
+	// n=3 未命中：LeftJoin 以 TimeBucket 零值保底恰好一条（0 元素）
+	if got := Of(1, 2, 3).LeftJoin(right(), on, combine).ToSlice(); !slices.Equal(got, []int{1, 4, 0}) {
+		t.Errorf("TimeWindow 作 LeftJoin 右流 = %v, 期望 [1 4 0]", got)
 	}
 }

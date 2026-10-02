@@ -192,7 +192,7 @@
 # 后续 TODO（Task 26，随「时间窗口重采样」用户指令立项；独立分支 feat/time-window）
 - [x] Task 26: 时间窗口分桶 `TimeWindow`（分支立项时自编号 Task 24，与 feat/join 侧 Task 24/25 并行开发撞号，随本分支并入 master 顺延为 Task 26）
   - [x] spec 修订：新增「时间窗口重采样」Requirement（Truncate 桶化 + GroupBy 语义、桶级聚合由 Map 组合表达不设独立入口、独立新文件交付、包级形态实测论证）、What Changes/Impact 同步
-  - [x] 实现（新文件 time_window.go，不改动既有实现文件）：`TimeBucket[T]{Start, Items}` + `TimeWindow(s, ts, d)`——独立内联「物化→变换回放」两段式（协议同 newStateful 不改其签名）；桶化 process：map 键→首现序下标、桶内 append 保遇序、晚到并入既有桶
+  - [x] 实现（新文件 time_window.go，不改动既有实现文件）：`TimeBucket[T]{Start, Items}` + `TimeWindow(s, ts, d)`——独立内联「物化→变换回放」两段式（协议同 newStateful 不改其签名）；桶化 process：map 键→首现序下标、桶内 append 保遇序、晚到并入既有桶；特征位置 SpSized/SpSubSized/SpLimited、清 SpSorted/SpDistinct（SpLimited 为并入 feat/join 后的统一规则增补：物化输出已知有限，可作 Join/LeftJoin 右流）
   - [x] 形态实测：方法返回 Stream[TimeBucket[T]]（T 的派生类型）触发实例化循环（T instantiated as TimeBucket[T]），维持包级函数（同 Chunk/WindowSliding 之因）
   - [x] 用户 amend：仅保留 TimeWindow（裁撤 TimeWindowBy 设想，桶级聚合由 Map 组合）；代码/测试/示例均为新增文件
   - [x] 单测（time_window_test.go）：分桶/Truncate 网格对齐/Map 聚合/乱序晚到/错误路径/panic 矩阵/特征位与并行降级/无限源+Limit/短路终端；示例（time_window_example_test.go）2 个 + example/timewindow 独立示例程序（分桶 + Map 组合聚合：内联/collector/NumberStream 三种形态）

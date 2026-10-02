@@ -36,7 +36,8 @@ type TimeBucket[T any] struct {
 //	// 如每桶求和/均值：对 b.Items 内联聚合或交 collector 处理。
 //
 // 物化型有状态（两段式分段求值）→ 并行降级（splitN 不继承）、不支持
-// 无限源（配合 Limit 先行截断可用）；上游出错（错误即值）时不产出任何
+// 无限源（配合 Limit 先行截断可用）；物化输出已知有限（置 SpLimited，
+// 可作 Join/LeftJoin 右流）。上游出错（错误即值）时不产出任何
 // 桶，Err() 可查。ts 为 nil 或 d <= 0 panic；nil 流返回 nil。
 //
 // 包级函数形态：方法返回 Stream[TimeBucket[T]]（T 的派生类型——
@@ -81,7 +82,9 @@ func TimeWindow[T any](s *Stream[T], ts func(T) time.Time, d time.Duration) *Str
 			}
 			down.End()
 		},
-		chars:   (s.chars | SpSized | SpSubSized) &^ (SpSorted | SpDistinct),
+		// 物化型统一规则：强制置 SpLimited（求值能完成即输出有限）；
+		// 置 SpSized/SpSubSized（桶数物化后已知）、清 SpSorted/SpDistinct。
+		chars:   (s.chars | SpSized | SpSubSized | SpLimited) &^ (SpSorted | SpDistinct),
 		parN:    s.parN, // 并行标志保留但 splitN 不继承（零值 nil），求值自动串行
 		closers: s.closers,
 	}}

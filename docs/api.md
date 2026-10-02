@@ -22,7 +22,7 @@
 | `Iterate[T](seed T, next func(T) T) *Stream[T]` | 无限迭代（seed, f(seed), ...） |
 | `Range[I Integer](start, stop I) *NumberStream[I]` | 左闭右开整数区间（可 TrySplit）；直接返回数值流（Task 18），需 `*Stream` 时经 `AsStream()` 桥接 |
 | `RangeClosed[I Integer](start, stop I) *NumberStream[I]` | 闭区间 [start, stop]（含两端；start > stop 空流；Task 23），与 `Range` 左闭右开并存 |
-| `Concat[T](a, b *Stream[T]) *Stream[T]` | 顺序拼接两流 |
+| 方法 `(s *Stream[T]) Concat(other *Stream[T]) *Stream[T]` | 顺序拼接两流（Task 25 方法化；nil 接收者返回 other、other 为 nil 返回本流）。包级 `Concat[T](a, b)` 为 deprecated adapter（`go fix` 可重写同包调用点），下一版本移除 |
 
 ```go
 // FromFunc：第 4 次读取出错，ToSlice 保留前 3 个，Err() 返回首错
@@ -85,6 +85,8 @@ Err 变体（错误即值：回调返回错误 → 首错短路、部分结果�
 | 方法 | 说明 |
 |---|---|
 | `Zip[U, R](other *Stream[U], f func(T, U) R) *Stream[R]` | 按位置配对，取短；两条流均被消费 |
+| `Join[U, R](other *Stream[U], on func(T, U) bool, combine func(T, U) R) *Stream[R]` | 内连接（Task 24）：仅命中 `on(t, u)` 的元素对产出 `combine(t, u)`，无命中的左元素不产出；产出序左主右从（外层左流遇序、内层右流遇序）；**右流必须已知有限（`SpLimited`）——Generate/Iterate 等无限源与 FromFunc/FromSeq/FromChannel 等大小未知源作右流在链接时 panic，逃生：换左流 / 右流 `.Limit(上界)` / 先物化（`Generate(…).Limit(n)` 合法）**；左流单遍流式驱动（可为无限源）；两条流均被消费 |
+| `LeftJoin[U, R](other *Stream[U], on func(T, U) bool, combine func(T, U) R) *Stream[R]` | 左外连接（Task 24）：语义同 `Join`（含右流 `SpLimited` 有限性守卫），另保证无任何命中的左元素以 U 零值恰好产出一条；右外连接不设独立 API——以右流作为接收者调 `LeftJoin` 即得 |
 
 并行控制：
 
@@ -109,7 +111,7 @@ got := stream.FromSlice(bigData).
 |---|---|
 | `OnClose(f func() error) *Stream[T]` | 注册清理回调：终止求值结束自动触发（耗尽/短路/错误/panic 路径均触发）；按注册序执行，出错记首错经 `Err()` 查询 |
 | `Close() error` | 显式关闭（幂等；未求值流也可关闭）；返回回调链首错 |
-| `Cache[T](s *Stream[T]) func() *Stream[T]` | 可重放工厂：首次调用求值上游一次并物化，此后每次返回全新一次性流（FromSlice 零拷贝）；物化期首错记忆，此后返回携带错误的空流 |
+| 方法 `(s *Stream[T]) Cache() func() *Stream[T]` | 可重放工厂：首次调用求值上游一次并物化，此后每次返回全新一次性流（FromSlice 零拷贝）；物化期首错记忆，此后返回携带错误的空流（Task 25 方法化；包级 `Cache(s)` 为 deprecated adapter，`go fix` 可重写同包调用点，下一版本移除） |
 
 ```go
 // 求值结束自动释放资源
@@ -120,8 +122,8 @@ stream.FromChannel(ch).OnClose(func() error { return file.Close() }).ToSlice()
 set := stream.FromSlice(bigData).Parallel(4).Unordered().
     Collect(collector.ToSet[int]())
 
-// 可重放：上游只求值一次
-f := stream.Cache(expensiveQuery())
+// 可重放：上游只求值一次（方法形态，Task 25）
+f := expensiveQuery().Cache()
 f().ForEach(use)   // 首次：物化
 f().ForEach(use)   // 重放：零拷贝
 ```
@@ -180,7 +182,7 @@ f().ForEach(use)   // 重放：零拷贝
 | 标志/生命周期 | `Parallel(n)` `Sequential()` `Unordered()` `OnClose(f)` |
 | 收窄终端 | `Sum()` `Avg()` `Min()` `Max()` `Contains(target)` |
 
-逃逸规则：未被覆写的提升方法保持 Stream 语义——类型迁移（`Map[U]`/`FlatMap` 族/`Scan`/`Zip`）自然返回 `*Stream`；值终端（`ToSlice`/`Count`/`First`/`Collect`/`Err` 等）直接可用；被自然序版遮蔽的比较器形态（`Sorted(cmp)`/`StableSorted(cmp)`/`Min(cmp)`/`Max(cmp)`）经显式出口 `AsStream()` 使用（消费本流，返回独立句柄）。
+逃逸规则：未被覆写的提升方法保持 Stream 语义——类型迁移（`Map[U]`/`FlatMap` 族/`Scan`/`Zip`/`LeftJoin`）自然返回 `*Stream`；值终端（`ToSlice`/`Count`/`First`/`Collect`/`Err` 等）直接可用；被自然序版遮蔽的比较器形态（`Sorted(cmp)`/`StableSorted(cmp)`/`Min(cmp)`/`Max(cmp)`）经显式出口 `AsStream()` 使用（消费本流，返回独立句柄）。
 
 性能注记：每级元素保持算子与收窄入口相对等价 Stream 版多一次句柄分配（构造期一次性，实测深度 4 纯构造链 +5 allocs/+560B/+~300ns；n=100 约 +10%；n≥1e6 持平），求值热路径零差异（`BenchmarkNumberStreamVsStream`）。重构造轻求值的极端场景（每请求重建短链且元素极少）可先以 `*Stream` 串联中间操作、末步 `AsNumber` 收窄后仅接终端。
 

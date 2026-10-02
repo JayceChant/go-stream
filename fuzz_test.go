@@ -292,7 +292,7 @@ func FuzzCacheReplayEquivalence(f *testing.F) {
 		data := fuzzData(raw, 256)
 		evals := 0
 		src := FromSlice(data).Peek(func(byte) { evals++ })
-		factory := Cache(src)
+		factory := src.Cache()
 		for round := range 3 {
 			if got := factory().ToSlice(); !slices.Equal(got, data) {
 				t.Fatalf("第 %d 轮重放 = %v, 期望 %v", round+1, got, data)
@@ -300,6 +300,50 @@ func FuzzCacheReplayEquivalence(f *testing.F) {
 		}
 		if evals != len(data) {
 			t.Fatalf("上游求值 %d 次, 期望恰好 %d（只求值一次）", evals, len(data))
+		}
+	})
+}
+
+// FuzzJoinEquivalence 锁定条件连接：随机双侧数据 + 模运算谓词下，
+// InnerJoin/LeftJoin 与参考嵌套循环逐元素等价（含产出序左主右从、
+// LeftJoin 未命中零值保底）。
+func FuzzJoinEquivalence(f *testing.F) {
+	f.Add([]byte{1, 2, 3}, []byte{2, 4}, uint8(2))
+	f.Add([]byte{}, []byte{1, 2}, uint8(3))
+	f.Add([]byte{6, 5}, []byte{}, uint8(5))
+	f.Add([]byte{0, 0, 1}, []byte{0, 1, 2}, uint8(0))
+	f.Fuzz(func(t *testing.T, rawL, rawR []byte, mRaw uint8) {
+		left := fuzzData(rawL, 256)
+		right := fuzzData(rawR, 256)
+		m := int(mRaw)%13 + 1 // 谓词模数（1 起避免除零）
+
+		on := func(t, u byte) bool { return (t+u)%byte(m) == 0 }
+		type pair struct{ L, R byte }
+		combine := func(t, u byte) pair { return pair{t, u} }
+
+		// 参考实现：嵌套循环（外层左序、内层右序）。
+		var wantInner, wantLeft []pair
+		for _, l := range left {
+			matched := false
+			for _, r := range right {
+				if on(l, r) {
+					matched = true
+					wantInner = append(wantInner, combine(l, r))
+					wantLeft = append(wantLeft, combine(l, r))
+				}
+			}
+			if !matched {
+				wantLeft = append(wantLeft, combine(l, 0)) // 零值保底
+			}
+		}
+
+		gotInner := FromSlice(slices.Clone(left)).Join(FromSlice(slices.Clone(right)), on, combine).ToSlice()
+		if !slices.Equal(gotInner, wantInner) {
+			t.Fatalf("Join = %v, 期望 %v（left=%v right=%v m=%d）", gotInner, wantInner, left, right, m)
+		}
+		gotLeft := FromSlice(slices.Clone(left)).LeftJoin(FromSlice(slices.Clone(right)), on, combine).ToSlice()
+		if !slices.Equal(gotLeft, wantLeft) {
+			t.Fatalf("LeftJoin = %v, 期望 %v（left=%v right=%v m=%d）", gotLeft, wantLeft, left, right, m)
 		}
 	})
 }

@@ -113,15 +113,16 @@ func newStateful[T any](up *Stream[T], limit int64, process func([]T) []T, chars
 
 ### 特征位传播
 
-`SpSized`/`SpOrdered`/`SpSubSized`/`SpSorted`/`SpDistinct` 沿管道传播（对齐 Java StreamOpFlag）：
+`SpSized`/`SpOrdered`/`SpSubSized`/`SpSorted`/`SpDistinct`/`SpLimited` 沿管道传播（对齐 Java StreamOpFlag；`SpLimited` 为 Task 24 增补）：
 
 - `Filter`：保留全部（不改变结构性质）
 - `Map`/`MapErr`（1:1）：保留 `SpSized`（下游按 size 预分配），清 `SpSorted`/`SpDistinct`
 - `FlatMap` 族（1:N）：清 `SpSized`/`SpSorted`/`SpDistinct`
 - `TakeWhile`/`DropWhile`：清 `SpSized`
 - 物化后：置 `SpSized`+`SpSubSized`，`Sorted` 置 `SpSorted`
+- `SpLimited`（有限性声明，仅已知有限置位）：源侧——`SpSized ⇒ SpLimited` 不变式（Of/FromSlice/Empty/Range/RangeClosed）、`FromMap` 置位（有限但遍历序不定、不报大小）、`FromFunc`/`FromSeq`/`FromChannel`（大小未知）与 `Generate`/`Iterate`（设计无限）不置位；传播——透传类算子自然保留（有限进有限出），物化类算子（Limit/Skip/Sorted/StableSorted/DistinctBy/Reverse）强制置位（Limit 给出上界、物化输出=缓冲长度），双流算子（Concat/Zip/Join）双侧 AND
 
-特征位当前用于 size 预分配优化，并为并行拆分（TrySplit 均衡性、有序合并）预留决策依据。
+特征位当前用于 size 预分配优化，并为并行拆分（TrySplit 均衡性、有序合并）预留决策依据；`SpLimited` 另被 Join/LeftJoin 用作右流有限性守卫（链接期 fail-fast，杜绝无限右流运行期挂死）。
 
 ## 4. Splitterator：数据源抽象
 
@@ -205,7 +206,7 @@ CPU 密集场景（200k 元素 × 200 次循环体）4 分片加速比 ~3.3x（`
 
 ### OnClose/Close 回调链
 
-`pipeline` 携带 `closers []func() error`（按注册序），中间操作沿链继承（`newStateless`/`newStateful`/`newFlagStage`），组合流经 `mergeClosers` 合并双方（Concat 按 a 先 b 后、Zip 按本流先 other 后——与求值序一致）。
+`pipeline` 携带 `closers []func() error`（按注册序），中间操作沿链继承（`newStateless`/`newStateful`/`newFlagStage`），组合流经 `mergeClosers` 合并双方（Concat 按本流先 other 后〔方法形态 `a.Concat(b)`，Task 25〕、Zip 按本流先 other 后、Join 按 left 先 right 后）。
 
 - **自动触发**：`evaluateNP` 以 defer 调 `runClosers`，覆盖正常耗尽、短路、错误值与回调 panic 展开路径；回调错误并入错误槽首错保留
 - **显式 Close**：幂等（`closed` 标志 + 每回调 `sync.Once` 双保险——多实例链/组合流触发也恰好一次）；未求值流可关闭，此后求值收尾不重复触发
@@ -213,7 +214,7 @@ CPU 密集场景（200k 元素 × 200 次循环体）4 分片加速比 ~3.3x（`
 
 ### Cache 可重放工厂
 
-`Cache(s) func() *Stream[T]`：`sync.Once` 保证首次调用求值 s 一次并物化；此后每次 `FromSlice(buf)` 返回全新一次性流（共享底层数组零拷贝）。物化期首错记忆进工厂，此后每次返回 `emptyWithErr` 携带错误的空流（任何终止操作得空结果、`Err()` 可查）——一次性模型全程不被破坏：s 被消费一次，产物各一次性。
+`s.Cache() func() *Stream[T]`（Task 25 方法化；包级 `Cache(s)` 为 deprecated adapter，下一版本移除）：`sync.Once` 保证首次调用求值 s 一次并物化；此后每次 `FromSlice(buf)` 返回全新一次性流（共享底层数组零拷贝）。物化期首错记忆进工厂，此后每次返回 `emptyWithErr` 携带错误的空流（任何终止操作得空结果、`Err()` 可查）——一次性模型全程不被破坏：s 被消费一次，产物各一次性。
 
 ### Unordered 流式合并
 

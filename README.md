@@ -64,7 +64,7 @@ s.AnyMatch(p)
 s.Collect(collector.GroupingBy(keyOf, valOf))
 ```
 
-More runnable examples: [example_test.go](./example_test.go) (verified by `go test`) and the [example/](./example) directory — seven standalone, copy-paste-ready programs covering the full API surface:
+More runnable examples: [example_test.go](./example_test.go) (verified by `go test`) and the [example/](./example) directory — eight standalone, copy-paste-ready programs covering the full API surface:
 
 ```bash
 go -C example run ./basics      # sources → intermediate → terminal operations
@@ -74,6 +74,7 @@ go -C example run ./errors      # errors-as-value model (FromFunc/MapErr family/
 go -C example run ./parallel    # Parallel(n)/Unordered, order-preserving merge, auto fallback
 go -C example run ./lifecycle   # OnClose/Close resource management, Cache replayable factory
 go -C example run ./extensions  # Java 25 parity: ToSeq/collector composition/WindowSliding/Summary/RangeClosed/OfNonZero
+go -C example run ./join        # conditional two-stream joins: Join (inner), LeftJoin, right join via LeftJoin
 ```
 
 `example/` is a separate Go module (not part of the library's tests or coverage) so each file can be copied into your project as-is.
@@ -201,14 +202,14 @@ Performance note: each narrowing entry and element-preserving operator costs one
 
 | Category | APIs |
 |---|---|
-| Construction | `Of` `OfNonZero` `FromSlice` `FromSeq` `FromChannel` `FromMap` `FromFunc` `Generate` `Iterate` `Range` `RangeClosed` `Concat` `Empty` |
+| Construction | `Of` `OfNonZero` `FromSlice` `FromSeq` `FromChannel` `FromMap` `FromFunc` `Generate` `Iterate` `Range` `RangeClosed` `Concat` (method `a.Concat(b)`; the package-level `Concat(a, b)` is a deprecated adapter, slated for removal in the next version) `Empty` |
 | Stateless intermediate | `Filter` `Map` `FlatMap` `FlatMapSeq` `Peek` `TakeWhile` `DropWhile` |
 | Err variants | `MapErr` `FilterErr` `FlatMapErr` `PeekErr` |
 | Stateful intermediate | `Limit` `Skip` `Sorted` `StableSorted` `DistinctBy` `Reverse` `Scan` |
 | Parallelism control | `Parallel(n)` `Sequential()` `Unordered()` |
 | Package-level intermediate | `Distinct` `Sorted` (natural order) `Chunk` `Enumerate` `WindowSliding` |
-| Two-stream | `Zip` |
-| Lifecycle | `OnClose(f)` `Close()` `Cache(s)` (replayable factory) |
+| Two-stream | `Zip` `Join` (inner) `LeftJoin` (left outer; right outer = call `LeftJoin` on the right stream) — Join/LeftJoin require a known-finite right stream (`SpLimited`, link-time panic otherwise: swap sides / `.Limit(n)` / materialize) |
+| Lifecycle | `OnClose(f)` `Close()` `Cache()` (replayable factory; the package-level `Cache(s)` is a deprecated adapter, slated for removal in the next version) |
 | Terminal | `ForEach` `ForEachUntil` `ToSlice` `ToSeq` `Count` `Reduce` `ReduceOpt` `Collect` `First` `FindAny` `AnyMatch` `AllMatch` `NoneMatch` `Min` `Max` `Err` |
 | Collectors (subpackage `collector`) | `ToSlice` `ToSet` `ToMap` `ToMapMerge` `GroupingBy` `GroupingByDownstream` `PartitioningBy` `PartitioningBySlice` `Teeing` `Filtering` `FlatMapping` `CollectingAndThen` `MinBy` `MaxBy` `Joining` `Counting` `Reducing` `Mapping` `Summing` `Averaging` `Summarizing` (`SummaryStats`) |
 | Numeric constraints | `stream.Integer`/`stream.Float`/`stream.Number` (aliases of `constraints` subpackage) |
@@ -254,7 +255,7 @@ See [docs/design.md](./docs/design.md) for architecture details.
 
 > The project is in the **v0.x** stage: the API is not yet stable and **no compatibility is promised** — new features are the priority, but breaking changes may still land between minor releases. Stability guarantees begin with v1.
 
-- [x] **v0.1** (released, tag `v0.1.0`): sequential evaluation engine, full operator set, Collector system, errors-as-values model; **parallel evaluation `Parallel(n)` / `Sequential()`** (recursive TrySplit splitting + goroutine-parallel execution + `Collector.Combiner` merging; order-preserving merge by shard order, automatic fallback to sequential after short-circuit terminals or materializing operators, measured speedup of ~3.3x with 4 shards on CPU-bound workloads); **lifecycle & streaming batch** — `OnClose(f)`/`Close()` resource management, replayable `Cache(s)` factory, `Unordered()` streaming merge
+- [x] **v0.1** (released, tag `v0.1.0`): sequential evaluation engine, full operator set, Collector system, errors-as-values model; **parallel evaluation `Parallel(n)` / `Sequential()`** (recursive TrySplit splitting + goroutine-parallel execution + `Collector.Combiner` merging; order-preserving merge by shard order, automatic fallback to sequential after short-circuit terminals or materializing operators, measured speedup of ~3.3x with 4 shards on CPU-bound workloads); **lifecycle & streaming batch** — `OnClose(f)`/`Close()` resource management, replayable `Cache` factory, `Unordered()` streaming merge
 - [x] **v0.2** (released, tag `v0.2.0`): **Java 25 parity batch** — outbound `ToSeq() iter.Seq[T]` (range-over-func interop with short-circuit on break), collector composition ecosystem (`GroupingByDownstream`/`PartitioningBy`/`Teeing`/`Filtering`/`FlatMapping`/`CollectingAndThen`/`MinBy`/`MaxBy`, combiner-aware for parallel), sliding window `WindowSliding`, single-pass statistics `Summary`/`Summarizing` (`SummaryStats`), convenience sources `RangeClosed`/`OfNonZero` (zero covers nil, aligned with `cmp.Or` terminology); **NumberStream** numeric narrowing (`NumberStream[N]` + `MapToNumber`/`AsNumber` bridges); **sort semantics split** — `Sorted` (unstable pdqsort, default) vs `StableSorted` (stable, aligned with `slices.SortStableFunc`); **`Collector` interface-ization** (read-only behavior, regression-benchmarked); new `Averaging` averaging collector; numeric constraints moved into the `constraints` subpackage (`Summing` migrated into `collector`); `Sorted`/`Reverse` transform the materialization buffer in place (saves a full clone)
 - [ ] **v0.3**: scope TBD — the next batch will be scoped from real-world feedback on the v0.2 API surface; suggestions welcome via issues
 

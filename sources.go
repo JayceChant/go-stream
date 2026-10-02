@@ -19,9 +19,10 @@ type sliceSp[T any] struct {
 var _ Splitterator[int] = (*sliceSp[int])(nil)
 
 // newSliceSp 基于（子）切片构造源：estSize 为剩余元素数。
+// Sized 必蕴含 Limited（精确个数 ⇒ 有限）：构造器统一维护不变式。
 func newSliceSp[T any](s []T, chars Characteristics) *sliceSp[T] {
 	if chars&SpSized != 0 {
-		chars |= SpSubSized
+		chars |= SpSubSized | SpLimited
 	}
 	return &sliceSp[T]{baseSplitterator[T]{int64(len(s)), chars}, s, 0}
 }
@@ -70,7 +71,9 @@ var _ Splitterator[int] = (*rangeSp[int])(nil)
 
 func newRangeSp[I Integer](cur, stop I, chars Characteristics) *rangeSp[I] {
 	if chars&SpSized != 0 {
-		chars |= SpSubSized // 子区间同样可精确报告大小（与 newSliceSp 对齐，Task 11 修正）
+		// 子区间同样可精确报告大小（与 newSliceSp 对齐，Task 11 修正）；
+		// Sized ⇒ Limited 不变式同 newSliceSp
+		chars |= SpSubSized | SpLimited
 	}
 	var n int64
 	if cur < stop {

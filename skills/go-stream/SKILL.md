@@ -20,7 +20,7 @@ import (
 ## Core model
 
 - Sources are lazy; intermediates only declare the pipeline; the terminal triggers ONE fused evaluation pass.
-- **Streams are one-shot.** A terminal operation (or a bridge) consumes the stream; consuming it again panics. For replay, `stream.Cache(s)` returns a factory that produces fresh streams from one materialization.
+- **Streams are one-shot.** A terminal operation (or a bridge) consumes the stream; consuming it again panics. For replay, `s.Cache()` returns a factory that produces fresh streams from one materialization.
 - Infinite sources (`Generate`, `Iterate`) are safe only behind short-circuiting terminals: `Limit`, `First`, `TakeWhile`, `AnyMatch`, `ForEachUntil`.
 
 ## Non-obvious idioms
@@ -30,13 +30,14 @@ import (
 - **`Sorted` is unstable** (pdqsort, aligned with `slices.SortFunc`). Use `StableSorted` when equal keys must keep encounter order.
 - **`collector.ToMap` key conflicts are last-wins** (Go map semantics). Use `ToMapMerge` for a custom merge function.
 - **Numeric narrowing**: `Range` (plus `OfNumber`, `FromNumberSlice`, `MapToNumber`, `AsNumber`) produce `*NumberStream[N]`, which adds chainable `Sum()` / `Avg()` / `Min()` / `Max()` / `Contains()` / natural-order `Sorted()` / `Distinct()`. Escape back to `*Stream[T]` with `.AsStream()`. Bridges consume the source (one-shot).
+- **Conditional joins**: `s.Join(other, on, combine)` is an **inner join** (only pairs where `on(t, u)` is true are emitted); `s.LeftJoin(other, on, combine)` is a **left outer join** — an unmatched left element is still emitted exactly once with the zero value of `U`. There is no RightJoin: call `LeftJoin` on the right stream instead. The right stream is fully materialized when evaluation starts and must carry the `SpLimited` characteristic (known finite) — link-time panic otherwise; escape hatches: put the unknown/infinite stream on the left, or add `.Limit(bound)` to the right. `Generate/Iterate` (infinite) and `FromFunc/FromSeq/FromChannel` (unknown size) lack `SpLimited`; `Generate(...).Limit(n)` and materializing operators restore it. The left stream stays streaming (may be infinite behind a short-circuit terminal). Output order is left-major, then right encounter order.
 
 ## Method vs package-level — do not "fix"
 
 Go 1.27 methods cannot constrain the receiver's existing type parameter, nor return a derived type of it. Several APIs are therefore intentionally package-level. Never refactor them into methods:
 
-- Package-level only: `Distinct[T comparable]`, `Contains[T comparable]`, natural-order `Sorted` / `Min` / `Max[T cmp.Ordered]`, `Sum` / `Avg[T Number]`, `Chunk(s, n)`, `Enumerate(s)`, `WindowSliding(s, n)`, `Concat`, `Cache`.
-- Method forms that DO exist: `DistinctBy[K comparable](key)` on the stream, comparator-based `Sorted(cmp)`, `s1.Zip(s2, f)`; and on `NumberStream`: `Sum()` / `Avg()` / `Min()` / `Max()` / `Contains()` / `Sorted()` / `Distinct()`.
+- Package-level only: `Distinct[T comparable]`, `Contains[T comparable]`, natural-order `Sorted` / `Min` / `Max[T cmp.Ordered]`, `Sum` / `Avg[T Number]`, `Chunk(s, n)`, `Enumerate(s)`, `WindowSliding(s, n)`.
+- Method forms that DO exist: `DistinctBy[K comparable](key)` on the stream, comparator-based `Sorted(cmp)`, `s1.Zip(s2, f)`, `s1.Join(s2, on, combine)` (inner), `s1.LeftJoin(s2, on, combine)` (left outer), `a.Concat(b)`, `s.Cache()` (the package-level `Concat(a, b)` / `Cache(s)` are deprecated adapters slated for removal in the next version — prefer the method forms); and on `NumberStream`: `Sum()` / `Avg()` / `Min()` / `Max()` / `Contains()` / `Sorted()` / `Distinct()`.
 
 ## Parallelism & lifecycle
 
@@ -57,5 +58,5 @@ Custom collectors implement the `Collector[T, A, R]` interface (Supplier / Accum
 
 - API reference: <https://github.com/JayceChant/go-stream/blob/master/docs/api.md>
 - Design doc: <https://github.com/JayceChant/go-stream/blob/master/docs/design.md>
-- Runnable examples: <https://github.com/JayceChant/go-stream/tree/master/example> (basics, collectors, numeric, errors, parallel, lifecycle, extensions) and `example_test.go` in the repo root
+- Runnable examples: <https://github.com/JayceChant/go-stream/tree/master/example> (basics, collectors, numeric, errors, parallel, lifecycle, extensions, join) and `example_test.go` in the repo root
 - Java-to-go-stream mapping table: "Comparison with Java Stream" section of the README

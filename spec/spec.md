@@ -110,7 +110,7 @@ Java Stream 的骨架是一棵**单继承类树**（`BaseStream` ← `AbstractPi
 
 ### Tier A：必做（Java Stream 对齐）
 
-**源（构造函数，全部惰性）**：`Of`/`FromSlice`/`FromSeq(iter.Seq)`/`FromChannel`/`FromMap[K,V] → *Stream[KV[K,V]]`/`FromFunc(next func() (T, bool, error))`/`Generate`/`Iterate`/`Range[I Integer] → *NumberStream[I]`（**Task 18 修订**：区间元素必然是数值，直接返回数值流，免去 `AsNumber(Range(...))` 二次收窄；泛型推断随接收者类型自动收窄，`Sum(Range(0,100))` 等既有用法不变）/`Concat`/`Empty`（**Task 19~23 增补**：`RangeClosed[I Integer]`（闭区间 [start, stop]，start > stop 得空流）/`OfNonZero[T comparable]`（过滤零值元素的可变参数源——zero 涵盖 nil；Java 9 ofNullable 的 Go 惯用法））
+**源（构造函数，全部惰性）**：`Of`/`FromSlice`/`FromSeq(iter.Seq)`/`FromChannel`/`FromMap[K,V] → *Stream[KV[K,V]]`/`FromFunc(next func() (T, bool, error))`/`Generate`/`Iterate`/`Range[I Integer] → *NumberStream[I]`（**Task 18 修订**：区间元素必然是数值，直接返回数值流，免去 `AsNumber(Range(...))` 二次收窄；泛型推断随接收者类型自动收窄，`Sum(Range(0,100))` 等既有用法不变）/`Concat`（**Task 25 修订**：正名形态为方法 `a.Concat(b)`，包级 `Concat(a, b)` 转 deprecated adapter，见「形态原则与方法化迁移」）/`Empty`（**Task 19~23 增补**：`RangeClosed[I Integer]`（闭区间 [start, stop]，start > stop 得空流）/`OfNonZero[T comparable]`（过滤零值元素的可变参数源——zero 涵盖 nil；Java 9 ofNullable 的 Go 惯用法））
 
 **无状态中间**：`Filter`/`Map[U]`/`FlatMap[U]`/`FlatMapSeq[U]`/`Peek`/`TakeWhile`/`DropWhile`
 
@@ -130,6 +130,7 @@ Java Stream 的骨架是一棵**单继承类树**（`BaseStream` ← `AbstractPi
 | `Scan[U any](seed U, f func(U, T) U) *Stream[U]` | 方法 | ✅ 纳入 | 滚动累积/前缀和（含初值共 n+1 项）；**有状态但单遍无需物化**，展示引擎"有状态不分段"能力 |
 | `Chunk[T any](s, n int) *Stream[[]T]` | 包级函数 | ✅ 纳入 | 批处理（批量写库/分页）高频需求；同 Enumerate 受实例化循环限制须包级 |
 | `Zip[U, R any](o *Stream[U], f func(T, U) R) *Stream[R]` | 泛型方法 | ✅ 纳入 | 双流拉链；双类型参数方法是 Go 1.27 泛型方法的最佳 showcase |
+| 方法 `Join[U, R any](other, on, combiner)`（InnerJoin）+ 方法 `LeftJoin[U, R any](other, on, combiner)`（LeftJoin） | 泛型方法 ×2 | ✅ 纳入（Task 24；修订：原定「包级 Join + 方法 LeftJoin」，随用户反馈统一方法化） | SQL 式条件连接：`on(t,u)` 为 true 的元素对交 combiner 合并，与 Zip 按位置配对互补（语义详案见「双流条件连接 Join」Requirement） |
 | `FromFunc(next func() (T, bool, error))` | 构造 | ✅ 纳入 | 拉式 IO 源 + 错误即值入口（错误模型闭环） |
 | `MapErr`/`FilterErr`/`FlatMapErr`/`PeekErr` | 方法 | ✅ 纳入 | 错误即值核心（见错误处理设计） |
 | 包级 `Contains[T comparable](*Stream[T], T) bool` | 包级函数 | ✅ 纳入 | 方法无法约束 `T comparable`，包级补偿 |
@@ -163,7 +164,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - 新建 Go module：`github.com/JayceChant/go-stream`，go 1.27，根包 `stream`；另含低耦合子包 `collector`（收集器族，见「包结构」）
 - 核心类型：`Stream[T]`（嵌入 `pipeline[T]`）、`Sink[T]`、`Splitterator[T]`（嵌入 `baseSplitterator[T]`）、`collector.Collector[T,A,R]`、`KV[K,V]`、`Number`/复用 `cmp.Ordered` 约束
 - 求值引擎：Sink 链反向包装、单遍融合、短路、有状态分段物化、一次性消费、错误即值短路；并行分片求值（parallel.go）
-- API：Tier A + Tier B 全量 + `Parallel(n)`/`Sequential()`；**Task 18 增补**：`NumberStream` 数值流（收窄入口 + 19 个核心方法），`Range` 签名修订为返回 `*NumberStream[I]`；**Task 19~23 增补**：`ToSeq()` 出站迭代适配、Collector 组合生态（GroupingByDownstream/PartitioningBy/Teeing/Filtering/FlatMapping/CollectingAndThen/MinBy/MaxBy）、`WindowSliding` 滑动窗口、`Summary`/`Summarizing`/`SummaryStats` 单遍统计、`RangeClosed`/`OfNonZero` 便捷源（见「流扩展第一批」Requirement）
+- API：Tier A + Tier B 全量 + `Parallel(n)`/`Sequential()`；**Task 18 增补**：`NumberStream` 数值流（收窄入口 + 19 个核心方法），`Range` 签名修订为返回 `*NumberStream[I]`；**Task 19~23 增补**：`ToSeq()` 出站迭代适配、Collector 组合生态（GroupingByDownstream/PartitioningBy/Teeing/Filtering/FlatMapping/CollectingAndThen/MinBy/MaxBy）、`WindowSliding` 滑动窗口、`Summary`/`Summarizing`/`SummaryStats` 单遍统计、`RangeClosed`/`OfNonZero` 便捷源（见「流扩展第一批」Requirement）；**Task 24 增补**：双流条件连接方法 `Join`（InnerJoin）与 `LeftJoin`（左外连接）（见「双流条件连接 Join」Requirement）；**Task 25 增补**：`Concat`/`Cache` 方法化（存量包级函数盘点后仅此二者可迁方法形态；旧包级签名保留为 deprecated adapter + `//go:fix inline`，下一版本移除并标 BREAKING——见「形态原则与方法化迁移」Requirement）
 - 测试：单测 + `example_test.go`（可运行示例）+ 基准（vs 手写 for 循环）+ 并行加速比
 - 文档（Markdown，任务化）：`README.md`、`docs/design.md`（架构与 Java 对照）、`docs/api.md`（API 参考）
 
@@ -199,9 +200,9 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - Affected specs: 无（首个 spec）
 - Affected code: 全部新增
   - `go.mod`、`stream.go`（Stream 类型/约束/KV）、`pipeline.go`（引擎+错误槽+consumed+newHead+evaluate+分片）、`sink.go`、`spliterator.go`、`op.go`（newStateless/newStateful）、`sources.go`（各源 Splitterator 实现）、`construct.go`（包级构造函数）、`number_stream.go`（**Task 18**：NumberStream 数值流类型/收窄入口 Range〔构造函数自 construct.go 迁入，与其余收窄入口同置〕、OfNumber、FromNumberSlice、AsNumber、AsStream/19 个核心方法）
-  - `ops_stateless.go`（含 Err 变体；**Task 18 增补** `MapToNumber`，随 Map 同置）、`ops_stateful.go`（含 Scan/Chunk）、`op_ext.go`（Zip/Enumerate）
+  - `ops_stateless.go`（含 Err 变体；**Task 18 增补** `MapToNumber`，随 Map 同置）、`ops_stateful.go`（含 Scan/Chunk）、`op_ext.go`（Zip/Enumerate；**Task 24 增补**：方法 `Join`（InnerJoin）与 `LeftJoin`（左外连接）随双流算子同置）
   - `terminal.go`（含 Err() 与并行终端）、`constraints/constraints.go`（Task 16：数值约束叶子包）、`collector/collector.go`（子包：Collector 与 11 个预置收集器）、`numeric.go`（包级 Sum/Avg/Sorted/Min/Max/Contains/Distinct）、`parallel.go`（Parallel/Sequential/Unordered/分片求值/无序流式合并）、`lifecycle.go`（Task 10：OnClose/Close/Cache）
-  - `example/go.mod`（独立模块 + replace 指向根模块）与 `example/{basics,collectors,numeric,errors,parallel,lifecycle}/main.go`（Task 15：完整可运行示例目录，见「示例目录」Requirement；嵌套模块隔离覆盖率）
+  - `example/go.mod`（独立模块 + replace 指向根模块）与 `example/{basics,collectors,numeric,errors,parallel,lifecycle,join}/main.go`（Task 15：完整可运行示例目录，见「示例目录」Requirement；嵌套模块隔离覆盖率；`join` 为 Task 24 增补）
   - `*_test.go`、`example_test.go`、`benchmark_test.go`、`parallel_test.go`、`collector/collector_test.go`（**Task 19~23 增补**：`terminal.go` 增 ToSeq、`op_ext.go` 增 WindowSliding、`numeric.go` 增 Summary、`construct.go` 增 RangeClosed/OfNonZero、`number_stream.go` 增 RangeClosed 收窄入口、`collector/collector.go` 增组合收集器族与 Summarizing/SummaryStats；配套 `collector_extra_test.go` 等）
   - `README.md`、`docs/design.md`、`docs/api.md`
   - `skills/go-stream/SKILL.md`（面向下游用户的 coding-agent 使用指引，供用户整目录安装到各自 coding agent 的 skills 目录；英文编写、与 API 面同步维护——`AGENTS.md` 项目专属约定已增补对应同步维护要求）
@@ -212,7 +213,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 ## ADDED Requirements
 
 ### Requirement: Stream 构造（源适配）
-系统 SHALL 提供包级构造函数，从多种容器/生成器类型构建 `*Stream[T]`，构造本身不触发任何遍历（惰性）：`Of`/`FromSlice`（零拷贝引用）/`FromSeq`/`FromChannel`/`FromMap`（产出 `KV[K,V]`，Unordered——Task 10 修正：源特征位不再声明 `SpOrdered`，此前经 `newSeqSp` 误置、与本源「遍历顺序不确定」的既定语义矛盾）/`FromFunc(next func() (T, bool, error))`（错误记录）/`Generate`（无限）/`Iterate`（无限）/`Range`（左闭右开）/`Concat`/`Empty`。
+系统 SHALL 提供包级构造函数，从多种容器/生成器类型构建 `*Stream[T]`，构造本身不触发任何遍历（惰性）：`Of`/`FromSlice`（零拷贝引用）/`FromSeq`/`FromChannel`/`FromMap`（产出 `KV[K,V]`，Unordered——Task 10 修正：源特征位不再声明 `SpOrdered`，此前经 `newSeqSp` 误置、与本源「遍历顺序不确定」的既定语义矛盾）/`FromFunc(next func() (T, bool, error))`（错误记录）/`Generate`（无限）/`Iterate`（无限）/`Range`（左闭右开）/`Concat`（Task 25 方法化：正名形态 `a.Concat(b)`，包级函数为 deprecated adapter，见「形态原则与方法化迁移」Requirement）/`Empty`。
 
 #### Scenario: 从 slice 构造并终止求值
 - **WHEN** 用户执行 `FromSlice(s).Count()`
@@ -229,7 +230,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 ### Requirement: 中间操作（惰性、返回新 Stream）
 无状态（StatelessOp，单遍融合）：`Filter`/`Map[U]`/`FlatMap[U]`/`FlatMapSeq[U]`/`Peek`/`TakeWhile`（短路）/`DropWhile`；Err 变体：`MapErr`/`FilterErr`/`FlatMapErr`/`PeekErr`；标志改写：`Unordered()`（Task 10：清除 `SpOrdered`，声明后续求值不需保序——并行流式合并的门控；不改变元素流）。
 有状态（StatefulOp，物化上游段）：`Limit`（短路）/`Skip`/`Sorted`（不稳定 pdqsort）/`StableSorted`（稳定）/`DistinctBy`/`Reverse`；**单遍有状态**（不物化）：`Scan`；**包级单遍有状态**（实例化循环限制）：`Chunk`/`Enumerate`。
-双流：`Zip[U, R]`（取短，两条流均被消费）。
+双流：`Zip[U, R]`（取短，两条流均被消费）；`Join`/`LeftJoin`（Task 24 增补，条件连接，见「双流条件连接 Join」Requirement）。
 
 #### Scenario: 无状态链单遍融合
 - **WHEN** 对 N 元素源执行 `.Filter(p).Map(f).Count()`
@@ -263,6 +264,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 
 ### Requirement: Splitterator 抽象与特征位
 接口五方法 + 特征位；slice/range 可二分 TrySplit（前后半段不重叠、并集完整）；seq/channel/func 不可分（返回 nil）；特征位沿管道传播规则（**修订**：Map/MapErr 为 1:1 变换，对齐 Java StreamOpFlag 只清 Sorted/Distinct、保留 Sized，使下游可按 size 预分配；Filter 保留全部；FlatMap 族 1:N 变换清 Sized/Sorted/Distinct；TakeWhile/DropWhile 清 Sized；Stateful 后段 SubSized...）。
+**Task 24 增补 `SpLimited`（有限性声明，随用户反馈立项）**：区分「已知有限」与「无限或大小未知」。置位规则（**仅已知有限置位**）：`SpSized ⇒ SpLimited` 不变式（Of/FromSlice/Empty/Range/RangeClosed）；`FromMap` 置位（len 已知有限、遍历序不定、不报大小）；`FromFunc`/`FromSeq`/`FromChannel`（大小未知，库无法替调用方断言）与 `Generate`/`Iterate`（设计上无限）**不置位**。传播规则：透传类算子（Filter/Map/Peek/Err 族/TakeWhile/DropWhile/Scan/Chunk/FlatMap 族/WindowSliding/标志类）自然保留（有限进有限出）；物化类算子（Limit/Skip/Sorted/StableSorted/DistinctBy/Reverse）**强制置位**（Limit 给出上界、物化输出=缓冲长度，求值能完成即有限）；双流算子（Concat/Zip/Join/LeftJoin）**双侧 AND**（任一侧无限/未知即整体未知）。消费方：Join/LeftJoin 以之作右流有限性守卫（见「双流条件连接 Join」Requirement）。
 
 ### Requirement: 错误即值模型
 可预期错误（FromFunc/Err 族）以 error 值传播：首错短路、部分结果保留、`Err()` 查询；不可恢复错误（重复消费、nil 回调）panic 且信息清晰；回调 panic 原样传播。
@@ -351,7 +353,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - 多个回调按注册序执行；任一出错记首错
 
 **2. Cache 可重放工厂（不破坏一次性模型）**
-- `Cache[T any](s *Stream[T]) func() *Stream[T]`：首次调用工厂时求值上游一次并物化，此后每次调用返回**全新的独立流**（FromSlice 共享底层数组，零拷贝）
+- `Cache[T any](s *Stream[T]) func() *Stream[T]`：首次调用工厂时求值上游一次并物化，此后每次调用返回**全新的独立流**（FromSlice 共享底层数组，零拷贝）。**Task 25 方法化修订**：正名形态为方法 `func (s *Stream[T]) Cache() func() *Stream[T]`（语义不变）；包级 `Cache(s)` 保留签名转为委托 adapter，标 Deprecated + `//go:fix inline`，**下一版本移除并标 BREAKING**（迁移期 `go fix` 可重写调用点；Go 1.27 的 inline fixer 仅同文件/包内生效，跨包调用点手工迁移）
 - 一次性模型保持：原流被 Cache 消费；工厂产物每次也是一次性流
 - 错误语义：物化期上游出错 → 首错记录进工厂，此后每次调用返回携带该错误的空流（`Err()` 可查）
 
@@ -367,8 +369,8 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - **THEN** release 被调用恰好一次
 
 #### Scenario: Cache 重放
-- **WHEN** `f := Cache(s)`; `f().Count()` 与 `f().Count()` 先后执行
-- **THEN** 上游只被求值一次，两次 Count 结果一致
+- **WHEN** `f := s.Cache()`; `f().Count()` 与 `f().Count()` 先后执行
+- **THEN** 上游只被求值一次，两次 Count 结果一致（deprecated 包级 `Cache(s)` adapter 行为等同，迁移期可用）
 
 #### Scenario: Unordered 流式合并
 - **WHEN** `FromSlice(xs).Parallel(4).Unordered().Collect(c)`（可分源 + 显式 Unordered）
@@ -432,6 +434,65 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - **WHEN** `stream.RangeClosed(1, 5).ToSlice()` 与 `stream.OfNonZero[int](1, 0, 2).ToSlice()`
 - **THEN** 分别返回 `[1 2 3 4 5]` 与 `[1 2]`
 
+### Requirement: 双流条件连接 Join（Task 24）
+
+将两条流按**谓词条件**连接（逻辑类似 SQL Join），与 Zip 按位置配对互补：`on(t, u) bool` 返回 true 表明当前元素对可以组合，`combiner(t, u) R` 对可组合的元素对执行合并。提供两个版本：
+
+- **方法 `func (s *Stream[T]) Join[U, R any](other *Stream[U], on func(T, U) bool, combine func(T, U) R) *Stream[R]`** —— 语义相当于 **InnerJoin**：只有命中 `on` 的元素对才产出 `combine` 结果；左侧元素若无任何命中则不产出。
+- **方法 `func (s *Stream[T]) LeftJoin[U, R any](other *Stream[U], on func(T, U) bool, combine func(T, U) R) *Stream[R]`** —— 语义相当于 **LeftJoin（左外连接）**：左侧元素即使无任何命中，也至少执行一次 `combine`（右元素取 `U` 的零值）；有命中则对每个命中的右元素各产出一条。
+
+**不提供 RightJoin 版本**：RightJoin 等价于以右流作为左流调用 `LeftJoin`（`right.LeftJoin(left, …)`），无需重复 API。
+
+**形态修订（随用户反馈）**：InnerJoin 原定包级函数形态（两流对称无主次），统一改为方法形态——方法名不冲突（`Join`/`LeftJoin` 并存于 `*Stream[T]`），且实现不受 Go 泛型方法限制（自有类型参数 U/R、返回 `*Stream[R]` 均合法），链式手感更好。项目形态原则随之明确：**仅在实现上受 Go 1.27 泛型方法硬限制（需约束接收者 T / 需返回 T 的派生类型）的 API 才用包级函数，其余尽量方法化**。
+
+设计要点：
+
+- **求值形态（嵌套循环，单侧物化）**：实现上将 right 流物化为 `[]U`（经 collectingSink 全量收集，含首错短路），再单遍驱动 left 流；对每个左元素扫描全部右元素执行 `on` 判定与 `combine`。**产物顺序确定性**：外层按左流相遇序、内层按右流物化序——同一流的求值产出序是本库既定语义（保序流与 Unordered 流均成立；Unordered 下流本身的产出序不保证，但 Join 不额外引入不确定性）。
+- **物化与短路**：right 侧必须有限——物化阶段无 limit 截断（Join 语义需要全部右元素参与匹配）。**有限性守卫（Task 24 增补，随用户反馈立项）**：链接期检查 `right.chars&SpLimited == 0` 即 panic（fail-fast，对齐库内「编程错误即 panic」模型），把无限右流的运行期挂死提前为构造期明确报错；置位/传播规则见「Splitterator 抽象与特征位」Requirement（口径：仅已知有限置位——`FromFunc`/`FromSeq`/`FromChannel` 作右流同样被拦，需先 `.Limit(上界)` 或换左流；`Generate(…).Limit(n)` 因物化置位而合法；`Iterate(…).TakeWhile(p)` 类「可能有限」保守拒绝）。left 侧与输出侧短路语义正常：左流 Accept 返回 false 即停（如 Join 结果接 `Limit`），此时 right 已全量物化属预期（与 `Sorted` 等物化算子的既定行为一致——既有物化算子不加守卫，仅随 Join 诞生引入，此不对称为有意决策）。
+- **一次性语义**：两条流均被标记消费（checkLinked）；Join 产物为新的一次性流。
+- **nil 回调 panic / nil 流**：`on`/`combine`/`other` 为 nil 时 panic（编程错误，与 Zip 一致——方法接收者语境下 nil 另一侧更可能是编程错误；原包级版「任一侧 nil 返回空流」容错随方法化移除）。
+- **特征位与并行**：输出特征位为两侧特征位按位与后清 `SpSized`/`SpSubSized`/`SpSorted`/`SpDistinct`（元素数为乘性/选择相关，不再精确；序保左流序但 Sorted/Distinct 语义无从谈起）；splitN 置 nil（双流算子并行降级，与 Zip/Concat 同列降级清单）。
+- **错误即值**：物化 right 期间或驱动 left 期间的首错均记入共享 evalCtx（首错保留、短路、部分结果保留）；用户回调 panic 原样传播（left 侧在发起 goroutine、无需中转；right 侧物化也在发起 goroutine 内完成，无后台 goroutine——实现不依赖 pullFromDrive，比 Zip 更简单）。
+- **OnClose 回调链**：经 mergeClosers 继承双侧（left 先 right 后，与 Zip 同规则）。
+- **放置位置**：实现置于 `op_ext.go`（双流算子同置）；`NumberStream` 经提升自然可用（返回 `*Stream[R]`，属逃逸规则既定行为）。
+
+#### Scenario: InnerJoin 基本语义
+- **WHEN** 左 `[1,2,3]`、右 `[2,4,6]`、`on` 为 `t%u==0 || u%t==0`（数值整除关系演示），`combine` 返回 `t*u`
+- **THEN** 每个命中对各产出一条，按左序（外层）× 右序（内层）排列
+
+#### Scenario: LeftJoin 未命中走零值
+- **WHEN** 左元素在右流无任何 `on` 命中
+- **THEN** 该元素仍产出**恰好一条** `combine(t, U 零值)` 结果（按左流位置）；命中元素产出全部命中对
+
+#### Scenario: RightJoin 以 LeftJoin 表达
+- **WHEN** 需要 RightJoin 语义
+- **THEN** 调用方执行 `right.LeftJoin(left, …)`（右流作为方法接收者/左角色），库不提供第三形态
+
+#### Scenario: 右流未声明有限被拦截
+- **WHEN** 以 `Generate`/`Iterate`（设计无限）或 `FromFunc`/`FromSeq`/`FromChannel`（大小未知）构建的流作 Join/LeftJoin 的右流（未经物化算子）
+- **THEN** 链接时（求值前）panic，信息指明三条出路：换左流 / 右流 `.Limit(上界)` / 先物化；`Generate(…).Limit(n)` 等已置位 SpLimited 的流正常通过
+
+#### Scenario: 错误即值与部分结果
+- **WHEN** right 物化中或 left 驱动中回调/源出错
+- **THEN** 首错记入 evalCtx、求值短路、已产出元素保留、`Err()` 可查
+
+### Requirement: 形态原则与方法化迁移（Task 25）
+
+Task 24 随 Join 落地确立项目形态原则：**仅在实现上受 Go 1.27 泛型方法硬限制（需约束接收者 T / 需返回 T 的派生类型）的 API 才用包级函数，其余尽量方法化**。Task 25 据此对存量包级函数盘点迁移：
+
+- **范围判定**：逐一核对存量包级函数，仅 `Concat` 与 `Cache` 可方法化——方法形态无需新增类型参数、不动接收者 T 约束、不返回 T 的派生类型；`Distinct`/`Contains`/`Sorted`/`Min`/`Max`/`Sum`/`Avg`/`Summary` 需约束 T（方法不能约束接收者类型参数），`Chunk`/`Enumerate`/`WindowSliding` 返回 T 的派生类型（实例化循环），均维持包级（数值族方法形态由 `NumberStream` 承载，见 Task 18）。
+- **方法化实现**：`func (s *Stream[T]) Concat(other *Stream[T]) *Stream[T]`（construct.go）/ `func (s *Stream[T]) Cache() func() *Stream[T]`（lifecycle.go），原逻辑整体迁入、语义零变化（Concat 的 nil 容错语义保持：nil 接收者返回 other、other 为 nil 返回本流；Cache 一次性/错误记忆语义不变）。
+- **deprecated adapter 策略（平滑迁移）**：旧包函数**保留签名**、实现改为一行委托新方法；godoc 标 `Deprecated:`（指明新形态与移除计划）+ `//go:fix inline` 指令（`go fix` 可自动把调用点重写为方法形态——注意 Go 1.27 的 inline fixer 仅在同文件/包内生效，下游模块调用点需手工迁移，文档已说明）。**本版本仅 deprecated（旧签名可编译、行为一致），下一版本移除并标 BREAKING**。
+- **仓内零调用**：库代码、测试、example 全部调用点随本任务迁至方法形态，deprecated 函数在仓内零引用（staticcheck SA1019 清洁）。
+
+#### Scenario: 方法形态等价
+- **WHEN** `a.Concat(b)` / `s.Cache()` 与 deprecated 包级 `Concat(a, b)` / `Cache(s)` 先后执行相同断言
+- **THEN** 行为完全一致（元素产出、特征位、错误语义、nil 容错）
+
+#### Scenario: 旧调用点编译期提示
+- **WHEN** 下游代码调用包级 `stream.Concat(a, b)` 或 `stream.Cache(s)`
+- **THEN** 编译通过且行为正确，IDE/lint 呈现 Deprecated 提示并指向方法形态；下一版本升级为编译失败（移除）并标 BREAKING
+
 ### Requirement: 文档（Markdown）
 
 SHALL 交付：`README.md`（简介/安装/快速上手/API 速览/与 Java 对照/设计要点/路线图）、`docs/design.md`（架构原理：管道/Sink/Splitterator/分段求值/错误模型/组合替代继承映射表/并行求值）、`docs/api.md`（分组 API 参考 + 示例）；`example_test.go` 提供可运行示例（与文档示例一致）。
@@ -446,6 +507,7 @@ SHALL 交付：`README.md`（简介/安装/快速上手/API 速览/与 Java 对�
 - `example/errors/main.go`：错误即值模型（FromFunc 可失败源、MapErr/FilterErr/FlatMapErr/PeekErr 首错短路、部分结果保留、Err() 查询）
 - `example/parallel/main.go`：并行求值（Parallel(n)/Sequential/Unordered、保序合并、物化算子后自动降级演示）
 - `example/lifecycle/main.go`：生命周期与可重放（OnClose/Close 求值结束自动触发与幂等、Cache 可重放工厂）
+- `example/join/main.go`（**Task 24 增补**）：双流条件连接（Join 内连接仅命中对、LeftJoin 未命中零值保底、以右流调 LeftJoin 表达右外连接、无限左流+短路、连接后聚合；各段以工厂函数构造新流演示一次性语义）
 
 **覆盖率例外（强制）**：`example/` 为可执行示例而非测试代码，以**独立 Go module**（`example/go.mod` + `replace` 指向根模块）承载——根模块的 `go test ./...` 与 coverprofile 完全不含 example 包（Go 1.22+ 会把无测试文件的包以 0% 计入 coverprofile，嵌套模块从根模块的 `./...` 中彻底隔离，规避该污染，保证 100% 基线不受影响）；CI 增加独立步骤对 example 模块执行 `go vet`/`go build`/golangci-lint（示例保持可编译、不烂尾）；SonarCloud 按文件系统分析（不受 module 边界影响），`sonar-project.properties` `sonar.exclusions` 排除 `example/**`；根包 `example_test.go` 的 Example 函数仍照常运行（属根模块测试，不受本例外影响）。
 

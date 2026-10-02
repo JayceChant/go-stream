@@ -110,7 +110,7 @@ Java Stream 的骨架是一棵**单继承类树**（`BaseStream` ← `AbstractPi
 
 ### Tier A：必做（Java Stream 对齐）
 
-**源（构造函数，全部惰性）**：`Of`/`FromSlice`/`FromSeq(iter.Seq)`/`FromChannel`/`FromMap[K,V] → *Stream[KV[K,V]]`/`FromFunc(next func() (T, bool, error))`/`Generate`/`Iterate`/`Range[I Integer] → *NumberStream[I]`（**Task 18 修订**：区间元素必然是数值，直接返回数值流，免去 `AsNumber(Range(...))` 二次收窄；泛型推断随接收者类型自动收窄，`Sum(Range(0,100))` 等既有用法不变）/`Concat`/`Empty`（**Task 19~23 增补**：`RangeClosed[I Integer]`（闭区间 [start, stop]，start > stop 得空流）/`OfNonZero[T comparable]`（过滤零值元素的可变参数源——zero 涵盖 nil；Java 9 ofNullable 的 Go 惯用法））
+**源（构造函数，全部惰性）**：`Of`/`FromSlice`/`FromSeq(iter.Seq)`/`FromChannel`/`FromMap[K,V] → *Stream[KV[K,V]]`/`FromFunc(next func() (T, bool, error))`/`Generate`/`Iterate`/`Range[I Integer] → *NumberStream[I]`（**Task 18 修订**：区间元素必然是数值，直接返回数值流，免去 `AsNumber(Range(...))` 二次收窄；泛型推断随接收者类型自动收窄，`Sum(Range(0,100))` 等既有用法不变）/`Concat`（**Task 25 修订**：正名形态为方法 `a.Concat(b)`，包级 `Concat(a, b)` 转 deprecated adapter，见「形态原则与方法化迁移」）/`Empty`（**Task 19~23 增补**：`RangeClosed[I Integer]`（闭区间 [start, stop]，start > stop 得空流）/`OfNonZero[T comparable]`（过滤零值元素的可变参数源——zero 涵盖 nil；Java 9 ofNullable 的 Go 惯用法））
 
 **无状态中间**：`Filter`/`Map[U]`/`FlatMap[U]`/`FlatMapSeq[U]`/`Peek`/`TakeWhile`/`DropWhile`
 
@@ -164,7 +164,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - 新建 Go module：`github.com/JayceChant/go-stream`，go 1.27，根包 `stream`；另含低耦合子包 `collector`（收集器族，见「包结构」）
 - 核心类型：`Stream[T]`（嵌入 `pipeline[T]`）、`Sink[T]`、`Splitterator[T]`（嵌入 `baseSplitterator[T]`）、`collector.Collector[T,A,R]`、`KV[K,V]`、`Number`/复用 `cmp.Ordered` 约束
 - 求值引擎：Sink 链反向包装、单遍融合、短路、有状态分段物化、一次性消费、错误即值短路；并行分片求值（parallel.go）
-- API：Tier A + Tier B 全量 + `Parallel(n)`/`Sequential()`；**Task 18 增补**：`NumberStream` 数值流（收窄入口 + 19 个核心方法），`Range` 签名修订为返回 `*NumberStream[I]`；**Task 19~23 增补**：`ToSeq()` 出站迭代适配、Collector 组合生态（GroupingByDownstream/PartitioningBy/Teeing/Filtering/FlatMapping/CollectingAndThen/MinBy/MaxBy）、`WindowSliding` 滑动窗口、`Summary`/`Summarizing`/`SummaryStats` 单遍统计、`RangeClosed`/`OfNonZero` 便捷源（见「流扩展第一批」Requirement）；**Task 24 增补**：双流条件连接方法 `Join`（InnerJoin）与 `LeftJoin`（左外连接）（见「双流条件连接 Join」Requirement）
+- API：Tier A + Tier B 全量 + `Parallel(n)`/`Sequential()`；**Task 18 增补**：`NumberStream` 数值流（收窄入口 + 19 个核心方法），`Range` 签名修订为返回 `*NumberStream[I]`；**Task 19~23 增补**：`ToSeq()` 出站迭代适配、Collector 组合生态（GroupingByDownstream/PartitioningBy/Teeing/Filtering/FlatMapping/CollectingAndThen/MinBy/MaxBy）、`WindowSliding` 滑动窗口、`Summary`/`Summarizing`/`SummaryStats` 单遍统计、`RangeClosed`/`OfNonZero` 便捷源（见「流扩展第一批」Requirement）；**Task 24 增补**：双流条件连接方法 `Join`（InnerJoin）与 `LeftJoin`（左外连接）（见「双流条件连接 Join」Requirement）；**Task 25 增补**：`Concat`/`Cache` 方法化（存量包级函数盘点后仅此二者可迁方法形态；旧包级签名保留为 deprecated adapter + `//go:fix inline`，下一版本移除并标 BREAKING——见「形态原则与方法化迁移」Requirement）
 - 测试：单测 + `example_test.go`（可运行示例）+ 基准（vs 手写 for 循环）+ 并行加速比
 - 文档（Markdown，任务化）：`README.md`、`docs/design.md`（架构与 Java 对照）、`docs/api.md`（API 参考）
 
@@ -213,7 +213,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 ## ADDED Requirements
 
 ### Requirement: Stream 构造（源适配）
-系统 SHALL 提供包级构造函数，从多种容器/生成器类型构建 `*Stream[T]`，构造本身不触发任何遍历（惰性）：`Of`/`FromSlice`（零拷贝引用）/`FromSeq`/`FromChannel`/`FromMap`（产出 `KV[K,V]`，Unordered——Task 10 修正：源特征位不再声明 `SpOrdered`，此前经 `newSeqSp` 误置、与本源「遍历顺序不确定」的既定语义矛盾）/`FromFunc(next func() (T, bool, error))`（错误记录）/`Generate`（无限）/`Iterate`（无限）/`Range`（左闭右开）/`Concat`/`Empty`。
+系统 SHALL 提供包级构造函数，从多种容器/生成器类型构建 `*Stream[T]`，构造本身不触发任何遍历（惰性）：`Of`/`FromSlice`（零拷贝引用）/`FromSeq`/`FromChannel`/`FromMap`（产出 `KV[K,V]`，Unordered——Task 10 修正：源特征位不再声明 `SpOrdered`，此前经 `newSeqSp` 误置、与本源「遍历顺序不确定」的既定语义矛盾）/`FromFunc(next func() (T, bool, error))`（错误记录）/`Generate`（无限）/`Iterate`（无限）/`Range`（左闭右开）/`Concat`（Task 25 方法化：正名形态 `a.Concat(b)`，包级函数为 deprecated adapter，见「形态原则与方法化迁移」Requirement）/`Empty`。
 
 #### Scenario: 从 slice 构造并终止求值
 - **WHEN** 用户执行 `FromSlice(s).Count()`
@@ -353,7 +353,7 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - 多个回调按注册序执行；任一出错记首错
 
 **2. Cache 可重放工厂（不破坏一次性模型）**
-- `Cache[T any](s *Stream[T]) func() *Stream[T]`：首次调用工厂时求值上游一次并物化，此后每次调用返回**全新的独立流**（FromSlice 共享底层数组，零拷贝）
+- `Cache[T any](s *Stream[T]) func() *Stream[T]`：首次调用工厂时求值上游一次并物化，此后每次调用返回**全新的独立流**（FromSlice 共享底层数组，零拷贝）。**Task 25 方法化修订**：正名形态为方法 `func (s *Stream[T]) Cache() func() *Stream[T]`（语义不变）；包级 `Cache(s)` 保留签名转为委托 adapter，标 Deprecated + `//go:fix inline`，**下一版本移除并标 BREAKING**（迁移期 `go fix` 可重写调用点；Go 1.27 的 inline fixer 仅同文件/包内生效，跨包调用点手工迁移）
 - 一次性模型保持：原流被 Cache 消费；工厂产物每次也是一次性流
 - 错误语义：物化期上游出错 → 首错记录进工厂，此后每次调用返回携带该错误的空流（`Err()` 可查）
 
@@ -369,8 +369,8 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - **THEN** release 被调用恰好一次
 
 #### Scenario: Cache 重放
-- **WHEN** `f := Cache(s)`; `f().Count()` 与 `f().Count()` 先后执行
-- **THEN** 上游只被求值一次，两次 Count 结果一致
+- **WHEN** `f := s.Cache()`; `f().Count()` 与 `f().Count()` 先后执行
+- **THEN** 上游只被求值一次，两次 Count 结果一致（deprecated 包级 `Cache(s)` adapter 行为等同，迁移期可用）
 
 #### Scenario: Unordered 流式合并
 - **WHEN** `FromSlice(xs).Parallel(4).Unordered().Collect(c)`（可分源 + 显式 Unordered）
@@ -475,6 +475,23 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 #### Scenario: 错误即值与部分结果
 - **WHEN** right 物化中或 left 驱动中回调/源出错
 - **THEN** 首错记入 evalCtx、求值短路、已产出元素保留、`Err()` 可查
+
+### Requirement: 形态原则与方法化迁移（Task 25）
+
+Task 24 随 Join 落地确立项目形态原则：**仅在实现上受 Go 1.27 泛型方法硬限制（需约束接收者 T / 需返回 T 的派生类型）的 API 才用包级函数，其余尽量方法化**。Task 25 据此对存量包级函数盘点迁移：
+
+- **范围判定**：逐一核对存量包级函数，仅 `Concat` 与 `Cache` 可方法化——方法形态无需新增类型参数、不动接收者 T 约束、不返回 T 的派生类型；`Distinct`/`Contains`/`Sorted`/`Min`/`Max`/`Sum`/`Avg`/`Summary` 需约束 T（方法不能约束接收者类型参数），`Chunk`/`Enumerate`/`WindowSliding` 返回 T 的派生类型（实例化循环），均维持包级（数值族方法形态由 `NumberStream` 承载，见 Task 18）。
+- **方法化实现**：`func (s *Stream[T]) Concat(other *Stream[T]) *Stream[T]`（construct.go）/ `func (s *Stream[T]) Cache() func() *Stream[T]`（lifecycle.go），原逻辑整体迁入、语义零变化（Concat 的 nil 容错语义保持：nil 接收者返回 other、other 为 nil 返回本流；Cache 一次性/错误记忆语义不变）。
+- **deprecated adapter 策略（平滑迁移）**：旧包函数**保留签名**、实现改为一行委托新方法；godoc 标 `Deprecated:`（指明新形态与移除计划）+ `//go:fix inline` 指令（`go fix` 可自动把调用点重写为方法形态——注意 Go 1.27 的 inline fixer 仅在同文件/包内生效，下游模块调用点需手工迁移，文档已说明）。**本版本仅 deprecated（旧签名可编译、行为一致），下一版本移除并标 BREAKING**。
+- **仓内零调用**：库代码、测试、example 全部调用点随本任务迁至方法形态，deprecated 函数在仓内零引用（staticcheck SA1019 清洁）。
+
+#### Scenario: 方法形态等价
+- **WHEN** `a.Concat(b)` / `s.Cache()` 与 deprecated 包级 `Concat(a, b)` / `Cache(s)` 先后执行相同断言
+- **THEN** 行为完全一致（元素产出、特征位、错误语义、nil 容错）
+
+#### Scenario: 旧调用点编译期提示
+- **WHEN** 下游代码调用包级 `stream.Concat(a, b)` 或 `stream.Cache(s)`
+- **THEN** 编译通过且行为正确，IDE/lint 呈现 Deprecated 提示并指向方法形态；下一版本升级为编译失败（移除）并标 BREAKING
 
 ### Requirement: 文档（Markdown）
 

@@ -221,7 +221,7 @@ func TestConcatErrSkipsB(t *testing.T) {
 	b := Of(9, 10).Peek(func(int) { bDriven++ })
 	var endCnt int
 	var got []int
-	s := Concat(a, b)
+	s := a.Concat(b)
 	s.pipeline.evaluate(&recordSink[int]{
 		accept: func(v int) bool { got = append(got, v); return true },
 		onEnd:  func() { endCnt++ },
@@ -594,7 +594,7 @@ func TestCharsMatrixSinglePass(t *testing.T) {
 
 func TestCharsMatrixComposite(t *testing.T) {
 	// Concat：并集 &^ SpSized；Zip：交集 &^ (SpSized|SpSorted|SpDistinct)；Parallel 透传。
-	if c := Concat(sizedSource(), sizedSource()).chars; c&SpSized != 0 || c&SpOrdered == 0 {
+	if c := sizedSource().Concat(sizedSource()).chars; c&SpSized != 0 || c&SpOrdered == 0 {
 		t.Errorf("Concat 后特征位 = %b, SpSized 清除、SpOrdered 保留", c)
 	}
 	if c := sizedSource().Zip(sizedSource(), func(a, b int) int { return a + b }).chars; c&SpSized != 0 || c&SpOrdered == 0 {

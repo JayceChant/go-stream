@@ -20,7 +20,7 @@ import (
 ## Core model
 
 - Sources are lazy; intermediates only declare the pipeline; the terminal triggers ONE fused evaluation pass.
-- **Streams are one-shot.** A terminal operation (or a bridge) consumes the stream; consuming it again panics. For replay, `stream.Cache(s)` returns a factory that produces fresh streams from one materialization.
+- **Streams are one-shot.** A terminal operation (or a bridge) consumes the stream; consuming it again panics. For replay, `s.Cache()` returns a factory that produces fresh streams from one materialization.
 - Infinite sources (`Generate`, `Iterate`) are safe only behind short-circuiting terminals: `Limit`, `First`, `TakeWhile`, `AnyMatch`, `ForEachUntil`.
 
 ## Non-obvious idioms
@@ -36,8 +36,8 @@ import (
 
 Go 1.27 methods cannot constrain the receiver's existing type parameter, nor return a derived type of it. Several APIs are therefore intentionally package-level. Never refactor them into methods:
 
-- Package-level only: `Distinct[T comparable]`, `Contains[T comparable]`, natural-order `Sorted` / `Min` / `Max[T cmp.Ordered]`, `Sum` / `Avg[T Number]`, `Chunk(s, n)`, `Enumerate(s)`, `WindowSliding(s, n)`, `Concat`, `Cache`.
-- Method forms that DO exist: `DistinctBy[K comparable](key)` on the stream, comparator-based `Sorted(cmp)`, `s1.Zip(s2, f)`, `s1.Join(s2, on, combine)` (inner), `s1.LeftJoin(s2, on, combine)` (left outer); and on `NumberStream`: `Sum()` / `Avg()` / `Min()` / `Max()` / `Contains()` / `Sorted()` / `Distinct()`.
+- Package-level only: `Distinct[T comparable]`, `Contains[T comparable]`, natural-order `Sorted` / `Min` / `Max[T cmp.Ordered]`, `Sum` / `Avg[T Number]`, `Chunk(s, n)`, `Enumerate(s)`, `WindowSliding(s, n)`.
+- Method forms that DO exist: `DistinctBy[K comparable](key)` on the stream, comparator-based `Sorted(cmp)`, `s1.Zip(s2, f)`, `s1.Join(s2, on, combine)` (inner), `s1.LeftJoin(s2, on, combine)` (left outer), `a.Concat(b)`, `s.Cache()` (the package-level `Concat(a, b)` / `Cache(s)` are deprecated adapters slated for removal in the next version — prefer the method forms); and on `NumberStream`: `Sum()` / `Avg()` / `Min()` / `Max()` / `Contains()` / `Sorted()` / `Distinct()`.
 
 ## Parallelism & lifecycle
 

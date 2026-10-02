@@ -22,7 +22,7 @@
 | `Iterate[T](seed T, next func(T) T) *Stream[T]` | 无限迭代（seed, f(seed), ...） |
 | `Range[I Integer](start, stop I) *NumberStream[I]` | 左闭右开整数区间（可 TrySplit）；直接返回数值流（Task 18），需 `*Stream` 时经 `AsStream()` 桥接 |
 | `RangeClosed[I Integer](start, stop I) *NumberStream[I]` | 闭区间 [start, stop]（含两端；start > stop 空流；Task 23），与 `Range` 左闭右开并存 |
-| `Concat[T](a, b *Stream[T]) *Stream[T]` | 顺序拼接两流 |
+| 方法 `(s *Stream[T]) Concat(other *Stream[T]) *Stream[T]` | 顺序拼接两流（Task 25 方法化；nil 接收者返回 other、other 为 nil 返回本流）。包级 `Concat[T](a, b)` 为 deprecated adapter（`go fix` 可重写同包调用点），下一版本移除 |
 
 ```go
 // FromFunc：第 4 次读取出错，ToSlice 保留前 3 个，Err() 返回首错
@@ -111,7 +111,7 @@ got := stream.FromSlice(bigData).
 |---|---|
 | `OnClose(f func() error) *Stream[T]` | 注册清理回调：终止求值结束自动触发（耗尽/短路/错误/panic 路径均触发）；按注册序执行，出错记首错经 `Err()` 查询 |
 | `Close() error` | 显式关闭（幂等；未求值流也可关闭）；返回回调链首错 |
-| `Cache[T](s *Stream[T]) func() *Stream[T]` | 可重放工厂：首次调用求值上游一次并物化，此后每次返回全新一次性流（FromSlice 零拷贝）；物化期首错记忆，此后返回携带错误的空流 |
+| 方法 `(s *Stream[T]) Cache() func() *Stream[T]` | 可重放工厂：首次调用求值上游一次并物化，此后每次返回全新一次性流（FromSlice 零拷贝）；物化期首错记忆，此后返回携带错误的空流（Task 25 方法化；包级 `Cache(s)` 为 deprecated adapter，`go fix` 可重写同包调用点，下一版本移除） |
 
 ```go
 // 求值结束自动释放资源
@@ -122,8 +122,8 @@ stream.FromChannel(ch).OnClose(func() error { return file.Close() }).ToSlice()
 set := stream.FromSlice(bigData).Parallel(4).Unordered().
     Collect(collector.ToSet[int]())
 
-// 可重放：上游只求值一次
-f := stream.Cache(expensiveQuery())
+// 可重放：上游只求值一次（方法形态，Task 25）
+f := expensiveQuery().Cache()
 f().ForEach(use)   // 首次：物化
 f().ForEach(use)   // 重放：零拷贝
 ```

@@ -52,7 +52,7 @@ func main() {
 	fmt.Println("Range(1,6):", stream.Range(1, 6).ToSlice())
 
 	// Concat：串联两条流
-	fmt.Println("Concat:", stream.Concat(stream.Of(1, 2), stream.Of(3, 4)).ToSlice())
+	fmt.Println("Concat:", stream.Of(1, 2).Concat(stream.Of(3, 4)).ToSlice())
 
 	// ---------- 3. 无状态中间操作 ----------
 	// FlatMap：一对多展开（如把句子拆成单词）

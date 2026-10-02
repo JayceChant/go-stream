@@ -122,10 +122,8 @@ func TestOnCloseInheritedByDownstream(t *testing.T) {
 func TestOnCloseConcatBothChains(t *testing.T) {
 	// Concat 继承双方回调链：组合流求值结束一并触发（各恰好一次）。
 	var a, b int
-	c := Concat(
-		Of(1).OnClose(func() error { a++; return nil }),
-		Of(2).OnClose(func() error { b++; return nil }),
-	)
+	c := Of(1).OnClose(func() error { a++; return nil }).
+		Concat(Of(2).OnClose(func() error { b++; return nil }))
 	c.ToSlice()
 	if a != 1 || b != 1 {
 		t.Errorf("Concat 后回调次数 a=%d b=%d, 期望 1/1", a, b)
@@ -161,7 +159,7 @@ func TestCacheReplay(t *testing.T) {
 		idx++
 		return v, true, nil
 	})
-	f := Cache(up)
+	f := up.Cache()
 	if n1 := f().Count(); n1 != 3 {
 		t.Fatalf("首次 Count = %d, 期望 3", n1)
 	}
@@ -187,7 +185,7 @@ func TestCacheReplay(t *testing.T) {
 func TestCacheNotCalledUpstreamUsable(t *testing.T) {
 	// 工厂从未被调用：原流仍可用（Cache 构造本身不消费）。
 	s := Of(7)
-	_ = Cache(s)
+	_ = s.Cache()
 	if v, ok := s.First(); !ok || v != 7 {
 		t.Errorf("First() = (%v, %v), 期望 (7, true)", v, ok)
 	}
@@ -196,7 +194,7 @@ func TestCacheNotCalledUpstreamUsable(t *testing.T) {
 func TestCacheErrMemorized(t *testing.T) {
 	// 物化期上游出错：首错记忆，此后每次调用返回携带错误的空流。
 	wantErr := errors.New("io")
-	f := Cache(FromFunc(func() (int, bool, error) { return 0, false, wantErr }))
+	f := FromFunc(func() (int, bool, error) { return 0, false, wantErr }).Cache()
 	for i := range 2 {
 		s := f()
 		if got := s.ToSlice(); len(got) != 0 {

@@ -104,3 +104,11 @@
 - [x] 单测 + fuzz 等价（FuzzJoinEquivalence）；质量门槛全绿：go fix 无改写 / gofmt 空 / vet 无告警 / `go test -race -count=1 ./...` 全绿 / golangci-lint 0 issues / 覆盖率保持 100%
 - [x] **SpLimited 有限性守卫**：特征位仅已知有限置位（Sized⇒Limited 不变式、FromMap 置位、FromFunc/FromSeq/FromChannel/Generate/Iterate 不置位）；透传类保留、物化类强制置位、双流双侧 AND；Join/LeftJoin 链接期右流缺 SpLimited 即 panic（fail-fast）；TestSpLimitedCharacteristics/Propagation/TestJoinFiniteGuard 覆盖
 - [x] 文档同步：example_test.go、example/join/main.go（独立可运行示例）、README/README_CN（含示例清单）、docs/api.md、docs/design.md、skills/go-stream/SKILL.md
+
+## Concat/Cache 方法化（Task 25）
+- [x] 范围判定：存量包级函数逐一核对——仅 Concat/Cache 可方法化（不动 T 约束、不返回 T 派生类型）；Distinct/Contains/Sorted/Min/Max/Sum/Avg/Summary（约束 T）与 Chunk/Enumerate/WindowSliding（派生类型实例化循环）维持包级
+- [x] 方法 `func (s *Stream[T]) Concat(other *Stream[T]) *Stream[T]`（nil 接收者返回 other、other nil 返回本流，语义不变）与 `func (s *Stream[T]) Cache() func() *Stream[T]`（一次性/错误记忆语义不变）
+- [x] 旧包级 `Concat(a, b)`/`Cache(s)` 保留签名转一行委托 adapter：`Deprecated:` godoc + `//go:fix inline`；本版仅 deprecated，下一版本移除并标 BREAKING（inline fixer Go 1.27 仅同包内重写，跨包手工迁移已写入文档）
+- [x] 仓内调用点全迁移（number_stream.go/全部测试/example basics+ lifecycle），deprecated 函数仓内零引用（SA1019 清洁）；外部模块验证旧签名行为一致
+- [x] 文档同步：docs/api.md（方法形态 + 迁移说明）、docs/design.md、README/README_CN、skills/go-stream/SKILL.md；spec「形态原则与方法化迁移」Requirement
+- [x] 质量门槛全绿：go fix / gofmt 空 / vet 无告警 / `go test -race -count=1 ./...` 全绿 / golangci-lint 0 issues / example 模块 build 通过

@@ -84,12 +84,12 @@ func TestConstructNilCases(t *testing.T) {
 	if n := FromSeq[int](nil).Count(); n != 0 {
 		t.Errorf("FromSeq(nil).Count() = %d, 期望 0", n)
 	}
-	// Concat 单侧 nil：直接返回另一侧。
-	if got := Concat[int](nil, Of(1, 2)).ToSlice(); !slices.Equal(got, []int{1, 2}) {
-		t.Errorf("Concat(nil, b) = %v, 期望 [1 2]", got)
+	// Concat 单侧 nil：直接返回另一侧（方法形态下 nil 接收者需显式类型）。
+	if got := (*Stream[int])(nil).Concat(Of(1, 2)).ToSlice(); !slices.Equal(got, []int{1, 2}) {
+		t.Errorf("nil.Concat(b) = %v, 期望 [1 2]", got)
 	}
-	if got := Concat(Of(3), nil).ToSlice(); !slices.Equal(got, []int{3}) {
-		t.Errorf("Concat(a, nil) = %v, 期望 [3]", got)
+	if got := Of(3).Concat(nil).ToSlice(); !slices.Equal(got, []int{3}) {
+		t.Errorf("a.Concat(nil) = %v, 期望 [3]", got)
 	}
 	// FromMap 下游短路（First）：覆盖 yield 取消提前退出分支。
 	if _, ok := FromMap(map[string]int{"a": 1, "b": 2}).First(); !ok {
@@ -289,7 +289,7 @@ func TestConcatMergeClosersOneSideEmpty(t *testing.T) {
 	// a 侧带回调、b 侧无：合并链保留 a 侧（mergeClosers 直接返回 a），
 	// 终止求值后触发。
 	called := false
-	s := Concat(Of(1).OnClose(func() error { called = true; return nil }), Of(2))
+	s := Of(1).OnClose(func() error { called = true; return nil }).Concat(Of(2))
 	if got := s.ToSlice(); !slices.Equal(got, []int{1, 2}) {
 		t.Fatalf("Concat = %v, 期望 [1 2]", got)
 	}

@@ -206,7 +206,7 @@ CPU 密集场景（200k 元素 × 200 次循环体）4 分片加速比 ~3.3x（`
 
 ### OnClose/Close 回调链
 
-`pipeline` 携带 `closers []func() error`（按注册序），中间操作沿链继承（`newStateless`/`newStateful`/`newFlagStage`），组合流经 `mergeClosers` 合并双方（Concat 按 a 先 b 后、Zip 按本流先 other 后、Join 按 left 先 right 后）。
+`pipeline` 携带 `closers []func() error`（按注册序），中间操作沿链继承（`newStateless`/`newStateful`/`newFlagStage`），组合流经 `mergeClosers` 合并双方（Concat 按本流先 other 后〔方法形态 `a.Concat(b)`，Task 25〕、Zip 按本流先 other 后、Join 按 left 先 right 后）。
 
 - **自动触发**：`evaluateNP` 以 defer 调 `runClosers`，覆盖正常耗尽、短路、错误值与回调 panic 展开路径；回调错误并入错误槽首错保留
 - **显式 Close**：幂等（`closed` 标志 + 每回调 `sync.Once` 双保险——多实例链/组合流触发也恰好一次）；未求值流可关闭，此后求值收尾不重复触发
@@ -214,7 +214,7 @@ CPU 密集场景（200k 元素 × 200 次循环体）4 分片加速比 ~3.3x（`
 
 ### Cache 可重放工厂
 
-`Cache(s) func() *Stream[T]`：`sync.Once` 保证首次调用求值 s 一次并物化；此后每次 `FromSlice(buf)` 返回全新一次性流（共享底层数组零拷贝）。物化期首错记忆进工厂，此后每次返回 `emptyWithErr` 携带错误的空流（任何终止操作得空结果、`Err()` 可查）——一次性模型全程不被破坏：s 被消费一次，产物各一次性。
+`s.Cache() func() *Stream[T]`（Task 25 方法化；包级 `Cache(s)` 为 deprecated adapter，下一版本移除）：`sync.Once` 保证首次调用求值 s 一次并物化；此后每次 `FromSlice(buf)` 返回全新一次性流（共享底层数组零拷贝）。物化期首错记忆进工厂，此后每次返回 `emptyWithErr` 携带错误的空流（任何终止操作得空结果、`Err()` 可查）——一次性模型全程不被破坏：s 被消费一次，产物各一次性。
 
 ### Unordered 流式合并
 

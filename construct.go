@@ -111,36 +111,48 @@ func newHeadSplit[T any](src Splitterator[T]) *Stream[T] {
 	return s
 }
 
-// Concat 串联两条流：先耗尽 a 再消费 b（a、b 均被标记消费）。
-// 两段推入同一下游 sink，共用一次 Begin/End（经 suppressEnd 吞掉 a 段
-// 下传的 End，由 b 段统一收尾；b 段自带的 Begin 被 skipBegin 吞掉）。
-func Concat[T any](a, b *Stream[T]) *Stream[T] {
-	if a == nil {
-		return b
+// Concat 串联两条流：先耗尽本流再消费 other（两条流均被标记消费）。
+// 两段推入同一下游 sink，共用一次 Begin/End（经 suppressEnd 吞掉本流段
+// 下传的 End，由 other 段统一收尾；other 段自带的 Begin 被 skipBegin 吞掉）。
+// 接收者为 nil 返回 other；other 为 nil 返回本流。
+func (s *Stream[T]) Concat(other *Stream[T]) *Stream[T] {
+	if s == nil {
+		return other
 	}
-	if b == nil {
-		return a
+	if other == nil {
+		return s
 	}
-	a.checkLinked()
-	b.checkLinked()
-	driveA, driveB := a.drive, b.drive
-	chars := (a.chars | b.chars) & ^SpSized // 长度不再精确
-	if a.chars&SpLimited == 0 || b.chars&SpLimited == 0 {
+	s.checkLinked()
+	other.checkLinked()
+	driveA, driveB := s.drive, other.drive
+	chars := (s.chars | other.chars) &^ SpSized // 长度不再精确
+	if s.chars&SpLimited == 0 || other.chars&SpLimited == 0 {
 		chars &^= SpLimited // 有限性双侧 AND：任一侧无限/未知即整体未知
 	}
 	return &Stream[T]{pipeline[T]{
 		drive: func(down Sink[T], ec *evalCtx) {
-			driveA(suppressEnd[T]{down}, ec) // a 段：Begin 下传、End 吞掉
+			driveA(suppressEnd[T]{down}, ec) // 本流段：Begin 下传、End 吞掉
 			if ec.firstErr() == nil {
-				driveB(skipBegin[T]{down}, ec) // b 段：Begin 吞掉、End 下传
+				driveB(skipBegin[T]{down}, ec) // other 段：Begin 吞掉、End 下传
 			} else {
 				down.End() // 错误路径也保证 End 收尾
 			}
 		},
 		chars: chars,
 		// Concat 双源拼接不参与并行分片（splitN 降级为 nil）
-		closers: mergeClosers(a.closers, b.closers), // 双方回调链按 a 先 b 后继承
+		closers: mergeClosers(s.closers, other.closers), // 双方回调链按本流先 other 后继承
 	}}
+}
+
+// Concat 串联两条流：先耗尽 a 再消费 b（a、b 均被标记消费）。
+//
+// Deprecated: 使用方法形态 a.Concat(b)（Task 25 方法化——方法名不冲突且
+// 实现不受 Go 泛型方法限制，链式手感更好）。本包函数保留签名作为过渡
+// adapter，下一版本移除；`go fix` 可自动重写调用点。
+//
+//go:fix inline
+func Concat[T any](a, b *Stream[T]) *Stream[T] {
+	return a.Concat(b)
 }
 
 // suppressEnd 吞掉下游 End 的包装（Concat 中 a 段结束后由 b 段收尾）。

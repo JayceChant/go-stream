@@ -401,10 +401,10 @@ func TestSpLimitedPropagation(t *testing.T) {
 		t.Errorf("Sorted 后应置 SpLimited, got %b", c)
 	}
 	// 双流：双侧 AND
-	if c := Concat(Of(1), Of(2)).chars; c&SpLimited == 0 {
+	if c := Of(1).Concat(Of(2)).chars; c&SpLimited == 0 {
 		t.Errorf("Concat 双侧有限应置 SpLimited, got %b", c)
 	}
-	if c := Concat(Of(1), Generate(func() int { return 1 })).chars; c&SpLimited != 0 {
+	if c := Of(1).Concat(Generate(func() int { return 1 })).chars; c&SpLimited != 0 {
 		t.Errorf("Concat 一侧无限不应置 SpLimited, got %b", c)
 	}
 	if c := Of(1).Zip(Of(2), func(a, b int) int { return a }).chars; c&SpLimited == 0 {
@@ -433,7 +433,7 @@ func TestJoinFiniteGuard(t *testing.T) {
 		"TakeWhile 无限": func() *Stream[int] {
 			return Iterate(1, func(v int) int { return v + 1 }).TakeWhile(func(int) bool { return true })
 		},
-		"Concat 含无限": func() *Stream[int] { return Concat(Of(1), Generate(func() int { return 1 })) },
+		"Concat 含无限": func() *Stream[int] { return Of(1).Concat(Generate(func() int { return 1 })) },
 	}
 	for name, mk := range bad {
 		expectPanic(t, "Join 右流 "+name, func() {

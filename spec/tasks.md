@@ -178,6 +178,17 @@
   - [x] 质量门槛：go fix / gofmt 空 / vet 无告警 / `go test -race -count=1 ./...` 全绿 / golangci-lint 0 issues / 覆盖率保持 100%
   - 依赖：无（双流引擎路径已稳定，复用 collectingSink/mergeClosers/sinkFunc）
 
+# 后续 TODO（Task 25，随「Concat/Cache 方法化」用户指令立项；分支 feat/join）
+- [x] Task 25: `Concat` / `Cache` 方法化（应用 Task 24 确立的形态原则：仅受 Go 泛型方法硬限制的 API 才用包级函数）
+  - [x] 范围判定（逐一核对 13 个包级函数）：仅 Concat 与 Cache 可方法化——方法无需新增类型参数、不动接收者 T 约束、不返回 T 派生类型；Distinct/Contains/Sorted/Min/Max/Sum/Avg/Summary 需约束 T，Chunk/Enumerate/WindowSliding 返回 T 派生类型（实例化循环），维持包级
+  - [x] 实现：新增方法 `func (s *Stream[T]) Concat(other *Stream[T]) *Stream[T]`（construct.go）与 `func (s *Stream[T]) Cache() func() *Stream[T]`（lifecycle.go），原逻辑整体迁入；旧包函数**保留签名转为 adapter**（一行委托新方法），标 `Deprecated` + `//go:fix inline`（`go fix` 可重写调用点；注：Go 1.27 的 inline fixer 仅同文件/包内重写，跨包调用点需手工迁移，文档已说明）
+  - [x] 仓内调用点迁移（库代码 number_stream.go、全部测试、example 两个示例），deprecated 函数在仓内零调用（staticcheck SA1019 清洁）
+  - [x] 验证：外部模块临时工程调用旧签名行为一致（PASS）；`go build`/`go vet`/`go test -race`/example 模块 build 全绿
+  - [x] spec 修订（Task 25 增补：方法化迁移条目 + deprecated 策略：本版 deprecated、下一版本移除并标 BREAKING）
+  - [x] 文档同步：docs/api.md（方法形态 + 迁移说明）、docs/design.md、README.md/README_CN.md、skills/go-stream/SKILL.md
+  - [x] 质量门槛：go fix / gofmt 空 / vet 无告警 / `go test -race -count=1 ./...` 全绿 / golangci-lint 0 issues
+  - 依赖：Task 24（形态原则确立）
+
 # Task Dependencies
 - [Task 2] depends on [Task 1]
 - [Task 3]、[Task 4]、[Task 5] depends on [Task 2]（三组可并行开发）

@@ -17,6 +17,13 @@ const (
 	SpSorted
 	// SpDistinct 表示源元素两两不重复。
 	SpDistinct
+	// SpLimited 表示源已知有限（元素有上界且遍历必然终止）。与 SpSized
+	// 正交：Sized 必蕴含 Limited（newSliceSp/newRangeSp 构造器统一维护
+	// 不变式）；FromMap 置 Limited 而不置 Sized（有限但遍历序不定、不报
+	// 大小）；大小未知的源（FromFunc/FromSeq/FromChannel）与设计上无限
+	// 的源（Generate/Iterate）不置位——库无法替调用方断言其有限性。
+	// 消费方：Join/LeftJoin 链接期以此守卫右流必须有限（无限右流将挂死）。
+	SpLimited
 )
 
 // Splitterator 是流的数据源抽象：可逐个推进、可整体遍历、可分裂（为并行预留）。

@@ -11,7 +11,8 @@ import "slices"
 //     无需物化，元素边到边走（支持无限源）
 //
 // 物化后特征位统一规则：SpOrdered 保留；SpSized 保留（缓冲长度已知）并置
-// SpSubSized；SpSorted/SpDistinct 由各算子按语义设置。
+// SpSubSized；SpSorted/SpDistinct 由各算子按语义设置；SpLimited 强制置位
+// （Limit 给出元素上界，其余物化输出=缓冲长度——求值能完成即有限）。
 
 // Limit 截取前 n 个元素（n == 0 得空流；无限源可借此终止；n < 0 panic）。
 // 数值链形态见 (*NumberStream[N]).Limit。
@@ -20,7 +21,7 @@ func (s *Stream[T]) Limit(n int64) *Stream[T] {
 		panic("stream: Limit 参数为负")
 	}
 	return newStateful(s, n, func(buf []T) []T { return buf },
-		(s.chars|SpSized|SpSubSized)&^SpSorted)
+		(s.chars|SpSized|SpSubSized|SpLimited)&^SpSorted)
 }
 
 // Skip 跳过前 n 个元素，输出其余（n == 0 恒等返回原流，不物化、特征位透传；
@@ -38,7 +39,7 @@ func (s *Stream[T]) Skip(n int64) *Stream[T] {
 			return nil
 		}
 		return buf[n:]
-	}, s.chars|SpSized|SpSubSized)
+	}, s.chars|SpSized|SpSubSized|SpLimited)
 }
 
 // Sorted 按比较器 cmp 升序排序（cmp 负/零/正 表示小于/等于/大于）。
@@ -56,7 +57,7 @@ func (s *Stream[T]) Sorted(cmp func(a, b T) int) *Stream[T] {
 	return newStateful(s, -1, func(buf []T) []T {
 		slices.SortFunc(buf, cmp)
 		return buf
-	}, (s.chars|SpSorted)&^SpDistinct)
+	}, (s.chars|SpSorted|SpLimited)&^SpDistinct)
 }
 
 // StableSorted 按比较器 cmp 升序稳定排序：等键元素保持相遇顺序
@@ -69,7 +70,7 @@ func (s *Stream[T]) StableSorted(cmp func(a, b T) int) *Stream[T] {
 	return newStateful(s, -1, func(buf []T) []T {
 		slices.SortStableFunc(buf, cmp)
 		return buf
-	}, (s.chars|SpSorted)&^SpDistinct)
+	}, (s.chars|SpSorted|SpLimited)&^SpDistinct)
 }
 
 // DistinctBy 依据 key 函数去重：每组同 key 仅保留首个遇到的元素（保遇序）。
@@ -93,7 +94,7 @@ func (s *Stream[T]) DistinctBy[K comparable](key func(T) K) *Stream[T] {
 			}
 		}
 		return out
-	}, (s.chars|SpDistinct)&^SpSorted)
+	}, (s.chars|SpDistinct|SpLimited)&^SpSorted)
 }
 
 // Reverse 反转元素顺序。
@@ -103,7 +104,7 @@ func (s *Stream[T]) Reverse() *Stream[T] {
 	return newStateful(s, -1, func(buf []T) []T {
 		slices.Reverse(buf)
 		return buf
-	}, s.chars)
+	}, s.chars|SpLimited)
 }
 
 // ---- 单遍型有状态算子（不物化，支持无限源）----

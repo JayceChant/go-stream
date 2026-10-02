@@ -110,6 +110,33 @@ func Example_zip() {
 	// Output: [a1 b2 c3]
 }
 
+// 双流条件连接：Join（方法形态，InnerJoin）只产出命中 on 的元素对，产出序左主右从。
+func Example_join() {
+	got := stream.Of(1, 2, 3).
+		Join(stream.Of(2, 4, 6),
+			func(t, u int) bool { return u%t == 0 },
+			func(t, u int) string { return fmt.Sprintf("%d|%d", t, u) },
+		).ToSlice()
+	fmt.Println(got)
+	// Output: [1|2 1|4 1|6 2|2 2|4 2|6 3|6]
+}
+
+// 左外连接：LeftJoin（方法形态）保证未命中的左元素以 U 零值至少产出一次。
+func Example_joinLeft() {
+	got := stream.Of(2, 5).
+		LeftJoin(stream.Of(2, 4, 6),
+			func(t, u int) bool { return u%t == 0 },
+			func(t, u int) string {
+				if u == 0 {
+					return fmt.Sprintf("%d|-", t) // 未命中：右元素为零值
+				}
+				return fmt.Sprintf("%d|%d", t, u)
+			}).
+		ToSlice()
+	fmt.Println(got)
+	// Output: [2|2 2|4 2|6 5|-]
+}
+
 // map 源：FromMap 产出 KV 键值对。
 func Example_fromMap() {
 	m := map[string]int{"one": 1, "two": 2}

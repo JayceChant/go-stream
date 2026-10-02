@@ -190,13 +190,13 @@ func TestRangeTrySplit(t *testing.T) {
 func TestConcat(t *testing.T) {
 	a := Of(1, 2)
 	b := Of(3, 4)
-	got := collectViaProbe(Concat(a, b))
+	got := collectViaProbe(a.Concat(b))
 	if len(got) != 4 || got[0] != 1 || got[3] != 4 {
 		t.Errorf("Concat 结果 = %v, 期望 [1 2 3 4]", got)
 	}
 	// 协议：下游仅收到一次 Begin/End
 	beginCnt, endCnt := 0, 0
-	Concat(Of(1), Of(2)).pipeline.evaluate(&recordSink[int]{
+	Of(1).Concat(Of(2)).pipeline.evaluate(&recordSink[int]{
 		accept:  func(int) bool { return true },
 		onBegin: func(int64) { beginCnt++ },
 		onEnd:   func() { endCnt++ },
@@ -205,8 +205,8 @@ func TestConcat(t *testing.T) {
 		t.Errorf("Begin/End 调用 %d/%d 次, 期望各 1 次", beginCnt, endCnt)
 	}
 	// nil 容错
-	if got := collectViaProbe(Concat[int](nil, Of(1))); len(got) != 1 {
-		t.Error("Concat(nil, b) 应返回 b")
+	if got := collectViaProbe((*Stream[int])(nil).Concat(Of(1))); len(got) != 1 {
+		t.Error("nil.Concat(b) 应返回 b")
 	}
 }
 

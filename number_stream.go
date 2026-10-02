@@ -227,7 +227,6 @@ func RangeClosed[I Integer](start, stop I) *NumberStream[I] {
 		return wrapNumber(newHeadSplit(newRangeSp(start, excl, SpSized|SpOrdered)))
 	}
 	// 溢出（stop 为最大值）：拆分为 [start, stop) 与末元素 [stop]
-	return wrapNumber(Concat(
-		newHeadSplit(newRangeSp(start, stop, SpSized|SpOrdered)),
-		Of(stop)))
+	return wrapNumber(newHeadSplit(newRangeSp(start, stop, SpSized|SpOrdered)).
+		Concat(Of(stop)))
 }

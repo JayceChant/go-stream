@@ -165,8 +165,32 @@
   - [x] 单测：区间边界（含溢出邻近值）、零值过滤（指针/接口/数值）、与 Range 语义对照
   - 依赖：无
 
-# 后续 TODO（Task 24，随「时间窗口重采样」用户指令立项，独立分支 feat/time-window）
-- [x] Task 24: 时间窗口分桶 `TimeWindow`
+# 后续 TODO（Task 24，随「双流条件连接 Join」用户指令立项；独立分支 feat/join + worktree）
+- [x] Task 24: `Join` / `LeftJoin` 双流条件连接（逻辑类似 SQL Join）
+  - [x] spec 修订：新增「双流条件连接 Join」Requirement（双形态分工/嵌套循环单侧物化/顺序确定性/特征位与降级/错误即值/nil 容错）、Tier B 表增行、What Changes/Impact 同步
+  - [x] 实现（op_ext.go，随 Zip 双流算子同置）：共享 `joinStreams` 构造——right 流经 collectingSink 全量物化、left 流单遍流式驱动逐对判定 `on`、命中即 `combine` 产出；方法 `Join`（InnerJoin，必须匹配才产出）与方法 `LeftJoin`（左外连接，无命中左元素以 U 零值恰好产出一条）**（修订：InnerJoin 原定包级函数形态，随用户反馈统一方法化——方法名不冲突、实现无泛型硬限制，项目原则明确为「仅受 Go 泛型方法硬限制的 API 才用包级函数」）**；不设 RightJoin（以右流作接收者调 LeftJoin 代替）
+  - [x] 语义细节：产出序左主右从（外层左流遇序、内层右流物化序）；left/输出短路正常（Accept false 即停）；特征位双侧按位与清 Sized/SubSized/Sorted/Distinct；splitN 降级；双流一次性（checkLinked 双侧）；mergeClosers 继承（left 先 right 后）；OnClose 随求值结束触发
+  - [x] nil 容错：`on`/`combine`/`other` nil panic（对齐 Zip；原包级版「任一侧 nil 返回空流」容错随方法化移除）
+  - [x] 单测（op_ext_test.go）：基本语义（多命中笛卡尔段）、产出顺序（左主右从）、LeftJoin 未命中零值恰一条、空流双侧、RightJoin 用 LeftJoin 表达的等价性、双流一次性（复用 panic）、错误即值（right 物化错/left 驱动错 → 部分结果 + Err()）、回调 panic 原样传播、无限 left + Limit 短路、特征位与 splitN 降级断言、nil 参数矩阵
+  - [x] fuzz（fuzz_test.go）：FuzzJoinEquivalence——随机双侧数据 + 模运算谓词，InnerJoin/LeftJoin 与参考嵌套循环逐元素等价
+  - [x] **SpLimited 有限性守卫（随用户反馈增补）**：新增特征位 `SpLimited`（仅已知有限置位——`SpSized ⇒ SpLimited` 不变式由 newSliceSp/newRangeSp 统一维护、FromMap 显式置位〔有限但不报大小〕、FromFunc/FromSeq/FromChannel〔大小未知〕与 Generate/Iterate〔设计无限〕不置位）；传播规则：透传类自然保留（有限进有限出，零改动）、物化类（Limit/Skip/Sorted/StableSorted/DistinctBy/Reverse）强制置位、双流（Concat/Zip/Join）双侧 AND（Concat 特判清除）；Join/LeftJoin 链接期检查右流缺 SpLimited 即 panic（fail-fast，杜绝无限右流运行期挂死；逃生：换左流 / `.Limit(上界)` / 先物化）；新增 TestSpLimitedCharacteristics/TestSpLimitedPropagation/TestJoinFiniteGuard，既有 FromFunc 右流用例改 MapErr 表达；spec「Splitterator 抽象与特征位」与「双流条件连接 Join」Requirement 同步
+  - [x] 文档同步：example_test.go（Example_join/Example_joinLeft）、example/join/main.go（独立可运行示例：内连接/左外/右外表达/无限左流短路/连接后聚合）、README.md/README_CN.md（API 速览双流行 + 示例清单）、docs/api.md（双流表）、docs/design.md（降级清单补 Join）、skills/go-stream/SKILL.md（Method vs package-level 清单 + Join 语义条目 + 示例清单）
+  - [x] 质量门槛：go fix / gofmt 空 / vet 无告警 / `go test -race -count=1 ./...` 全绿 / golangci-lint 0 issues / 覆盖率保持 100%
+  - 依赖：无（双流引擎路径已稳定，复用 collectingSink/mergeClosers/sinkFunc）
+
+# 后续 TODO（Task 25，随「Concat/Cache 方法化」用户指令立项；分支 feat/join）
+- [x] Task 25: `Concat` / `Cache` 方法化（应用 Task 24 确立的形态原则：仅受 Go 泛型方法硬限制的 API 才用包级函数）
+  - [x] 范围判定（逐一核对 13 个包级函数）：仅 Concat 与 Cache 可方法化——方法无需新增类型参数、不动接收者 T 约束、不返回 T 派生类型；Distinct/Contains/Sorted/Min/Max/Sum/Avg/Summary 需约束 T，Chunk/Enumerate/WindowSliding 返回 T 派生类型（实例化循环），维持包级
+  - [x] 实现：新增方法 `func (s *Stream[T]) Concat(other *Stream[T]) *Stream[T]`（construct.go）与 `func (s *Stream[T]) Cache() func() *Stream[T]`（lifecycle.go），原逻辑整体迁入；旧包函数**保留签名转为 adapter**（一行委托新方法），标 `Deprecated` + `//go:fix inline`（`go fix` 可重写调用点；注：Go 1.27 的 inline fixer 仅同文件/包内重写，跨包调用点需手工迁移，文档已说明）
+  - [x] 仓内调用点迁移（库代码 number_stream.go、全部测试、example 两个示例），deprecated 函数在仓内零调用（staticcheck SA1019 清洁）
+  - [x] 验证：外部模块临时工程调用旧签名行为一致（PASS）；`go build`/`go vet`/`go test -race`/example 模块 build 全绿
+  - [x] spec 修订（Task 25 增补：方法化迁移条目 + deprecated 策略：本版 deprecated、下一版本移除并标 BREAKING）
+  - [x] 文档同步：docs/api.md（方法形态 + 迁移说明）、docs/design.md、README.md/README_CN.md、skills/go-stream/SKILL.md
+  - [x] 质量门槛：go fix / gofmt 空 / vet 无告警 / `go test -race -count=1 ./...` 全绿 / golangci-lint 0 issues
+  - 依赖：Task 24（形态原则确立）
+
+# 后续 TODO（Task 26，随「时间窗口重采样」用户指令立项；独立分支 feat/time-window）
+- [x] Task 26: 时间窗口分桶 `TimeWindow`（分支立项时自编号 Task 24，与 feat/join 侧 Task 24/25 并行开发撞号，随本分支并入 master 顺延为 Task 26）
   - [x] spec 修订：新增「时间窗口重采样」Requirement（Truncate 桶化 + GroupBy 语义、桶级聚合由 Map 组合表达不设独立入口、独立新文件交付、包级形态实测论证）、What Changes/Impact 同步
   - [x] 实现（新文件 time_window.go，不改动既有实现文件）：`TimeBucket[T]{Start, Items}` + `TimeWindow(s, ts, d)`——独立内联「物化→变换回放」两段式（协议同 newStateful 不改其签名）；桶化 process：map 键→首现序下标、桶内 append 保遇序、晚到并入既有桶
   - [x] 形态实测：方法返回 Stream[TimeBucket[T]]（T 的派生类型）触发实例化循环（T instantiated as TimeBucket[T]），维持包级函数（同 Chunk/WindowSliding 之因）

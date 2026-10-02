@@ -67,7 +67,7 @@ func main() {
 	// ---------- 5. Cache：可重放工厂 ----------
 	evals := 0
 	source := stream.Range(1, 6).Peek(func(n int) { evals++ }).AsStream()
-	replay := stream.Cache(source) // 此时尚未求值
+	replay := source.Cache() // 此时尚未求值
 
 	r1 := replay().ToSlice() // 首次调用：求值上游一次并物化
 	r2 := replay().ToSlice() // 再次调用：直接重放（上游不再求值）
@@ -80,7 +80,7 @@ func main() {
 	bad := stream.FromFunc(func() (int, bool, error) {
 		return 0, false, errors.New("上游读取失败")
 	})
-	replayErr := stream.Cache(bad)
+	replayErr := bad.Cache()
 	sBad := replayErr()     // 每次调用返回携带该错误的空流
 	empty := sBad.ToSlice() // 终止操作得空结果
 	fmt.Println("出错后重放结果:", empty, "Err():", sBad.Err())

@@ -61,16 +61,16 @@ func mergeClosers(a, b []func() error) []func() error {
 	return append(out, b...)
 }
 
-// Cache 把一次性流 s 转为可重放工厂：首次调用工厂时求值 s 一次并物化
-// 全部元素，此后每次调用返回全新的独立流（FromSlice 共享底层数组，
+// Cache 把本流（一次性）转为可重放工厂：首次调用工厂时求值本流一次并
+// 物化全部元素，此后每次调用返回全新的独立流（FromSlice 共享底层数组，
 // 零拷贝）。
 //
-// 一次性模型保持：s 在首次调用时被消费（工厂从未被调用则 s 仍可用）；
+// 一次性模型保持：本流在首次调用时被消费（工厂从未被调用则本流仍可用）；
 // 工厂产物每次也是一次性流。
 //
-// 错误语义：物化期 s 出错 → 首错记忆进工厂，此后每次调用返回携带该
+// 错误语义：物化期本流出错 → 首错记忆进工厂，此后每次调用返回携带该
 // 错误的空流（任何终止操作得空结果，Err() 返回该错误）。
-func Cache[T any](s *Stream[T]) func() *Stream[T] {
+func (s *Stream[T]) Cache() func() *Stream[T] {
 	var once sync.Once
 	var buf []T
 	var err error
@@ -87,6 +87,16 @@ func Cache[T any](s *Stream[T]) func() *Stream[T] {
 	}
 }
 
+// Cache 把一次性流 s 转为可重放工厂（语义同方法形态）。
+//
+// Deprecated: 使用方法形态 s.Cache()（Task 25 方法化）。本包函数保留
+// 签名作为过渡 adapter，下一版本移除；`go fix` 可自动重写调用点。
+//
+//go:fix inline
+func Cache[T any](s *Stream[T]) func() *Stream[T] {
+	return s.Cache()
+}
+
 // emptyWithErr 构造携带既有错误的空流：求值时把错误注入错误槽
 // （错误即值模型的源侧路径），任何终止操作返回空结果且 Err() 可查询。
 func emptyWithErr[T any](err error) *Stream[T] {
@@ -96,6 +106,6 @@ func emptyWithErr[T any](err error) *Stream[T] {
 			down.End()
 			ec.fail(err)
 		},
-		chars: SpSized,
+		chars: SpSized | SpLimited, // 空流必有限（维持 Sized ⇒ Limited 不变式）
 	}}
 }

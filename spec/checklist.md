@@ -95,7 +95,25 @@
 - [x] 每任务独立提交（feat×5）；质量门槛全绿：go fix 无改写 / gofmt 空 / vet 无告警 / `go test -race -count=1 ./...` 全绿 / golangci-lint 0 issues
 - [x] README（Features/API Overview/Java 对照表）与 docs/api.md（构造/中间/终止/包级聚合/Collector 章节与示例）同步
 
-## 时间窗口重采样（Task 24）
+## 双流条件连接 Join（Task 24）
+- [x] 方法 `Join[U, R]`（InnerJoin：仅命中 `on(t,u)` 的元素对产出 `combine`）+ 方法 `LeftJoin[U, R]`（左外连接：无命中左元素以 U 零值恰好产出一条）——**修订：原「包级 Join」随用户反馈统一方法化**；不设 RightJoin（以右流作接收者调 `LeftJoin` 代替）
+- [x] 求值形态：right 流 collectingSink 全量物化（不可无限）+ left 流单遍流式驱动（可无限，短路正常）；产出序左主右从（外层左流遇序、内层右流物化序）
+- [x] 特征位双侧按位与清 Sized/SubSized/Sorted/Distinct；双流算子 splitN 降级（并行自动串行）；双流一次性（双侧 checkLinked）；OnClose 回调链 mergeClosers 继承
+- [x] 错误即值：right 物化/left 驱动首错记入共享 evalCtx、短路、部分结果保留、`Err()` 可查；回调 panic 原样传播（全程发起 goroutine，无后台中转）
+- [x] nil 容错：`on`/`combine`/`other` nil panic（对齐 Zip；原包级版 nil 返回空流容错随方法化移除）
+- [x] 单测 + fuzz 等价（FuzzJoinEquivalence）；质量门槛全绿：go fix 无改写 / gofmt 空 / vet 无告警 / `go test -race -count=1 ./...` 全绿 / golangci-lint 0 issues / 覆盖率保持 100%
+- [x] **SpLimited 有限性守卫**：特征位仅已知有限置位（Sized⇒Limited 不变式、FromMap 置位、FromFunc/FromSeq/FromChannel/Generate/Iterate 不置位）；透传类保留、物化类强制置位、双流双侧 AND；Join/LeftJoin 链接期右流缺 SpLimited 即 panic（fail-fast）；TestSpLimitedCharacteristics/Propagation/TestJoinFiniteGuard 覆盖
+- [x] 文档同步：example_test.go、example/join/main.go（独立可运行示例）、README/README_CN（含示例清单）、docs/api.md、docs/design.md、skills/go-stream/SKILL.md
+
+## Concat/Cache 方法化（Task 25）
+- [x] 范围判定：存量包级函数逐一核对——仅 Concat/Cache 可方法化（不动 T 约束、不返回 T 派生类型）；Distinct/Contains/Sorted/Min/Max/Sum/Avg/Summary（约束 T）与 Chunk/Enumerate/WindowSliding（派生类型实例化循环）维持包级
+- [x] 方法 `func (s *Stream[T]) Concat(other *Stream[T]) *Stream[T]`（nil 接收者返回 other、other nil 返回本流，语义不变）与 `func (s *Stream[T]) Cache() func() *Stream[T]`（一次性/错误记忆语义不变）
+- [x] 旧包级 `Concat(a, b)`/`Cache(s)` 保留签名转一行委托 adapter：`Deprecated:` godoc + `//go:fix inline`；本版仅 deprecated，下一版本移除并标 BREAKING（inline fixer Go 1.27 仅同包内重写，跨包手工迁移已写入文档）
+- [x] 仓内调用点全迁移（number_stream.go/全部测试/example basics+ lifecycle），deprecated 函数仓内零引用（SA1019 清洁）；外部模块验证旧签名行为一致
+- [x] 文档同步：docs/api.md（方法形态 + 迁移说明）、docs/design.md、README/README_CN、skills/go-stream/SKILL.md；spec「形态原则与方法化迁移」Requirement
+- [x] 质量门槛全绿：go fix / gofmt 空 / vet 无告警 / `go test -race -count=1 ./...` 全绿 / golangci-lint 0 issues / example 模块 build 通过
+
+## 时间窗口重采样（Task 26；独立分支 feat/time-window 立项时自编号 Task 24，随 master 侧 Task 24/25 并入顺延）
 - [x] `TimeWindow[T](s, ts, d) *Stream[TimeBucket[T]]`：`ts(v).Truncate(d)` 桶化 + GroupBy 语义（桶序=键首现序、桶内保遇序、晚到并入既有桶不拆分、不产空桶）；`TimeBucket[T]{Start, Items}` 导出类型
 - [x] 桶级聚合不设独立入口（用户 amend 裁撤 TimeWindowBy）：由 `Map` 组合表达，桶内可内联聚合或经 FromSlice 子流交任意 collector
 - [x] 独立新文件交付（用户 amend：不与既有实现混置）：time_window.go / time_window_test.go / time_window_example_test.go；独立内联两段式，不改 newStateful 既有签名

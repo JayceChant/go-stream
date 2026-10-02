@@ -65,7 +65,7 @@ s.AnyMatch(p)
 s.Collect(collector.GroupingBy(keyOf, valOf))
 ```
 
-更多可运行示例：[example_test.go](./example_test.go)（`go test` 即验证）与 [example/](./example) 目录——八个独立完整、可整文件复制的示例程序，覆盖全部 API 面：
+更多可运行示例：[example_test.go](./example_test.go)（`go test` 即验证）与 [example/](./example) 目录——九个独立完整、可整文件复制的示例程序，覆盖全部 API 面：
 
 ```bash
 go -C example run ./basics      # 构造 → 中间 → 终止全流程

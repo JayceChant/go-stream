@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// time_window_test.go：时间窗口分桶 TimeWindow（Task 24）。
+// time_window_test.go：时间窗口分桶 TimeWindow（Task 26）。
 // 覆盖：分桶语义（首现序/保遇序/晚到并入/不产空桶）、Truncate 网格对齐、
 // Map 组合的桶级聚合、错误即值路径、panic 矩阵、特征位与并行降级。
 

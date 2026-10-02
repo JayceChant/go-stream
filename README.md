@@ -65,7 +65,7 @@ s.AnyMatch(p)
 s.Collect(collector.GroupingBy(keyOf, valOf))
 ```
 
-More runnable examples: [example_test.go](./example_test.go) (verified by `go test`) and the [example/](./example) directory — eight standalone, copy-paste-ready programs covering the full API surface:
+More runnable examples: [example_test.go](./example_test.go) (verified by `go test`) and the [example/](./example) directory — nine standalone, copy-paste-ready programs covering the full API surface:
 
 ```bash
 go -C example run ./basics      # sources → intermediate → terminal operations

@@ -1,4 +1,4 @@
-// Package main 演示时间窗口分桶 TimeWindow（Task 24）：
+// Package main 演示时间窗口分桶 TimeWindow（Task 26）：
 // 以 ts(v).Truncate(d) 把元素分入对齐时间网格的翻转窗口——固定时间间隔
 // 而非固定元素个数（对标 Julia/Scala 时间窗口）；桶级聚合（重采样）由
 // TimeWindow(...).Map(...) 组合表达，不设独立聚合入口。

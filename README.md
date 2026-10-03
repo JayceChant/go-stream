@@ -209,7 +209,7 @@ Performance note: each narrowing entry and element-preserving operator costs one
 | Err variants | `MapErr` `FilterErr` `FlatMapErr` `PeekErr` |
 | Stateful intermediate | `Limit` `Skip` `Sorted` `StableSorted` `DistinctBy` `Reverse` `Scan` |
 | Parallelism control | `Parallel(n)` `Sequential()` `Unordered()` |
-| Package-level intermediate | `Distinct` `Sorted` (natural order) `Chunk` `Enumerate` `WindowSliding` `TimeWindow` |
+| Package-level intermediate | `Distinct` `Sorted` (natural order) `Chunk` `Enumerate` `WindowSliding` `TimeWindow` `SortedByTime` (companion of TimeWindow: sort buckets by time) |
 | Two-stream | `Zip` `Join` (inner) `LeftJoin` (left outer; right outer = call `LeftJoin` on the right stream) — Join/LeftJoin require a known-finite right stream (`SpLimited`, link-time panic otherwise: swap sides / `.Limit(n)` / materialize) |
 | Lifecycle | `OnClose(f)` `Close()` `Cache()` (replayable factory; the package-level `Cache(s)` is a deprecated adapter, slated for removal in the next version) |
 | Terminal | `ForEach` `ForEachUntil` `ToSlice` `ToSeq` `Count` `Reduce` `ReduceOpt` `Collect` `First` `FindAny` `AnyMatch` `AllMatch` `NoneMatch` `Min` `Max` `Err` |

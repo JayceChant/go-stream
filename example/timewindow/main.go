@@ -89,4 +89,16 @@ func main() {
 		fmt.Printf("[%s %.2f] ", kv.Key.Format("15:04:05"), kv.Value)
 	}
 	fmt.Println()
+
+	// ---------- 3. 桶序提醒：乱序上游 → SortedByTime 显式排序 ----------
+	// TimeWindow 桶序=键首现序：升序上游输出即时间序（零开销）；乱序上游输出非时间序
+	fmt.Println("\n== 乱序上游：SortedByTime 显式时间序 ==")
+	outOfOrder := []sample{
+		{base.Add(21 * time.Second), 9.0}, // 首现：20s 桶
+		{base.Add(3 * time.Second), 1.0},  // 首现：0s 桶（首现序在 20s 桶之后）
+		{base.Add(13 * time.Second), 4.0}, // 10s 桶
+	}
+	for _, b := range stream.SortedByTime(stream.TimeWindow(stream.FromSlice(outOfOrder), tsOf, 10*time.Second)).ToSlice() {
+		fmt.Printf("%s 桶内 %d 条\n", b.Start.Format("15:04:05"), len(b.Items))
+	}
 }

@@ -2,11 +2,19 @@ package stream
 
 import "time"
 
-// time_window.go：时间窗口分桶（tumbling window，独立于既有算子文件）。
+// time_window.go：时间窗口分桶（tumbling window，独立于既有算子文件）
+// 及其配套算子（SortedByTime 时间序——桶序维持首现序，时间序经显式
+// 组合表达）。
 //
 // 与 WindowSliding（逐元素滑动的定长窗口）/Chunk（定长计数分组）互补：
 // 按固定时间间隔而非固定元素个数分窗，对标 Julia（TimeSeries resample）
 // /Scala（Akka groupedWithin、Spark 翻转窗口）的时间窗口能力。
+//
+// 配套算子遵循「便利以显式组合提供，不替用户做决定」的决议：原始采样
+// 数据通常已时间升序（TimeWindow 输出即时间序的常见路径，零额外开销），
+// 不为低频乱序场景增加默认排序；乱序上游的时间序需求由 SortedByTime
+// 显式表达（主流对照：内核均为 time_bucket+GroupBy，桶序惯例为时间
+// 升序——升序数据是常见路径，乱序需求经配套算子显式化）。
 //
 // 独立成文件且不依赖 newStateful 的类型迁移泛化（既有签名为同型
 // T→T）：此处内联「物化 → 变换回放」两段式协议，与 newStateful 语义
@@ -27,10 +35,12 @@ type TimeBucket[T any] struct {
 // 语义（time.Truncate 桶化 + GroupBy）：桶输出顺序为桶键首现序、桶内
 // 保持相遇序（对齐 collector.GroupingBy 保遇序）；乱序/晚到的元素并入
 // 其桶键对应的既有桶（桶不拆分）；不产空桶（无元素的窗口不存在，
-// 需要补空窗/补零时由调用方后处理）。桶键以 ts(v).Truncate(d).UTC()
-// 统一规范化：同一瞬间恒落同一桶（time.Time 作 map 键含 Location 判等，
-// 混合时区表示的等值瞬间否则会被拆桶），Start 恒为 UTC 网格点——需要
-// 本地时区网格或展示时，由调用方对 Start 做 .In(loc) 后处理。
+// 需要补空窗/补零时由调用方后处理）。上游时间乱序时输出为键首现序
+// 而非时间序——需要时间序时接配套算子 SortedByTime。桶键以
+// ts(v).Truncate(d).UTC() 统一规范化：同一瞬间恒落同一桶（time.Time
+// 作 map 键含 Location 判等，混合时区表示的等值瞬间否则会被拆桶），
+// Start 恒为 UTC 网格点——需要本地时区网格或展示时，由调用方对 Start
+// 做 .In(loc) 后处理。
 //
 // 桶级聚合（重采样）由 Map 组合表达，不设独立聚合入口：
 //
@@ -96,4 +106,22 @@ func TimeWindow[T any](s *Stream[T], ts func(T) time.Time, d time.Duration) *Str
 		parN:    s.parN, // 并行标志保留但 splitN 不继承（零值 nil），求值自动串行
 		closers: s.closers,
 	}}
+}
+
+// SortedByTime 把 TimeBucket 流按 Start 时间升序排序：TimeWindow 输出的
+// 免比较器配套形态（方法 Sorted 需自写比较器；自然序包级 Sorted 要求
+// cmp.Ordered，结构体不满足），避免为 TimeBucket 手写比较器。
+//
+// TimeWindow 的桶序为键首现序：上游时间升序时输出即时间序（常见路径
+// 零额外开销）；上游时间乱序时输出非时间序——需要时间序的重采样场景
+// 请接本算子。桶键唯一（同一网格起点仅一桶），等键元素不存在，稳定性
+// 无差异。nil 流返回 nil。
+//
+// 包级函数形态：方法无法把接收者约束为 Stream[TimeBucket[T]] 形态
+// （Go 1.27 泛型方法硬限制的接收者形态约束表现）。
+func SortedByTime[T any](s *Stream[TimeBucket[T]]) *Stream[TimeBucket[T]] {
+	if s == nil {
+		return nil
+	}
+	return s.Sorted(func(a, b TimeBucket[T]) int { return a.Start.Compare(b.Start) })
 }

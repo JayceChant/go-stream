@@ -233,6 +233,39 @@ func TestTimeWindowMixedLocations(t *testing.T) {
 	}
 }
 
+func TestSortedByTime(t *testing.T) {
+	// 配套排序算子：上游时间乱序时 TimeWindow 输出为键首现序，
+	// SortedByTime 按 Start 升序免写比较器。
+	base := time.Date(2026, 9, 11, 10, 0, 0, 0, time.UTC)
+	rs := []twReading{
+		{base.Add(2 * time.Minute), 1}, // 首现序：10:02 桶先出现
+		{base, 2},                      // 10:00 桶后出现
+		{base.Add(2*time.Minute + 5*time.Second), 3},
+	}
+	got := SortedByTime(TimeWindow(FromSlice(rs), twTS, time.Minute)).ToSlice()
+	if len(got) != 2 {
+		t.Fatalf("桶数 = %d, 期望 2（%v）", len(got), got)
+	}
+	if !got[0].Start.Equal(base) || !got[1].Start.Equal(base.Add(2*time.Minute)) {
+		t.Errorf("SortedByTime 桶序 = [%v, %v], 期望按 Start 升序", got[0].Start, got[1].Start)
+	}
+	if got[1].Start.Equal(base.Add(2*time.Minute)) && len(got[1].Items) != 2 {
+		t.Errorf("桶内元素 = %d, 期望 2（排序不改桶内）", len(got[1].Items))
+	}
+
+	// 特征位：物化排序置 SpSorted/SpLimited，清 SpDistinct
+	s := SortedByTime(TimeWindow(FromSlice(rs), twTS, time.Minute))
+	if s.chars&SpSorted == 0 || s.chars&SpLimited == 0 {
+		t.Error("SortedByTime 应置 SpSorted/SpLimited")
+	}
+	if s.chars&SpDistinct != 0 {
+		t.Error("SortedByTime 应清 SpDistinct")
+	}
+	if SortedByTime[twReading](nil) != nil {
+		t.Error("SortedByTime nil 流应返回 nil")
+	}
+}
+
 func TestTimeWindowJoinRight(t *testing.T) {
 	// 合并集成回归：TimeWindow 输出物化后已知有限（SpLimited），作
 	// Join/LeftJoin 右流不被有限性守卫误拦（特征位曾随 feat/join 并行

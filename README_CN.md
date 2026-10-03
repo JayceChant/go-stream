@@ -182,7 +182,7 @@ result := stream.FromSlice(orders).
 | Err 变体 | `MapErr` `FilterErr` `FlatMapErr` `PeekErr` |
 | 有状态中间 | `Limit` `Skip` `Sorted` `StableSorted` `DistinctBy` `Reverse` `Scan` |
 | 并行控制 | `Parallel(n)` `Sequential()` `Unordered()` |
-| 包级中间 | `Distinct` `Sorted`（自然序）`Chunk` `Enumerate` `WindowSliding` `TimeWindow` |
+| 包级中间 | `Distinct` `Sorted`（自然序）`Chunk` `Enumerate` `WindowSliding` `TimeWindow` `SortedByTime`（TimeWindow 配套：桶按时间排序） |
 | 双流 | `Zip` `Join`（内连接）`LeftJoin`（左外连接；右外连接 = 以右流调 `LeftJoin`）——Join/LeftJoin 右流须已声明有限（`SpLimited`，否则链接时 panic：换左流 / `.Limit(n)` / 先物化） |
 | 生命周期 | `OnClose(f)` `Close()` `Cache()`（可重放工厂；包级 `Cache(s)` 为 deprecated adapter，下一版本移除） |
 | 终止 | `ForEach` `ForEachUntil` `ToSlice` `ToSeq` `Count` `Reduce` `ReduceOpt` `Collect` `First` `FindAny` `AnyMatch` `AllMatch` `NoneMatch` `Min` `Max` `Err` |

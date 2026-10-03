@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 
 ## [0.3.0](https://github.com/JayceChant/go-stream/compare/v0.2.0...v0.3.0) (2026-10-03)
 
+本版本聚焦双流连接与时间窗口两大能力：新增 `Join`/`LeftJoin` 双流条件连接（内连接/左外连接，右外连接以右流调 `LeftJoin`），以新增的 `SpLimited` 特征位在链接期守卫右流有限性——无限右流直接 panic（换左流 / `.Limit(n)` / 先物化）；实现 `TimeWindow` 时间窗口分桶（对标 Akka `groupedWithin`、Spark 翻转窗口），桶键经 `.UTC()` 规范化、混合时区等值瞬间不拆桶，配套 `SortedByTime` 桶排序与 `CompleteTimeBuckets` 空窗补全。同期按 Java PRESERVE 语义系统性修正物化型特征位传播——`Limit` 透传 `SpSorted`、`Sorted`/`DistinctBy` 互不清位、`Filter` 清 `SpSized`、`Concat` 有序改双侧 AND、`Zip` 有限性改取短 OR；运行时 panic 文案统一为英文，面向国际用户。
 
 ### Features
 

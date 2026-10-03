@@ -101,4 +101,22 @@ func main() {
 	for _, b := range stream.SortedByTime(stream.TimeWindow(stream.FromSlice(outOfOrder), tsOf, 10*time.Second)).ToSlice() {
 		fmt.Printf("%s 桶内 %d 条\n", b.Start.Format("15:04:05"), len(b.Items))
 	}
+
+	// ---------- 4. 空窗补全：CompleteTimeBuckets + Map 填值 ----------
+	// TimeWindow 不产空桶（GroupBy 语义）；需要连续时间轴时显式补全：
+	// 结构补全（插空桶，Items 为 nil）与填值分离——填零/前值由后接 Map 表达
+	fmt.Println("\n== 空窗补全：CompleteTimeBuckets ==")
+	gappy := []sample{
+		{base.Add(1 * time.Second), 1.5},
+		{base.Add(21 * time.Second), 3.0}, // 5s 网格：0s/5s/10s/15s/20s，中间三窗无数据
+	}
+	for _, b := range stream.CompleteTimeBuckets(
+		stream.SortedByTime(stream.TimeWindow(stream.FromSlice(gappy), tsOf, 5*time.Second)),
+		5*time.Second,
+	).Map(func(b stream.TimeBucket[sample]) stream.KV[time.Time, int] {
+		return stream.KV[time.Time, int]{Key: b.Start, Value: len(b.Items)}
+	}).ToSlice() {
+		fmt.Printf("[%s n=%d] ", b.Key.Format("15:04:05"), b.Value)
+	}
+	fmt.Println()
 }

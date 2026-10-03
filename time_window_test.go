@@ -266,6 +266,84 @@ func TestSortedByTime(t *testing.T) {
 	}
 }
 
+func TestCompleteTimeBuckets(t *testing.T) {
+	base := time.Date(2026, 9, 11, 10, 0, 0, 0, time.UTC)
+	mk := func(off time.Duration, vols ...int) TimeBucket[twReading] {
+		b := TimeBucket[twReading]{Start: base.Add(off)}
+		for _, v := range vols {
+			b.Items = append(b.Items, twReading{at: base.Add(off), vol: v})
+		}
+		return b
+	}
+
+	// 基本空档：[t0, t0+3d] → 插 t0+d、t0+2d 两个空桶（Items 为 nil）
+	got := CompleteTimeBuckets(Of(mk(0, 1), mk(3*time.Minute, 2)), time.Minute).ToSlice()
+	if len(got) != 4 {
+		t.Fatalf("补全后桶数 = %d, 期望 4（%v）", len(got), got)
+	}
+	for i, want := range []time.Duration{0, time.Minute, 2 * time.Minute, 3 * time.Minute} {
+		if !got[i].Start.Equal(base.Add(want)) {
+			t.Errorf("桶 %d Start = %v, 期望 %v（升序）", i, got[i].Start, base.Add(want))
+		}
+	}
+	if got[1].Items != nil || got[2].Items != nil {
+		t.Errorf("空桶 Items 应为 nil, got %v/%v", got[1].Items, got[2].Items)
+	}
+	if len(got[0].Items) != 1 || len(got[3].Items) != 1 {
+		t.Errorf("原桶 Items 不应改变, got %d/%d", len(got[0].Items), len(got[3].Items))
+	}
+
+	// 连续无补 + 单桶原样 + 空流
+	if got := CompleteTimeBuckets(Of(mk(0, 1), mk(time.Minute, 2)), time.Minute).ToSlice(); len(got) != 2 {
+		t.Errorf("连续桶不应补全, got %v", got)
+	}
+	if got := CompleteTimeBuckets(Of(mk(0, 1)), time.Minute).ToSlice(); len(got) != 1 {
+		t.Errorf("单桶不应补全, got %v", got)
+	}
+	if got := CompleteTimeBuckets(Empty[TimeBucket[twReading]](), time.Minute).ToSlice(); len(got) != 0 {
+		t.Errorf("空流不应补全, got %v", got)
+	}
+
+	// 非整除空档：桶距 2.5d → 补 2 个空桶后接实桶（间隔不足 d 不再补）
+	got2 := CompleteTimeBuckets(Of(mk(0), mk(5*time.Second)), 2*time.Second).ToSlice()
+	if len(got2) != 4 { // [0s, 2s空, 4s空, 5s]
+		t.Fatalf("非整除空档补全 = %d 桶, 期望 4（%v）", len(got2), got2)
+	}
+
+	// TimeWindow 组合端到端：乱序上游 → 排序 → 补全
+	rs := []twReading{{base.Add(3 * time.Minute), 1}, {base, 2}}
+	endToEnd := CompleteTimeBuckets(SortedByTime(TimeWindow(FromSlice(rs), twTS, time.Minute)), time.Minute).ToSlice()
+	if len(endToEnd) != 4 || endToEnd[1].Items != nil {
+		t.Errorf("TimeWindow+SortedByTime+CompleteTimeBuckets = %v, 期望 4 桶含空桶", endToEnd)
+	}
+
+	// panic 矩阵与 nil 流
+	expectPanic(t, "CompleteTimeBuckets 零宽度", func() { CompleteTimeBuckets(Of(mk(0)), 0) })
+	expectPanic(t, "CompleteTimeBuckets 负宽度", func() { CompleteTimeBuckets(Of(mk(0)), -time.Minute) })
+	if CompleteTimeBuckets[twReading](nil, time.Minute) != nil {
+		t.Error("CompleteTimeBuckets nil 流应返回 nil")
+	}
+
+	// 特征位：物化型置 SpSized/SpSubSized/SpLimited；splitN 零值（并行降级）
+	s := CompleteTimeBuckets(Of(mk(0), mk(time.Minute)), time.Minute)
+	if s.chars&SpSized == 0 || s.chars&SpSubSized == 0 || s.chars&SpLimited == 0 {
+		t.Error("CompleteTimeBuckets 应置 SpSized/SpSubSized/SpLimited")
+	}
+	if s.splitN != nil {
+		t.Error("CompleteTimeBuckets 应并行降级（splitN=nil）")
+	}
+}
+
+func TestCompleteTimeBucketsGuard(t *testing.T) {
+	// 溢出护栏：宽度与跨度失配（两桶相距超 maxTimeBuckets*d）→ panic 而非天量分配
+	base := time.Date(2026, 9, 11, 10, 0, 0, 0, time.UTC)
+	b1 := TimeBucket[twReading]{Start: base}
+	b2 := TimeBucket[twReading]{Start: base.Add(time.Duration(maxTimeBuckets+2) * time.Millisecond)}
+	expectPanic(t, "CompleteTimeBuckets 补全超上限", func() {
+		CompleteTimeBuckets(Of(b1, b2), time.Millisecond).ToSlice()
+	})
+}
+
 func TestTimeWindowJoinRight(t *testing.T) {
 	// 合并集成回归：TimeWindow 输出物化后已知有限（SpLimited），作
 	// Join/LeftJoin 右流不被有限性守卫误拦（特征位曾随 feat/join 并行

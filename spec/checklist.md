@@ -123,3 +123,4 @@
 - [x] 合并 master 后增补：特征位补 SpLimited（对齐物化型统一规则；TimeWindow 输出可作 Join/LeftJoin 右流，TestTimeWindowJoinRight 守护——曾随 feat/join 并行开发缺失而误触有限性守卫 panic）
 - [x] 增补（评审）：桶键 `.UTC()` 规范化——time.Time 作 map 键按结构体 ==（含 Location 指针）判等，混合时区表示的等值瞬间曾被拆成两桶；TestTimeWindowMixedLocations 守护
 - [x] 增补（评审）：FuzzTimeWindowEquivalence（随机序列 + 随机窗口宽度 vs 参考 map 分桶逐桶等价 + 展平守恒）；TestTimeWindowJoinRight 作 Join/LeftJoin 右流集成回归
+- [x] 配套算子（评审讨论决议：便利以显式组合提供，不替用户做决定）：SortedByTime（桶序维持首现序，时间序需求显式表达；TestSortedByTime 覆盖）与 CompleteTimeBuckets（空桶补全不默认开启；结构补全与填值分离；maxTimeBuckets 溢出护栏；TestCompleteTimeBuckets/Guard 覆盖）；文档全渠道（godoc/docs.api/README×2/SKILL.md/example）明示「乱序上游输出非时间序」「不产空桶」的注意提醒

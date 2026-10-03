@@ -3,8 +3,7 @@ package stream
 import "time"
 
 // time_window.go：时间窗口分桶（tumbling window，独立于既有算子文件）
-// 及其配套算子（SortedByTime 时间序——桶序维持首现序，时间序经显式
-// 组合表达）。
+// 及其配套算子（SortedByTime 时间序 / CompleteTimeBuckets 空桶补全）。
 //
 // 与 WindowSliding（逐元素滑动的定长窗口）/Chunk（定长计数分组）互补：
 // 按固定时间间隔而非固定元素个数分窗，对标 Julia（TimeSeries resample）
@@ -13,8 +12,10 @@ import "time"
 // 配套算子遵循「便利以显式组合提供，不替用户做决定」的决议：原始采样
 // 数据通常已时间升序（TimeWindow 输出即时间序的常见路径，零额外开销），
 // 不为低频乱序场景增加默认排序；乱序上游的时间序需求由 SortedByTime
-// 显式表达（主流对照：内核均为 time_bucket+GroupBy，桶序惯例为时间
-// 升序——升序数据是常见路径，乱序需求经配套算子显式化）。
+// 显式表达，空桶补全由 CompleteTimeBuckets 显式表达（主流对照：内核均
+// 为 time_bucket+GroupBy，桶序惯例为时间升序——升序数据是常见路径，
+// 乱序需求经配套算子显式化；空桶主流默认不含，pandas resample 含空桶
+// 为少数派）。
 //
 // 独立成文件且不依赖 newStateful 的类型迁移泛化（既有签名为同型
 // T→T）：此处内联「物化 → 变换回放」两段式协议，与 newStateful 语义
@@ -124,4 +125,55 @@ func SortedByTime[T any](s *Stream[TimeBucket[T]]) *Stream[TimeBucket[T]] {
 		return nil
 	}
 	return s.Sorted(func(a, b TimeBucket[T]) int { return a.Start.Compare(b.Start) })
+}
+
+// maxTimeBuckets 是 CompleteTimeBuckets 的溢出护栏：补全桶数上限
+// （防首末桶跨度/宽度失配的天量分配）。
+const maxTimeBuckets = 1 << 20 // 1<<20 ≈ 一百万桶（覆盖秒级网格×数年）
+
+// CompleteTimeBuckets 补全时间窗口空桶：对已按时间升序的 TimeBucket 流，
+// 在相邻桶 Start 间隔超过 d 的空档内按 d 步进插入空桶（Items 为 nil），
+// 输出保持时间升序。宽度 d 为窗口宽度（与 TimeWindow 的 d 一致，不传
+// 对则填不对网格）。范围数据驱动：首桶之前与末桶之后的空窗不补（起始
+// 时刻属调用方域知识——从零时刻补起几乎必非所愿）。
+//
+// 结构补全与填值分离（对齐 pandas resample+fillna / Polars upsample+
+// fill_null 的分工）：本算子只补桶不填值；需要补零/前值等填值语义时由
+// 后接算子组合表达。
+//
+// 输入必须升序：本算子不排序（乱序输入语义未定义），需时间序先接
+// SortedByTime。溢出护栏 maxTimeBuckets：补全桶数超限时 panic，防御
+// 首末桶时间差/宽度失配（如误传毫秒宽给跨月数据）导致的天量内存。
+// d <= 0 panic；nil 流返回 nil。
+//
+// 包级函数形态（实测复现）：接收者形态 Stream[TimeBucket[T]] 无法声明
+// （receiver type parameter must be an identifier），同 TimeWindow 之因。
+func CompleteTimeBuckets[T any](s *Stream[TimeBucket[T]], d time.Duration) *Stream[TimeBucket[T]] {
+	if s == nil {
+		return nil
+	}
+	if d <= 0 {
+		panic("stream: CompleteTimeBuckets 窗口宽度必须为正")
+	}
+	return newStateful(s, -1, func(buf []TimeBucket[T]) []TimeBucket[T] {
+		if len(buf) == 0 {
+			return buf
+		}
+		var out []TimeBucket[T]
+		cur := buf[0].Start
+		for _, b := range buf {
+			for b.Start.After(cur) { // 间隙：网格点早于当前桶时插空桶
+				if len(out) > maxTimeBuckets {
+					panic("stream: CompleteTimeBuckets 补全桶数超上限（检查宽度 d 与数据时间尺度是否失配）")
+				}
+				out = append(out, TimeBucket[T]{Start: cur})
+				cur = cur.Add(d)
+			}
+			// 空档非 d 整数倍（桶 Start 在网格点之间）时网格点已越过桶：
+			// 追过即停，直接产出原桶并以其 Start 重锚网格（不丢桶、不补出负间隔）。
+			out = append(out, b)
+			cur = b.Start.Add(d)
+		}
+		return out
+	}, s.chars|SpSized|SpSubSized|SpLimited)
 }

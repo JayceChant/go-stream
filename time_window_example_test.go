@@ -69,6 +69,27 @@ func Example_sortedByTime() {
 	// 09:02 n=2
 }
 
+// 空窗补全：TimeWindow 不产空桶，CompleteTimeBuckets 在空档插空桶
+// （Items 为 nil），结构补全与填值分离——填零由后接 Map 表达。
+func Example_completeTimeBuckets() {
+	type tick struct {
+		at  time.Time
+		vol int
+	}
+	base := time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC)
+	ticks := []tick{
+		{base.Add(1 * time.Second), 3},
+		{base.Add(21 * time.Second), 5}, // 20s 桶；中间 10s 窗无数据
+	}
+	counts := stream.CompleteTimeBuckets(
+		stream.SortedByTime(stream.TimeWindow(stream.FromSlice(ticks), func(t tick) time.Time { return t.at }, 10*time.Second)),
+		10*time.Second,
+	).Map(func(b stream.TimeBucket[tick]) int { return len(b.Items) }).ToSlice()
+	fmt.Println("per-window counts:", counts)
+	// Output:
+	// per-window counts: [1 0 1]
+}
+
 // 桶级聚合的收集器形态：桶内元素交任意 collector 处理。
 func Example_timeWindowCollect() {
 	type tick struct {

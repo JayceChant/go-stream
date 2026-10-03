@@ -31,6 +31,7 @@ Before Go 1.27, methods could not declare their own type parameters, so chained 
 - **Errors as values**: expected errors (IO source failures, `MapErr` family callback errors) propagate as `error` values — first error short-circuits, partial results are preserved, query via `Err()`; unrecoverable misuses (double consumption, nil callbacks) panic
 - **Composition over inheritance**: Java's abstract class hierarchy (AbstractPipeline/StatelessOp/StatefulOp) is translated into "struct embedding + constructors + injected function values" with no simulated inheritance
 - **Java 25 parity highlights**: outbound iterator adaptation `ToSeq() iter.Seq[T]` (range-over-func interop), collector composition ecosystem (`GroupingByDownstream`/`PartitioningBy`/`Teeing`/`Filtering`/`FlatMapping`/`CollectingAndThen`/`MinBy`/`MaxBy`), sliding window `WindowSliding`, single-pass statistics `Summary`/`Summarizing` (`SummaryStats`), and convenience sources `RangeClosed`/`OfNonZero`
+- **Time-window resampling**: `TimeWindow` buckets elements by `ts(v).Truncate(d)` into aligned tumbling windows (fixed time span instead of fixed element count — Julia/Scala time-window style); per-bucket aggregation is composed via `.Map(...)` (inline, or `FromSlice(b.Items)` into any collector)
 - **Zero third-party dependencies**: no third-party runtime dependencies in v1
 
 ## Installation
@@ -64,7 +65,7 @@ s.AnyMatch(p)
 s.Collect(collector.GroupingBy(keyOf, valOf))
 ```
 
-More runnable examples: [example_test.go](./example_test.go) (verified by `go test`) and the [example/](./example) directory — eight standalone, copy-paste-ready programs covering the full API surface:
+More runnable examples: [example_test.go](./example_test.go) (verified by `go test`) and the [example/](./example) directory — nine standalone, copy-paste-ready programs covering the full API surface:
 
 ```bash
 go -C example run ./basics      # sources → intermediate → terminal operations
@@ -74,6 +75,7 @@ go -C example run ./errors      # errors-as-value model (FromFunc/MapErr family/
 go -C example run ./parallel    # Parallel(n)/Unordered, order-preserving merge, auto fallback
 go -C example run ./lifecycle   # OnClose/Close resource management, Cache replayable factory
 go -C example run ./extensions  # Java 25 parity: ToSeq/collector composition/WindowSliding/Summary/RangeClosed/OfNonZero
+go -C example run ./timewindow  # time-window resampling: TimeWindow buckets + Map-composed aggregation
 go -C example run ./join        # conditional two-stream joins: Join (inner), LeftJoin, right join via LeftJoin
 ```
 
@@ -207,7 +209,7 @@ Performance note: each narrowing entry and element-preserving operator costs one
 | Err variants | `MapErr` `FilterErr` `FlatMapErr` `PeekErr` |
 | Stateful intermediate | `Limit` `Skip` `Sorted` `StableSorted` `DistinctBy` `Reverse` `Scan` |
 | Parallelism control | `Parallel(n)` `Sequential()` `Unordered()` |
-| Package-level intermediate | `Distinct` `Sorted` (natural order) `Chunk` `Enumerate` `WindowSliding` |
+| Package-level intermediate | `Distinct` `Sorted` (natural order) `Chunk` `Enumerate` `WindowSliding` `TimeWindow` `SortedByTime` / `CompleteTimeBuckets` (TimeWindow companions: sort buckets by time / fill empty windows) |
 | Two-stream | `Zip` `Join` (inner) `LeftJoin` (left outer; right outer = call `LeftJoin` on the right stream) — Join/LeftJoin require a known-finite right stream (`SpLimited`, link-time panic otherwise: swap sides / `.Limit(n)` / materialize) |
 | Lifecycle | `OnClose(f)` `Close()` `Cache()` (replayable factory; the package-level `Cache(s)` is a deprecated adapter, slated for removal in the next version) |
 | Terminal | `ForEach` `ForEachUntil` `ToSlice` `ToSeq` `Count` `Reduce` `ReduceOpt` `Collect` `First` `FindAny` `AnyMatch` `AllMatch` `NoneMatch` `Min` `Max` `Err` |
@@ -237,6 +239,7 @@ For the full reference and examples, see [docs/api.md](./docs/api.md).
 | `Collectors.teeing` | `collector.Teeing` | One traversal feeds two downstream collectors, then merges both results |
 | `Collectors.groupingBy(classifier, downstream)` | `collector.GroupingByDownstream` | Two-level reduction: group first, then collect each group with a downstream collector (combiner-supported for parallel) |
 | `Gatherers.windowSliding(n)` | `WindowSliding(s, n)` | Full windows only; fewer than n elements produce no output; package-level due to Go 1.27 instantiation-cycle limitation |
+| Julia/Scala time windows (Akka `groupedWithin`, Spark tumbling window) | `TimeWindow(s, ts, d)` | Buckets keyed by `ts(v).Truncate(d)` (aligned tumbling windows, GroupBy semantics: first-seen bucket order, encounter order within bucket, late elements join their bucket, no empty buckets); per-bucket aggregation composed via `.Map(...)`; package-level (returning `Stream[TimeBucket[T]]`, a derived type of T, triggers the same instantiation cycle) |
 | `summaryStatistics()` | `Summary`/`Summarizing` (`SummaryStats[N]`) | Single-pass count/sum/min/max, `Avg()` derived without a second pass |
 | `rangeClosed(a, b)` / `Stream.ofNullable` | `RangeClosed(a, b)` / `OfNonZero(xs...)` | Closed interval; skip zero-value elements (zero covers nil, aligned with `cmp.Or` terminology) |
 | Exception propagation | Errors as values (`Err()`/`MapErr` family) | Aligned with Go's official error style |

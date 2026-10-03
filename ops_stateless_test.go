@@ -186,9 +186,9 @@ func TestNilCallbackPanic(t *testing.T) {
 func TestCharsPropagation(t *testing.T) {
 	// FromSlice 源特征：SpSized|SpOrdered|SpSubSized
 
-	// Filter 保留全部
-	if c := base2().Filter(func(int) bool { return true }).chars; c&SpSized == 0 || c&SpOrdered == 0 {
-		t.Errorf("Filter 后特征位 = %b, SpSized/SpOrdered 应保留", c)
+	// Filter 清 SpSized（子集数量不精确，对齐 Java filter 清 SIZED）、保 SpOrdered
+	if c := base2().Filter(func(int) bool { return true }).chars; c&SpSized != 0 || c&SpOrdered == 0 {
+		t.Errorf("Filter 后特征位 = %b, SpSized 应清除、SpOrdered 应保留", c)
 	}
 	// Map（1:1 变换）保留 SpSized，清除 SpSorted/SpDistinct
 	if c := base2().Map(func(v int) int { return v }).chars; c&SpSized == 0 || c&SpSorted != 0 || c&SpDistinct != 0 {
@@ -198,17 +198,31 @@ func TestCharsPropagation(t *testing.T) {
 	if c := base2().FlatMap(func(v int) []int { return []int{v} }).chars; c&SpSized != 0 {
 		t.Errorf("FlatMap 后特征位 = %b, SpSized 应清除", c)
 	}
-	// Limit 保持 SpSized 且清 SpSorted
-	if c := base2().Limit(2).chars; c&SpSized == 0 || c&SpSorted != 0 {
-		t.Errorf("Limit 后特征位 = %b", c)
+	// Limit 保持 SpSized，SpSorted 透传保留（前缀保序，Task 26 审计修正）
+	if c := base2().Limit(2).chars; c&SpSized == 0 {
+		t.Errorf("Limit 后特征位 = %b, SpSized 应保留", c)
+	}
+	if c := base2().Sorted(func(a, b int) int { return a - b }).Limit(2).chars; c&SpSorted == 0 {
+		t.Errorf("Sorted+Limit 后特征位 = %b, SpSorted 应透传保留（前缀保序）", c)
 	}
 	// TakeWhile 清除 SpSized
 	if c := base2().TakeWhile(func(int) bool { return true }).chars; c&SpSized != 0 {
 		t.Errorf("TakeWhile 后特征位 = %b, SpSized 应清除", c)
 	}
-	// SpSorted 置 SpSorted
+	// SpSorted 置 SpSorted；SpDistinct 透传（置换不改元素集，Task 26 审计修正）
 	if c := base2().Sorted(func(a, b int) int { return a - b }).chars; c&SpSorted == 0 {
 		t.Errorf("SpSorted 后特征位 = %b, SpSorted 应置位", c)
+	}
+	if c := base2().DistinctBy(func(v int) int { return v }).Sorted(func(a, b int) int { return a - b }).chars; c&SpDistinct == 0 {
+		t.Errorf("DistinctBy+Sorted 后特征位 = %b, SpDistinct 应透传保留（排序是置换）", c)
+	}
+	// DistinctBy 置 SpDistinct，SpSorted 透传（删除元素保剩余相对序）
+	if c := base2().Sorted(func(a, b int) int { return a - b }).DistinctBy(func(v int) int { return v }).chars; c&SpSorted == 0 {
+		t.Errorf("Sorted+DistinctBy 后特征位 = %b, SpSorted 应透传保留（去重保序）", c)
+	}
+	// Reverse 保留 SpSorted（反转 = 相反比较器下的排序，项目语义：按某比较器有序）
+	if c := base2().Sorted(func(a, b int) int { return a - b }).Reverse().chars; c&SpSorted == 0 {
+		t.Errorf("Sorted+Reverse 后特征位 = %b, SpSorted 应保留（相反比较器下有序）", c)
 	}
 }
 

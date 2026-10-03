@@ -3,6 +3,7 @@ package stream
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/JayceChant/go-stream/collector"
 )
@@ -300,6 +301,66 @@ func FuzzCacheReplayEquivalence(f *testing.F) {
 		}
 		if evals != len(data) {
 			t.Fatalf("上游求值 %d 次, 期望恰好 %d（只求值一次）", evals, len(data))
+		}
+	})
+}
+
+// FuzzTimeWindowEquivalence 锁定时间窗口分桶：随机序列 + 随机窗口宽度下，
+// TimeWindow 与参考 map 分桶逐桶等价（桶序=键首现序、桶内保遇序、
+// 键 .UTC() 规范化），且桶数与展平元素数守恒。
+func FuzzTimeWindowEquivalence(f *testing.F) {
+	f.Add([]byte{10, 70, 20, 130, 75}, uint8(60)) // 秒偏移序列 + 窗口宽度（秒）
+	f.Add([]byte{}, uint8(30))
+	f.Add([]byte{0, 1, 2}, uint8(1))
+	f.Add([]byte{255, 0, 128, 3, 3}, uint8(7))
+	f.Fuzz(func(t *testing.T, raw []byte, dRaw uint8) {
+		data := fuzzData(raw, 256)
+		d := time.Duration(1+int(dRaw)%120) * time.Second
+
+		type ev struct {
+			at  time.Time
+			vol byte
+		}
+		base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+		evs := make([]ev, len(data))
+		for i, v := range data {
+			evs[i] = ev{at: base.Add(time.Duration(v) * time.Second), vol: v}
+		}
+		got := TimeWindow(FromSlice(slices.Clone(evs)), func(e ev) time.Time { return e.at }, d).ToSlice()
+
+		// 参考实现：map 分桶（键 .UTC() 规范化、首现序、保遇序）。
+		idx := make(map[time.Time]int)
+		var want []TimeBucket[ev]
+		for _, e := range evs {
+			k := e.at.Truncate(d).UTC()
+			i, ok := idx[k]
+			if !ok {
+				i = len(want)
+				idx[k] = i
+				want = append(want, TimeBucket[ev]{Start: k})
+			}
+			want[i].Items = append(want[i].Items, e)
+		}
+		if len(got) != len(want) {
+			t.Fatalf("桶数 %d != 参考 %d（d=%v data=%v）", len(got), len(want), d, data)
+		}
+		var flatN int
+		for i, b := range got {
+			if !b.Start.Equal(want[i].Start) {
+				t.Fatalf("桶 %d 起点 %v != %v", i, b.Start, want[i].Start)
+			}
+			if len(b.Items) != len(want[i].Items) {
+				t.Fatalf("桶 %d 元素数 %d != %d", i, len(b.Items), len(want[i].Items))
+			}
+			for j, it := range b.Items {
+				if it != want[i].Items[j] {
+					t.Fatalf("桶 %d 元素 %d = %v, 期望 %v（保遇序破坏）", i, j, it, want[i].Items[j])
+				}
+			}
+			flatN += len(b.Items)
+		}
+		if flatN != len(evs) {
+			t.Fatalf("展平元素数 %d != 输入 %d（丢元素）", flatN, len(evs))
 		}
 	})
 }

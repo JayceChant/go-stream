@@ -20,6 +20,12 @@ func (s *Stream[T]) Zip[U, R any](other *Stream[U], f func(T, U) R) *Stream[R] {
 	other.checkLinked()
 	driveSelf := s.drive
 	chars := s.chars & other.chars &^ (SpSized | SpSorted | SpDistinct)
+	// Zip 取短即终止：任一侧已知有限则输出必有限（至多耗尽短侧），
+	// SpLimited 按 OR 传播（区别于 Concat/Join 的 AND）——Zip 产物
+	// （短侧有限）可作 Join/LeftJoin 右流。双侧未知/无限时不虚标。
+	if s.chars&SpLimited != 0 || other.chars&SpLimited != 0 {
+		chars |= SpLimited
+	}
 	return &Stream[R]{pipeline[R]{
 		drive: func(down Sink[R], ec *evalCtx) {
 			// other 转为拉取式（后台 goroutine + 单缓冲通道），

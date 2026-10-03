@@ -79,6 +79,21 @@ Err 变体（错误即值：回调返回错误 → 首错短路、部分结果�
 | `Chunk[T](s, n int) *Stream[[]T]` | 定长分组（尾组可不足 n） |
 | `Enumerate[T](s) *Stream[KV[int, T]]` | 附加索引（对应 `for i, v := range`） |
 | `WindowSliding[T](s, n int) *Stream[[]T]` | 滑动窗口：只输出满窗（长度恰 n，元素少于 n 无输出；对齐 Java Gatherers `windowSliding`；Task 21），环形缓冲单遍实现，支持无限源 |
+| `TimeWindow[T](s, ts func(T) time.Time, d time.Duration) *Stream[TimeBucket[T]]` | 时间窗口分桶（重采样）：以 `ts(v).Truncate(d)` 为桶键分入对齐时间网格的翻转窗口——固定时间间隔而非固定元素个数（对标 Julia/Scala 时间窗口）。GroupBy 语义：桶序=键首现序、桶内保遇序、乱序/晚到并入既有桶（桶不拆分）、不产空桶；桶键经 `.UTC()` 规范化——同一瞬间的不同时区表示恒落同一桶、`Start` 恒为 UTC 网格点（本地时区展示由调用方 `.In(loc)` 后处理）；`TimeBucket[T]{Start time.Time; Items []T}`。桶级聚合由 `.Map(...)` 组合表达（桶内内联聚合，或 `FromSlice(b.Items)` 交任意收集器）；物化型（并行降级、不支持无限源，可先 Limit；输出已知有限——置 `SpLimited`，可作 `Join`/`LeftJoin` 右流）；上游出错不产出（Task 26）。**注意**：上游时间乱序时输出为键首现序而非时间序，需时间序接 `SortedByTime` |
+| `SortedByTime[T](s *Stream[TimeBucket[T]]) *Stream[TimeBucket[T]]` | `TimeWindow` 输出的配套排序算子：按 `Start` 时间升序，免写比较器（方法 `Sorted(cmp)` 的 TimeBucket 特化形态；桶键唯一，稳定性无差异）。上游时间升序时 `TimeWindow` 输出即时间序，无需本算子；乱序上游需时间序的重采样场景显式接本算子（Task 26） |
+| `CompleteTimeBuckets[T](s *Stream[TimeBucket[T]], d time.Duration) *Stream[TimeBucket[T]]` | 空桶补全（配套算子）：对已按时间升序的桶流，在相邻桶空档内按 `d` 步进插入空桶（`Items` 为 nil），输出保持升序；范围数据驱动（首桶之前/末桶之后不补）；结构补全与填值分离——补零/前值等填值语义由后接算子组合（对齐 pandas resample+fillna 分工）；溢出护栏 `maxTimeBuckets`（1<<20）：补全桶数超限 panic（防宽度与数据时间尺度失配的天量分配）。`d <= 0` panic；输入乱序语义未定义（先接 `SortedByTime`）；nil 流返回 nil（Task 26） |
+
+```go
+// 每分钟计数：TimeWindow 分桶 + Map 组合聚合（桶序=键首现序、桶内保遇序）
+counts := stream.TimeWindow(stream.FromSlice(ticks), tsOf, time.Minute).
+    Map(func(b stream.TimeBucket[Tick]) stream.KV[time.Time, int64] {
+        return stream.KV[time.Time, int64]{
+            Key:   b.Start,
+            Value: stream.FromSlice(b.Items).Collect(collector.Counting[Tick]()),
+        }
+    }).
+    ToSlice()
+```
 
 双流：
 

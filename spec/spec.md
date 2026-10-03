@@ -202,8 +202,8 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
   - `go.mod`、`stream.go`（Stream 类型/约束/KV）、`pipeline.go`（引擎+错误槽+consumed+newHead+evaluate+分片）、`sink.go`、`spliterator.go`、`op.go`（newStateless/newStateful）、`sources.go`（各源 Splitterator 实现）、`construct.go`（包级构造函数）、`number_stream.go`（**Task 18**：NumberStream 数值流类型/收窄入口 Range〔构造函数自 construct.go 迁入，与其余收窄入口同置〕、OfNumber、FromNumberSlice、AsNumber、AsStream/19 个核心方法）
   - `ops_stateless.go`（含 Err 变体；**Task 18 增补** `MapToNumber`，随 Map 同置）、`ops_stateful.go`（含 Scan/Chunk）、`op_ext.go`（Zip/Enumerate；**Task 24 增补**：方法 `Join`（InnerJoin）与 `LeftJoin`（左外连接）随双流算子同置）
   - `terminal.go`（含 Err() 与并行终端）、`constraints/constraints.go`（Task 16：数值约束叶子包）、`collector/collector.go`（子包：Collector 与 11 个预置收集器）、`numeric.go`（包级 Sum/Avg/Sorted/Min/Max/Contains/Distinct）、`parallel.go`（Parallel/Sequential/Unordered/分片求值/无序流式合并）、`lifecycle.go`（Task 10：OnClose/Close/Cache）
-  - `example/go.mod`（独立模块 + replace 指向根模块）与 `example/{basics,collectors,numeric,errors,parallel,lifecycle,join}/main.go`（Task 15：完整可运行示例目录，见「示例目录」Requirement；嵌套模块隔离覆盖率；`join` 为 Task 24 增补）
-  - `*_test.go`、`example_test.go`、`benchmark_test.go`、`parallel_test.go`、`collector/collector_test.go`（**Task 19~23 增补**：`terminal.go` 增 ToSeq、`op_ext.go` 增 WindowSliding、`numeric.go` 增 Summary、`construct.go` 增 RangeClosed/OfNonZero、`number_stream.go` 增 RangeClosed 收窄入口、`collector/collector.go` 增组合收集器族与 Summarizing/SummaryStats；配套 `collector_extra_test.go` 等）
+  - `example/go.mod`（独立模块 + replace 指向根模块）与 `example/{basics,collectors,numeric,errors,parallel,lifecycle,join,timewindow}/main.go`（Task 15：完整可运行示例目录，见「示例目录」Requirement；嵌套模块隔离覆盖率；`join` 为 Join 侧 Task 24 增补、`timewindow` 为时间窗口侧增补）
+  - `*_test.go`、`example_test.go`、`benchmark_test.go`、`parallel_test.go`、`collector/collector_test.go`（**Task 19~23 增补**：`terminal.go` 增 ToSeq、`op_ext.go` 增 WindowSliding、`numeric.go` 增 Summary、`construct.go` 增 RangeClosed/OfNonZero、`number_stream.go` 增 RangeClosed 收窄入口、`collector/collector.go` 增组合收集器族与 Summarizing/SummaryStats；配套 `collector_extra_test.go` 等；**时间窗口侧增补**：新文件 `time_window.go`（TimeWindow/TimeBucket，独立内联两段式）、`time_window_test.go`、`time_window_example_test.go` 与 `example/timewindow/main.go` 独立示例，不改动既有实现文件）
   - `README.md`、`docs/design.md`、`docs/api.md`
   - `skills/go-stream/SKILL.md`（面向下游用户的 coding-agent 使用指引，供用户整目录安装到各自 coding agent 的 skills 目录；英文编写、与 API 面同步维护——`AGENTS.md` 项目专属约定已增补对应同步维护要求）
   - `AGENTS.md`（协作规范入口：项目专属约定与引用骨架）、`agents/common.md`（语言无关通用规范）、`agents/go.md`（Go 语言规范与质量门槛）——协作规范拆分，`agents/` 下两文件可整体复用到其它项目
@@ -263,8 +263,15 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - **THEN** 返回 `map[ID][]string` 正确分组且组内保持遇序
 
 ### Requirement: Splitterator 抽象与特征位
-接口五方法 + 特征位；slice/range 可二分 TrySplit（前后半段不重叠、并集完整）；seq/channel/func 不可分（返回 nil）；特征位沿管道传播规则（**修订**：Map/MapErr 为 1:1 变换，对齐 Java StreamOpFlag 只清 Sorted/Distinct、保留 Sized，使下游可按 size 预分配；Filter 保留全部；FlatMap 族 1:N 变换清 Sized/Sorted/Distinct；TakeWhile/DropWhile 清 Sized；Stateful 后段 SubSized...）。
-**Task 24 增补 `SpLimited`（有限性声明，随用户反馈立项）**：区分「已知有限」与「无限或大小未知」。置位规则（**仅已知有限置位**）：`SpSized ⇒ SpLimited` 不变式（Of/FromSlice/Empty/Range/RangeClosed）；`FromMap` 置位（len 已知有限、遍历序不定、不报大小）；`FromFunc`/`FromSeq`/`FromChannel`（大小未知，库无法替调用方断言）与 `Generate`/`Iterate`（设计上无限）**不置位**。传播规则：透传类算子（Filter/Map/Peek/Err 族/TakeWhile/DropWhile/Scan/Chunk/FlatMap 族/WindowSliding/标志类）自然保留（有限进有限出）；物化类算子（Limit/Skip/Sorted/StableSorted/DistinctBy/Reverse）**强制置位**（Limit 给出上界、物化输出=缓冲长度，求值能完成即有限）；双流算子（Concat/Zip/Join/LeftJoin）**双侧 AND**（任一侧无限/未知即整体未知）。消费方：Join/LeftJoin 以之作右流有限性守卫（见「双流条件连接 Join」Requirement）。
+接口五方法 + 特征位；slice/range 可二分 TrySplit（前后半段不重叠、并集完整）；seq/channel/func 不可分（返回 nil）；特征位沿管道传播规则（**修订**：Map/MapErr 为 1:1 变换，对齐 Java StreamOpFlag 只清 Sorted/Distinct、保留 Sized，使下游可按 size 预分配；**修订（Task 26 审计）**：Filter 清 Sized（子集数量不精确）、Limit 透传 Sorted/Distinct（前缀保序保异）、Reverse 透传 Sorted（相反比较器下有序）、Sorted/DistinctBy 互不清对方位（元素集不变）；FlatMap 族 1:N 变换清 Sized/Sorted/Distinct；TakeWhile/DropWhile 清 Sized；Stateful 后段 SubSized...；完整修订记录见下方「Task 26 审计修订」）。
+**Task 24 增补 `SpLimited`（有限性声明，随用户反馈立项）**：区分「已知有限」与「无限或大小未知」。置位规则（**仅已知有限置位**）：`SpSized ⇒ SpLimited` 不变式（Of/FromSlice/Empty/Range/RangeClosed）；`FromMap` 置位（len 已知有限、遍历序不定、不报大小）；`FromFunc`/`FromSeq`/`FromChannel`（大小未知，库无法替调用方断言）与 `Generate`/`Iterate`（设计上无限）**不置位**。传播规则：透传类算子（Filter/Map/Peek/Err 族/TakeWhile/DropWhile/Scan/Chunk/FlatMap 族/WindowSliding/标志类）自然保留（有限进有限出）；物化类算子（Limit/Skip/Sorted/StableSorted/DistinctBy/Reverse/**TimeWindow**——Task 26 增补：桶数物化后已知，输出可作 Join/LeftJoin 右流）**强制置位**（Limit 给出上界、物化输出=缓冲长度，求值能完成即有限）；双流算子（Concat/Join/LeftJoin）**双侧 AND**（任一侧无限/未知即整体未知）；**Zip 例外（Task 26 审计修订）**：取短即终止——任一侧已知有限则输出必有限，SpLimited 按 **OR** 传播（双侧未知/无限不虚标）。消费方：Join/LeftJoin 以之作右流有限性守卫（见「双流条件连接 Join」Requirement）。
+
+**Task 26 审计修订（特征位健全性——「置位必为真」）**：逐一核对全部算子的特征位增删，与 Java StreamOpFlag 的 flag 表对齐：
+- `Filter`/`FilterErr` 补清 `SpSized`——过滤后元素数为子集不再精确，此前虚标（对齐 Java filter 清 SIZED）；`Begin` 的 size 参数本定义为估计数（预分配上界提示），传递行为不变。
+- `Limit` 的 `SpSorted` 由清除改透传保留——前缀保持有序性与互异性（对齐 Java limit 对 SORTED/DISTINCT 的 PRESERVE）；此前的清除是过度保守。
+- `Sorted`/`StableSorted` 不再清 `SpDistinct`、`DistinctBy` 不再清 `SpSorted`——排序/去重均为元素集不变的变换（置换或删元素保剩余相对序），对方特征位依然成立（对齐 Java PRESERVE 语义）。
+- `Reverse` 保留 `SpSorted`——`SpSorted` 语义为「按某比较器有序」：升序流反转后按取反比较器仍有序（用户决议，异于 Java Stream 硬编码自然序的 SORTED 语义；Java 的清除源自其 SORTED 绑定自然序/既知比较器的特定语义，本库特征位不携带比较器上下文，故按更一般的「存在比较器」语义保留）。
+- `Concat` 的 `SpOrdered` 由按位或改双侧 AND——任一侧序不确定（FromMap/Unordered 声明），拼接整体的相遇序即不确定，OR 虚标有序；与 Zip/Join 同规则（行为无影响：Concat splitN=nil 不进并行路径读该位）。
 
 ### Requirement: 错误即值模型
 可预期错误（FromFunc/Err 族）以 error 值传播：首错短路、部分结果保留、`Err()` 查询；不可恢复错误（重复消费、nil 回调）panic 且信息清晰；回调 panic 原样传播。
@@ -492,6 +499,45 @@ Task 24 随 Join 落地确立项目形态原则：**仅在实现上受 Go 1.27 �
 #### Scenario: 旧调用点编译期提示
 - **WHEN** 下游代码调用包级 `stream.Concat(a, b)` 或 `stream.Cache(s)`
 - **THEN** 编译通过且行为正确，IDE/lint 呈现 Deprecated 提示并指向方法形态；下一版本升级为编译失败（移除）并标 BREAKING
+### Requirement: 时间窗口重采样（Task 26；分支立项时自编号 Task 24，随 feat/join 侧 Task 24/25 并入顺延）
+
+对标 Julia（TimeSeries resample/collapse）/Scala（Akka Streams groupedWithin、Spark window）的时间窗口能力，补齐「按时间而非按元素个数分窗」的重采样缺口——固定时间间隔的翻转窗口（tumbling window，桶互不重叠、对齐时间网格），与 `WindowSliding`（逐元素滑动）/`Chunk`（定长计数分组）互补：
+
+- 包级 `TimeWindow[T any](s *Stream[T], ts func(T) time.Time, d time.Duration) *Stream[TimeBucket[T]]`：以 `ts(v).Truncate(d)` 为桶键把元素分入对齐时间网格的窗口桶。语义为「time.Truncate 桶化 + GroupBy」：**桶输出顺序为桶键首现序、桶内保持相遇序**（对齐 `collector.GroupingBy` 保遇序）；**乱序/晚到元素并入其桶键对应的既有桶（桶不拆分）**；**不产空桶**（无元素的窗口不存在——GroupBy 语义的自然结果，需要补空窗/补零的重采样场景由调用方后处理）。**桶键经 `.UTC()` 规范化（增补，Task 26）**：`time.Truncate` 以绝对时间网格对齐（等值瞬间的不同 Location 表示截断后仍等值），但 `time.Time` 作 map 键按结构体 `==`（含 Location 指针）判等，混合时区数据的同一瞬间否则会被拆成两桶——规范化后**同一瞬间恒落同一桶，`Start` 恒为 UTC 网格点**（本地时区网格/展示由调用方对 `Start` 做 `.In(loc)` 后处理）。`TimeBucket[T]{Start time.Time; Items []T}` 为导出桶类型（Start 即桶键，Items 为桶内元素按相遇序的切片）。
+- **桶级聚合不设独立入口**（随用户 amend 指令裁撤原 TimeWindowBy 设想）：由 `Map` 组合表达——`TimeWindow(s, ts, d).Map(...)` 桶内内联聚合（求和/均值/计数），或对 `b.Items` 以 `FromSlice` 建子流交任意 collector（`Counting`/`Summing`/`Teeing` 等预置与组合收集器均可），见 `time_window_example_test.go`。
+- **桶序维持键首现序，不作默认时间排序（评审讨论决议）**：原始采样数据通常已时间升序（TimeWindow 输出即时间序，零额外开销的常见路径），不为低频乱序场景增加默认开销；需要时间序时由配套算子显式表达。备选「要求输入流时间有序」被否决：`SpSorted` 的有序不必是时间有序（特征位无法表达键域语义），运行期校验又违背链接期惰性契约。**配套包级 `SortedByTime[T any](s *Stream[TimeBucket[T]]) *Stream[TimeBucket[T]]`**：按 `Start` 升序的免比较器形态（方法 `Sorted` 需自写比较器；自然序包级 `Sorted` 要求 `cmp.Ordered`，结构体不满足）——避免用户为 TimeBucket 手写比较器（同「包级 Sorted 与方法 Sorted(cmp)」的分工）。桶键唯一（同一网格起点仅一桶），等键元素不存在，稳定性无差异。**文档必须明示提醒**：上游时间乱序时 TimeWindow 输出非时间序，需时间序请接 `SortedByTime`。
+- **空桶不默认补全（评审讨论决议），补全经配套算子显式表达**：主流对照本身分裂（pandas resample 含空桶为少数派；SQL/Polars/Spark/R/Influx 默认不含，pandas 自家 `groupby` 亦默认 drop），且补空需要时间范围首末的知识——那是调用方域，库不越权推断。**配套包级 `CompleteTimeBuckets[T any](s *Stream[TimeBucket[T]], d time.Duration) *Stream[TimeBucket[T]]`**：对已按时间升序的桶流，在相邻桶空档内按 d 步进插入空桶（`Items` 为 nil），输出保持升序；**范围数据驱动**（首桶之前/末桶之后不补）；**结构补全与填值分离**（空桶不携带值，补零/前值等填值语义由后接 `Map` 等算子组合表达，对齐 pandas resample+fillna / Polars upsample+fill_null 的分工）；输入必须升序（乱序输入语义未定义，先接 `SortedByTime`）；溢出护栏 `maxTimeBuckets`（1<<20）：补全桶数超限 panic，防御宽度 d 与数据时间尺度失配（如误传毫秒宽给跨月数据）的天量分配。**文档必须明示提醒**：TimeWindow 不产空桶，需要连续时间轴/补零时接 `CompleteTimeBuckets`。
+- 实现为独立新文件 `time_window.go`（随用户 amend 指令：代码/测试/示例均为新增文件，不与既有实现混置）：内联「物化 → 变换回放」两段式（协议同 `newStateful`，但不改其既有签名）；物化型有状态 → 并行降级（splitN 不继承）、不支持无限源（配合 Limit 先行截断可用）；特征位置 SpSized/SpSubSized（桶数物化后已知）、**SpLimited（物化型强制置位——随 feat/join 并入后的统一规则同步增补，输出可作 Join/LeftJoin 右流）**、清 SpSorted/SpDistinct（分组重排顺序关系）；上游出错（错误即值）时不产出任何桶，`Err()` 可查。
+- 参数契约：`ts == nil` / `d <= 0` panic（对齐 WindowSliding/nil 回调惯例）；`s == nil` 返回 nil。
+- 包级函数形态（实测复现）：方法返回 `Stream[TimeBucket[T]]`（`TimeBucket[T]` 含 `Items []T`，为 T 的派生类型）触发 Go 1.27 实例化循环（`T instantiated as TimeBucket[T]`），同 Chunk/WindowSliding 之因。
+
+#### Scenario: 按分钟分桶重采样
+- **WHEN** 传感器读数流（时间戳跨 3 个对齐分钟）执行 `TimeWindow(s, ts, time.Minute)`
+- **THEN** 输出 3 个 TimeBucket，Start 为各分钟网格起点，Items 保持相遇序
+
+#### Scenario: 桶级聚合组合表达
+- **WHEN** `TimeWindow(s, ts, time.Minute).Map(func(b) int64 { return int64(len(b.Items)) })`
+- **THEN** 每桶产出计数，与逐桶 Count 一致（不设独立聚合入口）
+
+#### Scenario: 乱序晚到并入既有桶
+- **WHEN** 时间序为 [t3, t1, t3]（t1 与 t3 分属不同桶，d 整分）执行 `TimeWindow(s, ts, d)`
+- **THEN** 输出 2 桶（t3 桶含 2 个元素、t1 桶 1 个），t3 桶不被拆分、桶序为 [t3, t1]
+
+#### Scenario: 乱序上游 + 时间序需求
+- **WHEN** 上游时间乱序（TimeWindow 输出为键首现序、非时间序），流接 `SortedByTime`
+- **THEN** 输出按 `Start` 升序，各桶 Items 不变
+
+#### Scenario: 空档补全
+- **WHEN** 升序桶流 Start 为 [t0, t0+3d]（中间两窗无元素）执行 `CompleteTimeBuckets(s, d)`
+- **THEN** 输出 [t0, t0+d（空桶）, t0+2d（空桶）, t0+3d]——空桶 Items 为 nil、原桶 Items 不变、输出保持升序；首桶之前与末桶之后不补
+
+#### Scenario: 混合时区表示的等值瞬间并入同桶
+- **WHEN** 元素时间戳为同一瞬间的不同 Location 表示（如 UTC 与 +08:00）执行 `TimeWindow(s, ts, d)`
+- **THEN** 输出单桶（Start 为 UTC 网格点）；桶键以 `.UTC()` 规范化——time.Time 作 map 键按结构体 ==（含 Location 指针）判等，未规范化时等值瞬间会被拆成两桶
+
+#### Scenario: 上游出错不产出
+- **WHEN** FromFunc 源在第 k 个元素返回错误，流经 `TimeWindow`
+- **THEN** 输出为空（变换不执行）、Begin(0)/End 配对、`Err()` 返回首错
 
 ### Requirement: 文档（Markdown）
 

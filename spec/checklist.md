@@ -112,3 +112,16 @@
 - [x] 仓内调用点全迁移（number_stream.go/全部测试/example basics+ lifecycle），deprecated 函数仓内零引用（SA1019 清洁）；外部模块验证旧签名行为一致
 - [x] 文档同步：docs/api.md（方法形态 + 迁移说明）、docs/design.md、README/README_CN、skills/go-stream/SKILL.md；spec「形态原则与方法化迁移」Requirement
 - [x] 质量门槛全绿：go fix / gofmt 空 / vet 无告警 / `go test -race -count=1 ./...` 全绿 / golangci-lint 0 issues / example 模块 build 通过
+
+## 时间窗口重采样（Task 26；独立分支 feat/time-window 立项时自编号 Task 24，随 master 侧 Task 24/25 并入顺延）
+- [x] `TimeWindow[T](s, ts, d) *Stream[TimeBucket[T]]`：`ts(v).Truncate(d)` 桶化 + GroupBy 语义（桶序=键首现序、桶内保遇序、晚到并入既有桶不拆分、不产空桶）；`TimeBucket[T]{Start, Items}` 导出类型
+- [x] 桶级聚合不设独立入口（用户 amend 裁撤 TimeWindowBy）：由 `Map` 组合表达，桶内可内联聚合或经 FromSlice 子流交任意 collector
+- [x] 独立新文件交付（用户 amend：不与既有实现混置）：time_window.go / time_window_test.go / time_window_example_test.go；独立内联两段式，不改 newStateful 既有签名
+- [x] 包级函数形态实测论证：方法返回 Stream[TimeBucket[T]]（T 的派生类型）触发实例化循环（T instantiated as TimeBucket[T]）
+- [x] 物化型 → 并行降级、不支持无限源（可先 Limit）；特征位置 SpSized/SpSubSized 清 SpSorted/SpDistinct；上游出错不产出（Err() 可查）；ts/d 非法 panic、nil 流返回 nil
+- [x] 单测覆盖上述语义与 panic 矩阵（time_window.go 覆盖率 100%）；质量门槛全绿（go fix/gofmt/vet/`go test -race`/golangci-lint）；README/README_CN/docs/api.md/SKILL.md 同步
+- [x] 合并 master 后增补：特征位补 SpLimited（对齐物化型统一规则；TimeWindow 输出可作 Join/LeftJoin 右流，TestTimeWindowJoinRight 守护——曾随 feat/join 并行开发缺失而误触有限性守卫 panic）
+- [x] 增补（评审）：桶键 `.UTC()` 规范化——time.Time 作 map 键按结构体 ==（含 Location 指针）判等，混合时区表示的等值瞬间曾被拆成两桶；TestTimeWindowMixedLocations 守护
+- [x] 增补（评审）：FuzzTimeWindowEquivalence（随机序列 + 随机窗口宽度 vs 参考 map 分桶逐桶等价 + 展平守恒）；TestTimeWindowJoinRight 作 Join/LeftJoin 右流集成回归
+- [x] 特征位健全性审计（增补，与 Java StreamOpFlag 对齐）：Filter/FilterErr 补清 SpSized；Limit 透传 SpSorted/SpDistinct（前缀保序保异）；Sorted/StableSorted 不清 SpDistinct、DistinctBy 不清 SpSorted（元素集不变）；Concat SpOrdered 双侧 AND（虚标修复）；Reverse 保留 SpSorted（相反比较器下有序，用户决议）；Zip SpLimited 取短 OR（任一侧有限即输出有限）；交叉透传断言入 TestCharsPropagation/TestSpLimitedPropagation，spec/design 增「Task 26 审计修订」记录
+- [x] 配套算子（评审讨论决议：便利以显式组合提供，不替用户做决定）：SortedByTime（桶序维持首现序，时间序需求显式表达；TestSortedByTime 覆盖）与 CompleteTimeBuckets（空桶补全不默认开启；结构补全与填值分离；maxTimeBuckets 溢出护栏；TestCompleteTimeBuckets/Guard 覆盖）；文档全渠道（godoc/docs.api/README×2/SKILL.md/example）明示「乱序上游输出非时间序」「不产空桶」的注意提醒

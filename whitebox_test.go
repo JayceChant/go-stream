@@ -512,12 +512,12 @@ func TestCharsMatrixStateless(t *testing.T) {
 }
 
 func TestCharsMatrixErrVariants(t *testing.T) {
-	// MapErr 保 SpSized；FilterErr 全保留；PeekErr 全保留；FlatMapErr 清 SpSized。
+	// MapErr 保 SpSized；FilterErr 清 SpSized（同 Filter，对齐 Java）；PeekErr 全保留；FlatMapErr 清 SpSized。
 	if c := sizedSource().MapErr(func(v int) (int, error) { return v, nil }).chars; c&SpSized == 0 || c&SpSorted != 0 {
 		t.Errorf("MapErr 后特征位 = %b, SpSized 保留、SpSorted 清除", c)
 	}
-	if c := sizedSource().FilterErr(func(int) (bool, error) { return true, nil }).chars; c&SpSized == 0 {
-		t.Errorf("FilterErr 后特征位 = %b, SpSized 应保留", c)
+	if c := sizedSource().FilterErr(func(int) (bool, error) { return true, nil }).chars; c&SpSized != 0 || c&SpOrdered == 0 {
+		t.Errorf("FilterErr 后特征位 = %b, SpSized 应清除、SpOrdered 应保留", c)
 	}
 	if c := sizedSource().PeekErr(func(int) error { return nil }).chars; c&SpSized == 0 {
 		t.Errorf("PeekErr 后特征位 = %b, SpSized 应保留", c)

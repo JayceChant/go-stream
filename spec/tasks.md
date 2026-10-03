@@ -199,6 +199,7 @@
   - [x] 增补（评审）：桶键 `.UTC()` 规范化——time.Time 作 map 键按结构体 ==（含 Location 指针）判等，混合时区表示的等值瞬间曾被拆成两桶；规范化后同一瞬间恒同桶、Start 恒为 UTC 网格点（TestTimeWindowMixedLocations 守护）
   - [x] fuzz（fuzz_test.go）：FuzzTimeWindowEquivalence——随机序列 + 随机窗口宽度，与参考 map 分桶逐桶等价（首现序/保遇序/UTC 键）+ 展平元素数守恒
   - [x] 配套算子（评审讨论决议：便利以显式组合提供，不替用户做决定）：`SortedByTime`（桶序维持首现序——升序上游是常见路径零开销，时间序需求显式接本算子；免写比较器的 TimeBucket 特化形态，TestSortedByTime 覆盖）与 `CompleteTimeBuckets`（空桶补全，不默认开启；结构补全与填值分离——空桶 Items 为 nil，填值由后接算子组合，对齐 pandas resample+fillna 分工；maxTimeBuckets 溢出护栏防宽度/跨度失配的天量分配，TestCompleteTimeBuckets/Guard 覆盖）
+  - [x] 特征位健全性审计（增补）：逐一核对全部算子的特征位增删与 Java StreamOpFlag 对齐——Filter/FilterErr 补清 SpSized（子集数量不精确）、Limit 透传 SpSorted/SpDistinct（前缀保序保异）、Sorted/DistinctBy 互不清对方位（元素集不变）、Concat SpOrdered 改双侧 AND（虚标修复）；Reverse 保留 SpSorted（相反比较器下有序，用户决议）与 Zip SpLimited 改 OR（取短即终止）经讨论后定向修正
   - [x] 文档同步：README/README_CN（Features/API 速览/对照表）、docs/api.md、skills/go-stream/SKILL.md
   - 依赖：无（引擎已稳定；独立文件不触碰既有实现）
 

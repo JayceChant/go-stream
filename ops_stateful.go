@@ -10,18 +10,23 @@ import "slices"
 //   - 单遍型（newStateless + 自维护状态）：Scan/Chunk/Enumerate——有状态但
 //     无需物化，元素边到边走（支持无限源）
 //
-// 物化后特征位统一规则：SpOrdered 保留；SpSized 保留（缓冲长度已知）并置
-// SpSubSized；SpSorted/SpDistinct 由各算子按语义设置；SpLimited 强制置位
+// 物化后特征位统一规则（Task 26 审计修订，对齐 Java StreamOpFlag 的
+// PRESERVE 语义）：SpOrdered 保留；SpSized 保留（缓冲长度已知）并置
+// SpSubSized；SpSorted/SpDistinct 按各算子语义设置——置换类（Reverse）
+// 与前缀类（Limit）透传保留，Sorted 置 SpSorted、DistinctBy 置
+// SpDistinct（元素集不变的算子不清对方位）；SpLimited 强制置位
 // （Limit 给出元素上界，其余物化输出=缓冲长度——求值能完成即有限）。
 
 // Limit 截取前 n 个元素（n == 0 得空流；无限源可借此终止；n < 0 panic）。
 // 数值链形态见 (*NumberStream[N]).Limit。
+// 特征位：截取前缀不改有序性/互异性（前缀保序保异）——SpSorted/SpDistinct
+// 透传保留（对齐 Java limit 的 PRESERVE 语义，Task 26 审计修正：此前误清）。
 func (s *Stream[T]) Limit(n int64) *Stream[T] {
 	if n < 0 {
 		panic("stream: Limit 参数为负")
 	}
 	return newStateful(s, n, func(buf []T) []T { return buf },
-		(s.chars|SpSized|SpSubSized|SpLimited)&^SpSorted)
+		s.chars|SpSized|SpSubSized|SpLimited)
 }
 
 // Skip 跳过前 n 个元素，输出其余（n == 0 恒等返回原流，不物化、特征位透传；
@@ -47,6 +52,9 @@ func (s *Stream[T]) Skip(n int64) *Stream[T] {
 // 换取更快的默认排序；需要等键保相遇序时用 StableSorted。
 // 免写比较器的自然序形态见包级函数 Sorted[T cmp.Ordered]（方法无法约束 T）；
 // 元素为数值时另有 (*NumberStream[N]).Sorted()。
+// 特征位：置 SpSorted/SpLimited；SpDistinct 透传不强制清除（排序后的
+// 元素集不变——上游互异则仍互异；不置位：排序无法把不互异变互异，
+// 对齐 Java sorted 对 DISTINCT 的 PRESERVE 语义）。
 // 就地排序物化缓冲：collectingSink 物化的缓冲为本次求值独占的全新切片
 // （append 构建，非源切片别名），不克隆即排序，省一次全量拷贝；
 // 用户源切片不受影响（回归测试 TestSorted / TestStableSorted 守护）。
@@ -57,12 +65,13 @@ func (s *Stream[T]) Sorted(cmp func(a, b T) int) *Stream[T] {
 	return newStateful(s, -1, func(buf []T) []T {
 		slices.SortFunc(buf, cmp)
 		return buf
-	}, (s.chars|SpSorted|SpLimited)&^SpDistinct)
+	}, s.chars|SpSorted|SpLimited)
 }
 
 // StableSorted 按比较器 cmp 升序稳定排序：等键元素保持相遇顺序
 // （对齐 slices.SortStableFunc，语义同 Java Stream sorted()）。
 // 元素为数值时的免比较器形态见 (*NumberStream[N]).StableSorted()。
+// 特征位同 Sorted（SpDistinct 透传）。
 func (s *Stream[T]) StableSorted(cmp func(a, b T) int) *Stream[T] {
 	if cmp == nil {
 		panic("stream: StableSorted 比较器为 nil")
@@ -70,7 +79,7 @@ func (s *Stream[T]) StableSorted(cmp func(a, b T) int) *Stream[T] {
 	return newStateful(s, -1, func(buf []T) []T {
 		slices.SortStableFunc(buf, cmp)
 		return buf
-	}, (s.chars|SpSorted|SpLimited)&^SpDistinct)
+	}, s.chars|SpSorted|SpLimited)
 }
 
 // DistinctBy 依据 key 函数去重：每组同 key 仅保留首个遇到的元素（保遇序）。
@@ -79,6 +88,9 @@ func (s *Stream[T]) StableSorted(cmp func(a, b T) int) *Stream[T] {
 // 在求值时 panic（用户契约，同 map 键语义）。
 // 按元素自身 == 去重的免键函数形态见包级函数 Distinct[T comparable]；
 // 元素为数值时另有 (*NumberStream[N]).Distinct()。
+// 特征位：置 SpDistinct/SpLimited；SpSorted 透传不强制清除（删除元素
+// 保持剩余元素的相对序——上游有序则仍有序；对齐 Java distinct 对
+// SORTED 的 PRESERVE 语义）。
 func (s *Stream[T]) DistinctBy[K comparable](key func(T) K) *Stream[T] {
 	if key == nil {
 		panic("stream: DistinctBy 键函数为 nil")
@@ -94,12 +106,15 @@ func (s *Stream[T]) DistinctBy[K comparable](key func(T) K) *Stream[T] {
 			}
 		}
 		return out
-	}, (s.chars|SpDistinct|SpLimited)&^SpSorted)
+	}, s.chars|SpDistinct|SpLimited)
 }
 
 // Reverse 反转元素顺序。
 // 就地反转物化缓冲（独占切片，非源别名，同 Sorted 的论证）。
 // 数值链形态见 (*NumberStream[N]).Reverse。
+// 特征位：SpSorted 透传保留——反转是在相反比较器下的排序（项目语义：
+// SpSorted 表示「按某比较器有序」，升序流反转后按取反比较器仍有序，
+// 随用户决议保留；SpDistinct 同为置换所保）。
 func (s *Stream[T]) Reverse() *Stream[T] {
 	return newStateful(s, -1, func(buf []T) []T {
 		slices.Reverse(buf)

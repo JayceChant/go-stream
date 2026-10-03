@@ -263,8 +263,15 @@ Tier B 全部纳入的理由：`Scan`/`Zip`/`Chunk`/`Enumerate` 均为低成本�
 - **THEN** 返回 `map[ID][]string` 正确分组且组内保持遇序
 
 ### Requirement: Splitterator 抽象与特征位
-接口五方法 + 特征位；slice/range 可二分 TrySplit（前后半段不重叠、并集完整）；seq/channel/func 不可分（返回 nil）；特征位沿管道传播规则（**修订**：Map/MapErr 为 1:1 变换，对齐 Java StreamOpFlag 只清 Sorted/Distinct、保留 Sized，使下游可按 size 预分配；Filter 保留全部；FlatMap 族 1:N 变换清 Sized/Sorted/Distinct；TakeWhile/DropWhile 清 Sized；Stateful 后段 SubSized...）。
+接口五方法 + 特征位；slice/range 可二分 TrySplit（前后半段不重叠、并集完整）；seq/channel/func 不可分（返回 nil）；特征位沿管道传播规则（**修订**：Map/MapErr 为 1:1 变换，对齐 Java StreamOpFlag 只清 Sorted/Distinct、保留 Sized，使下游可按 size 预分配；**修订（Task 26 审计）**：Filter 清 Sized（子集数量不精确）、Limit 透传 Sorted/Distinct（前缀保序保异）、Reverse 透传 Sorted（相反比较器下有序）、Sorted/DistinctBy 互不清对方位（元素集不变）；FlatMap 族 1:N 变换清 Sized/Sorted/Distinct；TakeWhile/DropWhile 清 Sized；Stateful 后段 SubSized...；完整修订记录见下方「Task 26 审计修订」）。
 **Task 24 增补 `SpLimited`（有限性声明，随用户反馈立项）**：区分「已知有限」与「无限或大小未知」。置位规则（**仅已知有限置位**）：`SpSized ⇒ SpLimited` 不变式（Of/FromSlice/Empty/Range/RangeClosed）；`FromMap` 置位（len 已知有限、遍历序不定、不报大小）；`FromFunc`/`FromSeq`/`FromChannel`（大小未知，库无法替调用方断言）与 `Generate`/`Iterate`（设计上无限）**不置位**。传播规则：透传类算子（Filter/Map/Peek/Err 族/TakeWhile/DropWhile/Scan/Chunk/FlatMap 族/WindowSliding/标志类）自然保留（有限进有限出）；物化类算子（Limit/Skip/Sorted/StableSorted/DistinctBy/Reverse/**TimeWindow**——Task 26 增补：桶数物化后已知，输出可作 Join/LeftJoin 右流）**强制置位**（Limit 给出上界、物化输出=缓冲长度，求值能完成即有限）；双流算子（Concat/Zip/Join/LeftJoin）**双侧 AND**（任一侧无限/未知即整体未知）。消费方：Join/LeftJoin 以之作右流有限性守卫（见「双流条件连接 Join」Requirement）。
+
+**Task 26 审计修订（特征位健全性——「置位必为真」）**：逐一核对全部算子的特征位增删，与 Java StreamOpFlag 的 flag 表对齐：
+- `Filter`/`FilterErr` 补清 `SpSized`——过滤后元素数为子集不再精确，此前虚标（对齐 Java filter 清 SIZED）；`Begin` 的 size 参数本定义为估计数（预分配上界提示），传递行为不变。
+- `Limit` 的 `SpSorted` 由清除改透传保留——前缀保持有序性与互异性（对齐 Java limit 对 SORTED/DISTINCT 的 PRESERVE）；此前的清除是过度保守。
+- `Sorted`/`StableSorted` 不再清 `SpDistinct`、`DistinctBy` 不再清 `SpSorted`——排序/去重均为元素集不变的变换（置换或删元素保剩余相对序），对方特征位依然成立（对齐 Java PRESERVE 语义）。
+- `Reverse` 保留 `SpSorted`——`SpSorted` 语义为「按某比较器有序」：升序流反转后按取反比较器仍有序（用户决议，异于 Java Stream 硬编码自然序的 SORTED 语义；Java 的清除源自其 SORTED 绑定自然序/既知比较器的特定语义，本库特征位不携带比较器上下文，故按更一般的「存在比较器」语义保留）。
+- `Concat` 的 `SpOrdered` 由按位或改双侧 AND——任一侧序不确定（FromMap/Unordered 声明），拼接整体的相遇序即不确定，OR 虚标有序；与 Zip/Join 同规则（行为无影响：Concat splitN=nil 不进并行路径读该位）。
 
 ### Requirement: 错误即值模型
 可预期错误（FromFunc/Err 族）以 error 值传播：首错短路、部分结果保留、`Err()` 查询；不可恢复错误（重复消费、nil 回调）panic 且信息清晰；回调 panic 原样传播。

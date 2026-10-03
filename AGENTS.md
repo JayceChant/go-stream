@@ -16,10 +16,11 @@
 - 唯一规格目录：项目根目录下的 [`spec/`](./spec/)，包含三份文档：
   - [`spec/spec.md`](./spec/spec.md) —— 需求与设计规格（Why / 架构 / 错误模型 / API 详案 / Requirements）
   - [`spec/tasks.md`](./spec/tasks.md) —— 任务清单与依赖关系；**任务完成后必须勾选 `[x]`**
-  - [`spec/checklist.md`](./spec/checklist.md) —— 验收检查清单；**验证通过后必须勾选 `[x]`**
+  - [`spec/checklist.md`](./spec/checklist.md) —— 固定验收动作清单；每次任务收尾**按序核对**（不勾选），随项目实际动态调整
+  - [`spec/legacy.md`](./spec/legacy.md) —— 降级档案（被取代口径按时间序追加，附 commit hash），仅作考古参考，**不作为实现依据**
 - 所有后续 task 都要遵循 spec 的规定；实现不得偏离规格。
+- **精简纪律**：`spec/spec.md` 行数上限 **400 行**，超出时按 [`agents/common.md`](./agents/common.md) 1.1 节处理；`spec/tasks.md` 保持「未完成 + 最近完成 + 长远影响」最小集。精简动作随当次任务提交，不必单独立任务。
 - 实现过程中发现规格有误或不完整：先修订 `spec.md`（说明理由），经确认后再改代码。**规格与代码冲突时，以最新修订的 spec 为准。**
-- 并行求值（`Parallel(n)`）原为 spec 后续 TODO，已随用户确认的 goal 立项并实现（Task 8，语义见 spec「并行求值 v1」）。
 
 ## 2. 项目专属约定
 

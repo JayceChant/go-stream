@@ -8,7 +8,7 @@ package stream
 // 终端 sink 因此总能观察到配对完整的 Begin/End。
 
 // errConsumed 是违反一次性消费语义时的 panic 文案（编程错误，不可恢复）。
-const errConsumed = "stream: 该流已被链接或消费，不可重复使用（一次性语义）"
+const errConsumed = "stream: stream already linked or consumed; streams are single-use"
 
 // checkLinked 检查本 stage 是否已被链接或消费：是则 panic，否则置位 consumed。
 func (p *pipeline[T]) checkLinked() {

@@ -18,7 +18,7 @@ import "iter"
 // 同名形态（(*NumberStream[N]).Filter，经收窄入口构造）。
 func (s *Stream[T]) Filter(p func(T) bool) *Stream[T] {
 	if p == nil {
-		panic("stream: Filter 谓词为 nil")
+		panic("stream: Filter predicate is nil")
 	}
 	return newStateless(s, func(down Sink[T], _ *evalCtx) Sink[T] {
 		return &filterSink[T]{down: down, p: p}
@@ -47,7 +47,7 @@ func (w *filterSink[T]) End() { w.down.End() }
 // 类型迁移入数值流的收窄形态见下方 MapToNumber。
 func (s *Stream[T]) Map[U any](f func(T) U) *Stream[U] {
 	if f == nil {
-		panic("stream: Map 函数为 nil")
+		panic("stream: Map function is nil")
 	}
 	return newStateless(s, func(down Sink[U], _ *evalCtx) Sink[T] {
 		return &mapSink[T, U]{down: down, f: f}
@@ -72,7 +72,7 @@ func (w *mapSink[T, U]) End()             { w.down.End() }
 // 实现随 Map 同置本文件；收窄后的链式方法面见 NumberStream（Task 18）。
 func (s *Stream[T]) MapToNumber[N Number](f func(T) N) *NumberStream[N] {
 	if f == nil {
-		panic("stream: MapToNumber 函数为 nil")
+		panic("stream: MapToNumber function is nil")
 	}
 	return wrapNumber(s.Map(f))
 }
@@ -80,7 +80,7 @@ func (s *Stream[T]) MapToNumber[N Number](f func(T) N) *NumberStream[N] {
 // FlatMap 将每个元素经 f 展开为子序列并依次输出。
 func (s *Stream[T]) FlatMap[U any](f func(T) []U) *Stream[U] {
 	if f == nil {
-		panic("stream: FlatMap 函数为 nil")
+		panic("stream: FlatMap function is nil")
 	}
 	return newStateless(s, func(down Sink[U], _ *evalCtx) Sink[T] {
 		return &flatMapSink[T, U]{down: down, f: f}
@@ -109,7 +109,7 @@ func (w *flatMapSink[T, U]) End() { w.down.End() }
 // FlatMapSeq 与 FlatMap 相同，但展开函数返回 iter.Seq（支持惰性子序列）。
 func (s *Stream[T]) FlatMapSeq[U any](f func(T) iter.Seq[U]) *Stream[U] {
 	if f == nil {
-		panic("stream: FlatMapSeq 函数为 nil")
+		panic("stream: FlatMapSeq function is nil")
 	}
 	return newStateless(s, func(down Sink[U], _ *evalCtx) Sink[T] {
 		return &flatMapSeqSink[T, U]{down: down, f: f}
@@ -140,7 +140,7 @@ func (w *flatMapSeqSink[T, U]) End() { w.down.End() }
 // 数值链形态见 (*NumberStream[N]).Peek。
 func (s *Stream[T]) Peek(f func(T)) *Stream[T] {
 	if f == nil {
-		panic("stream: Peek 函数为 nil")
+		panic("stream: Peek function is nil")
 	}
 	return newStateless(s, func(down Sink[T], _ *evalCtx) Sink[T] {
 		return &peekSink[T]{down: down, f: f}
@@ -163,7 +163,7 @@ func (w *peekSink[T]) End()             { w.down.End() }
 // 数值链形态见 (*NumberStream[N]).TakeWhile。
 func (s *Stream[T]) TakeWhile(p func(T) bool) *Stream[T] {
 	if p == nil {
-		panic("stream: TakeWhile 谓词为 nil")
+		panic("stream: TakeWhile predicate is nil")
 	}
 	return newStateless(s, func(down Sink[T], _ *evalCtx) Sink[T] {
 		return &takeWhileSink[T]{down: down, p: p}
@@ -192,7 +192,7 @@ func (w *takeWhileSink[T]) End() { w.down.End() }
 // 数值链形态见 (*NumberStream[N]).DropWhile。
 func (s *Stream[T]) DropWhile(p func(T) bool) *Stream[T] {
 	if p == nil {
-		panic("stream: DropWhile 谓词为 nil")
+		panic("stream: DropWhile predicate is nil")
 	}
 	ns := newStateless(s, func(down Sink[T], _ *evalCtx) Sink[T] {
 		return &dropWhileSink[T]{down: down, p: p}
@@ -228,7 +228,7 @@ func (w *dropWhileSink[T]) End() { w.down.End() }
 // 1:1 变换：保留 SpSized，仅清 SpSorted/SpDistinct。
 func (s *Stream[T]) MapErr[U any](f func(T) (U, error)) *Stream[U] {
 	if f == nil {
-		panic("stream: MapErr 函数为 nil")
+		panic("stream: MapErr function is nil")
 	}
 	return newStateless(s, func(down Sink[U], ec *evalCtx) Sink[T] {
 		return &mapErrSink[T, U]{down: down, ec: ec, f: f}
@@ -257,7 +257,7 @@ func (w *mapErrSink[T, U]) End() { w.down.End() }
 // FilterErr 带错误返回的 Filter。
 func (s *Stream[T]) FilterErr(p func(T) (bool, error)) *Stream[T] {
 	if p == nil {
-		panic("stream: FilterErr 谓词为 nil")
+		panic("stream: FilterErr predicate is nil")
 	}
 	return newStateless(s, func(down Sink[T], ec *evalCtx) Sink[T] {
 		return &filterErrSink[T]{down: down, ec: ec, p: p}
@@ -286,7 +286,7 @@ func (w *filterErrSink[T]) End() { w.down.End() }
 // FlatMapErr 带错误返回的 FlatMap。
 func (s *Stream[T]) FlatMapErr[U any](f func(T) ([]U, error)) *Stream[U] {
 	if f == nil {
-		panic("stream: FlatMapErr 函数为 nil")
+		panic("stream: FlatMapErr function is nil")
 	}
 	return newStateless(s, func(down Sink[U], ec *evalCtx) Sink[T] {
 		return &flatMapErrSink[T, U]{down: down, ec: ec, f: f}
@@ -317,7 +317,7 @@ func (w *flatMapErrSink[T, U]) End() { w.down.End() }
 // PeekErr 带错误返回的 Peek。
 func (s *Stream[T]) PeekErr(f func(T) error) *Stream[T] {
 	if f == nil {
-		panic("stream: PeekErr 函数为 nil")
+		panic("stream: PeekErr function is nil")
 	}
 	return newStateless(s, func(down Sink[T], ec *evalCtx) Sink[T] {
 		return &peekErrSink[T]{down: down, ec: ec, f: f}

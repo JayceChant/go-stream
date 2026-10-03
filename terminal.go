@@ -15,7 +15,7 @@ import (
 // 串行调用；Unordered 流例外：按分片完成序推入，顺序不保证）。
 func (s *Stream[T]) ForEach(f func(T)) {
 	if f == nil {
-		panic("stream: ForEach 函数为 nil")
+		panic("stream: ForEach function is nil")
 	}
 	s.pipeline.evaluateNP(sinkFunc[T](func(v T) bool { f(v); return true }), sliceTotal[T]{})
 }
@@ -71,7 +71,7 @@ func (sliceTotal[T]) pushPart(i int, sinks []Sink[T], down Sink[T], _ *evalCtx) 
 // ForEachUntil 对每个元素执行 f；f 返回 false 时提前终止。
 func (s *Stream[T]) ForEachUntil(f func(T) bool) {
 	if f == nil {
-		panic("stream: ForEachUntil 函数为 nil")
+		panic("stream: ForEachUntil function is nil")
 	}
 	s.pipeline.evaluate(sinkFunc[T](f))
 }
@@ -121,7 +121,7 @@ func (t countTotal[T]) total(parts []Sink[T], _ Sink[T], _ *evalCtx) {
 // 可组合的收集器形态见 collector.Reducing（供 Mapping/GroupingBy 下游折叠）。
 func (s *Stream[T]) Reduce(identity T, op func(T, T) T) T {
 	if op == nil {
-		panic("stream: Reduce 操作为 nil")
+		panic("stream: Reduce operator is nil")
 	}
 	acc := identity
 	s.pipeline.evaluateNP(sinkFunc[T](func(v T) bool { acc = op(acc, v); return true }), reduceTotal[T]{&acc, op})
@@ -158,7 +158,7 @@ func (t reduceTotal[T]) total(parts []Sink[T], _ Sink[T], _ *evalCtx) {
 // ReduceOpt 无初值折叠：空流返回 (零值, false)。
 func (s *Stream[T]) ReduceOpt(op func(T, T) T) (T, bool) {
 	if op == nil {
-		panic("stream: ReduceOpt 操作为 nil")
+		panic("stream: ReduceOpt operator is nil")
 	}
 	var acc T
 	found := false
@@ -187,7 +187,7 @@ func (s *Stream[T]) First() (T, bool) {
 // FindAny 寻找任一满足 p 的元素（短路）。顺序流下等价于 First + Filter。
 func (s *Stream[T]) FindAny(p func(T) bool) (T, bool) {
 	if p == nil {
-		panic("stream: FindAny 谓词为 nil")
+		panic("stream: FindAny predicate is nil")
 	}
 	var hit T
 	found := false
@@ -204,7 +204,7 @@ func (s *Stream[T]) FindAny(p func(T) bool) (T, bool) {
 // AnyMatch 是否存在满足 p 的元素（短路：命中即返回 true）。
 func (s *Stream[T]) AnyMatch(p func(T) bool) bool {
 	if p == nil {
-		panic("stream: AnyMatch 谓词为 nil")
+		panic("stream: AnyMatch predicate is nil")
 	}
 	return s.match(p, true, false)
 }
@@ -212,7 +212,7 @@ func (s *Stream[T]) AnyMatch(p func(T) bool) bool {
 // AllMatch 是否全部元素满足 p（短路：遇首个不满足返回 false；空流 true）。
 func (s *Stream[T]) AllMatch(p func(T) bool) bool {
 	if p == nil {
-		panic("stream: AllMatch 谓词为 nil")
+		panic("stream: AllMatch predicate is nil")
 	}
 	return s.match(p, false, true)
 }
@@ -220,7 +220,7 @@ func (s *Stream[T]) AllMatch(p func(T) bool) bool {
 // NoneMatch 是否无元素满足 p（空流 true）。
 func (s *Stream[T]) NoneMatch(p func(T) bool) bool {
 	if p == nil {
-		panic("stream: NoneMatch 谓词为 nil")
+		panic("stream: NoneMatch predicate is nil")
 	}
 	return !s.AnyMatch(p)
 }
@@ -255,7 +255,7 @@ func (s *Stream[T]) Max(cmp func(a, b T) int) (T, bool) {
 
 func (s *Stream[T]) minmax(cmp func(a, b T) int, sign int) (T, bool) {
 	if cmp == nil {
-		panic("stream: Min/Max 比较器为 nil")
+		panic("stream: Min/Max comparator is nil")
 	}
 	var best T
 	found := false

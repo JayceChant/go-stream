@@ -63,10 +63,10 @@ func TimeWindow[T any](s *Stream[T], ts func(T) time.Time, d time.Duration) *Str
 		return nil
 	}
 	if ts == nil {
-		panic("stream: TimeWindow 时间函数为 nil")
+		panic("stream: TimeWindow time function is nil")
 	}
 	if d <= 0 {
-		panic("stream: TimeWindow 窗口宽度必须为正")
+		panic("stream: TimeWindow window width must be positive")
 	}
 	s.checkLinked()
 	driveUpstream := s.drive
@@ -153,7 +153,7 @@ func CompleteTimeBuckets[T any](s *Stream[TimeBucket[T]], d time.Duration) *Stre
 		return nil
 	}
 	if d <= 0 {
-		panic("stream: CompleteTimeBuckets 窗口宽度必须为正")
+		panic("stream: CompleteTimeBuckets window width must be positive")
 	}
 	return newStateful(s, -1, func(buf []TimeBucket[T]) []TimeBucket[T] {
 		if len(buf) == 0 {
@@ -164,7 +164,8 @@ func CompleteTimeBuckets[T any](s *Stream[TimeBucket[T]], d time.Duration) *Stre
 		for _, b := range buf {
 			for b.Start.After(cur) { // 间隙：网格点早于当前桶时插空桶
 				if len(out) > maxTimeBuckets {
-					panic("stream: CompleteTimeBuckets 补全桶数超上限（检查宽度 d 与数据时间尺度是否失配）")
+					panic("stream: CompleteTimeBuckets number of buckets to backfill exceeds limit " +
+						"(check that width d matches the time scale of the data)")
 				}
 				out = append(out, TimeBucket[T]{Start: cur})
 				cur = cur.Add(d)

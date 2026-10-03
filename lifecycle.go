@@ -22,7 +22,7 @@ import "sync"
 // 数值链形态见 (*NumberStream[N]).OnClose。
 func (s *Stream[T]) OnClose(f func() error) *Stream[T] {
 	if f == nil {
-		panic("stream: OnClose 回调为 nil")
+		panic("stream: OnClose callback is nil")
 	}
 	var once sync.Once
 	var ferr error

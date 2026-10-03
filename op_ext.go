@@ -11,10 +11,10 @@ import "sync"
 // 任一流耗尽即终止（取短）。两条流均被标记消费。
 func (s *Stream[T]) Zip[U, R any](other *Stream[U], f func(T, U) R) *Stream[R] {
 	if other == nil {
-		panic("stream: Zip 另一流为 nil")
+		panic("stream: Zip other stream is nil")
 	}
 	if f == nil {
-		panic("stream: Zip 合并函数为 nil")
+		panic("stream: Zip merge function is nil")
 	}
 	s.checkLinked()
 	other.checkLinked()
@@ -106,9 +106,9 @@ func joinStreams[T, U, R any](
 	// 有限性守卫：右流未声明 SpLimited（无限或大小未知）时 fail-fast，
 	// 把无限右流的运行期挂死提前为链接期明确报错（置位/传播规则见 spec）。
 	if right.chars&SpLimited == 0 {
-		panic("stream: Join/LeftJoin 右流必须已知有限（SpLimited 缺失）：" +
-			"Generate/Iterate 等无限源与 FromFunc/FromSeq/FromChannel 等大小未知源" +
-			"请改作左流，或先施加 Limit 上界/物化")
+		panic("stream: Join/LeftJoin right stream must be known finite (missing SpLimited): " +
+			"infinite sources (Generate/Iterate) and unknown-size sources (FromFunc/FromSeq/FromChannel) " +
+			"must be the left stream, or get a Limit bound / be materialized first")
 	}
 	left.checkLinked()
 	right.checkLinked()
@@ -160,13 +160,13 @@ func joinStreams[T, U, R any](
 // 左外连接形态见 LeftJoin；右外连接以右流作为接收者调 LeftJoin 即得。
 func (s *Stream[T]) Join[U, R any](other *Stream[U], on func(T, U) bool, combine func(T, U) R) *Stream[R] {
 	if other == nil {
-		panic("stream: Join 另一流为 nil")
+		panic("stream: Join other stream is nil")
 	}
 	if on == nil {
-		panic("stream: Join 匹配条件为 nil")
+		panic("stream: Join match predicate is nil")
 	}
 	if combine == nil {
-		panic("stream: Join 组合函数为 nil")
+		panic("stream: Join combiner is nil")
 	}
 	return joinStreams(s, other, on, combine, false)
 }
@@ -179,13 +179,13 @@ func (s *Stream[T]) Join[U, R any](other *Stream[U], on func(T, U) bool, combine
 // other/on/combine 为 nil 时 panic。
 func (s *Stream[T]) LeftJoin[U, R any](other *Stream[U], on func(T, U) bool, combine func(T, U) R) *Stream[R] {
 	if other == nil {
-		panic("stream: LeftJoin 另一流为 nil")
+		panic("stream: LeftJoin other stream is nil")
 	}
 	if on == nil {
-		panic("stream: LeftJoin 匹配条件为 nil")
+		panic("stream: LeftJoin match predicate is nil")
 	}
 	if combine == nil {
-		panic("stream: LeftJoin 组合函数为 nil")
+		panic("stream: LeftJoin combiner is nil")
 	}
 	return joinStreams(s, other, on, combine, true)
 }
@@ -208,7 +208,7 @@ func Distinct[T comparable](s *Stream[T]) *Stream[T] {
 // 有状态单遍（跨元素缓冲）→ 并行降级（splitN=nil）。
 func Chunk[T any](s *Stream[T], n int) *Stream[[]T] {
 	if n <= 0 {
-		panic("stream: Chunk 分组大小必须为正")
+		panic("stream: Chunk size must be positive")
 	}
 	ns := newStateless(s, func(down Sink[[]T], _ *evalCtx) Sink[T] {
 		return &chunkSink[T]{down: down, n: n}
@@ -276,7 +276,7 @@ func WindowSliding[T any](s *Stream[T], n int) *Stream[[]T] {
 		return nil
 	}
 	if n <= 0 {
-		panic("stream: WindowSliding 窗口大小必须为正")
+		panic("stream: WindowSliding window size must be positive")
 	}
 	ns := newStateless(s, func(down Sink[[]T], _ *evalCtx) Sink[T] {
 		return &windowSlidingSink[T]{down: down, n: n}

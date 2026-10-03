@@ -23,7 +23,7 @@ import "slices"
 // 透传保留（对齐 Java limit 的 PRESERVE 语义，Task 26 审计修正：此前误清）。
 func (s *Stream[T]) Limit(n int64) *Stream[T] {
 	if n < 0 {
-		panic("stream: Limit 参数为负")
+		panic("stream: Limit argument is negative")
 	}
 	return newStateful(s, n, func(buf []T) []T { return buf },
 		s.chars|SpSized|SpSubSized|SpLimited)
@@ -34,7 +34,7 @@ func (s *Stream[T]) Limit(n int64) *Stream[T] {
 // 数值链形态见 (*NumberStream[N]).Skip。
 func (s *Stream[T]) Skip(n int64) *Stream[T] {
 	if n < 0 {
-		panic("stream: Skip 参数为负")
+		panic("stream: Skip argument is negative")
 	}
 	if n == 0 { // no-op 特例：免物化/免降级，语义同 JDK skip(0) returns this
 		return s
@@ -60,7 +60,7 @@ func (s *Stream[T]) Skip(n int64) *Stream[T] {
 // 用户源切片不受影响（回归测试 TestSorted / TestStableSorted 守护）。
 func (s *Stream[T]) Sorted(cmp func(a, b T) int) *Stream[T] {
 	if cmp == nil {
-		panic("stream: Sorted 比较器为 nil")
+		panic("stream: Sorted comparator is nil")
 	}
 	return newStateful(s, -1, func(buf []T) []T {
 		slices.SortFunc(buf, cmp)
@@ -74,7 +74,7 @@ func (s *Stream[T]) Sorted(cmp func(a, b T) int) *Stream[T] {
 // 特征位同 Sorted（SpDistinct 透传）。
 func (s *Stream[T]) StableSorted(cmp func(a, b T) int) *Stream[T] {
 	if cmp == nil {
-		panic("stream: StableSorted 比较器为 nil")
+		panic("stream: StableSorted comparator is nil")
 	}
 	return newStateful(s, -1, func(buf []T) []T {
 		slices.SortStableFunc(buf, cmp)
@@ -93,7 +93,7 @@ func (s *Stream[T]) StableSorted(cmp func(a, b T) int) *Stream[T] {
 // SORTED 的 PRESERVE 语义）。
 func (s *Stream[T]) DistinctBy[K comparable](key func(T) K) *Stream[T] {
 	if key == nil {
-		panic("stream: DistinctBy 键函数为 nil")
+		panic("stream: DistinctBy key function is nil")
 	}
 	return newStateful(s, -1, func(buf []T) []T {
 		seen := make(map[K]struct{}, len(buf))
@@ -129,7 +129,7 @@ func (s *Stream[T]) Reverse() *Stream[T] {
 // 有状态单遍（滚动 acc）→ 并行降级（splitN=nil）。
 func (s *Stream[T]) Scan[U any](seed U, f func(U, T) U) *Stream[U] {
 	if f == nil {
-		panic("stream: Scan 函数为 nil")
+		panic("stream: Scan function is nil")
 	}
 	ns := newStateless(s, func(down Sink[U], _ *evalCtx) Sink[T] {
 		return &scanSink[T, U]{down: down, acc: seed, f: f}

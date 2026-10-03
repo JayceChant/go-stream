@@ -417,8 +417,13 @@ func TestSpLimitedPropagation(t *testing.T) {
 	if c := Of(1).Zip(Of(2), func(a, b int) int { return a }).chars; c&SpLimited == 0 {
 		t.Errorf("Zip 双侧有限应置 SpLimited, got %b", c)
 	}
-	if c := Of(1).Zip(Generate(func() int { return 1 }), func(a, b int) int { return a }).chars; c&SpLimited != 0 {
-		t.Errorf("Zip 一侧无限不应置 SpLimited, got %b", c)
+	// Zip 取短即终止（Task 26 审计修订）：任一侧已知有限则输出必有限，
+	// SpLimited 按 OR 传播——Zip 产物（短侧有限）可作 Join/LeftJoin 右流
+	if c := Of(1).Zip(Generate(func() int { return 1 }), func(a, b int) int { return a }).chars; c&SpLimited == 0 {
+		t.Errorf("Zip 一侧有限即应置 SpLimited（取短即终止）, got %b", c)
+	}
+	if c := FromSeq(func(yield func(int) bool) { yield(1) }).Zip(Generate(func() int { return 1 }), func(a, b int) int { return a }).chars; c&SpLimited != 0 {
+		t.Errorf("Zip 双侧均未知/无限不应虚标 SpLimited, got %b", c)
 	}
 	// Join 产物：右流经守卫必有限，左流有限则产物置位
 	if c := Of(1, 2).Join(Of(1), func(t, u int) bool { return true }, func(t, u int) int { return t }).chars; c&SpLimited == 0 {

@@ -4,8 +4,9 @@ import "iter"
 
 // ops_stateless.go：无状态中间操作（求值时融合为单遍，不物化）。
 //
-// 特征位传播（对齐 Java StreamOpFlag 语义，Task 6 修订）：
-//   - Filter：保留上游全部特征位（过滤不改变结构性质）
+// 特征位传播（对齐 Java StreamOpFlag 语义，Task 6 修订；Task 26 审计再修订）：
+//   - Filter：清除 SpSized（子集元素数不再精确；对齐 Java filter 清 SIZED），
+//     其余保留（过滤不改变有序/互异/有限性）
 //   - Map/MapErr（1:1 变换）：保留 SpSized（下游可按 size 预分配），
 //     清除 SpDistinct/SpSorted（元素集已改变，去重与有序不再成立）
 //   - FlatMap 族/Scan/Enumerate 等元素变换：清除 SpSized/SpDistinct/SpSorted
@@ -21,7 +22,7 @@ func (s *Stream[T]) Filter(p func(T) bool) *Stream[T] {
 	}
 	return newStateless(s, func(down Sink[T], _ *evalCtx) Sink[T] {
 		return &filterSink[T]{down: down, p: p}
-	}, s.chars)
+	}, s.chars&^SpSized) // 子集：元素数不再精确（Begin 的 size 仍作上界估计传递）
 }
 
 type filterSink[T any] struct {
@@ -260,7 +261,7 @@ func (s *Stream[T]) FilterErr(p func(T) (bool, error)) *Stream[T] {
 	}
 	return newStateless(s, func(down Sink[T], ec *evalCtx) Sink[T] {
 		return &filterErrSink[T]{down: down, ec: ec, p: p}
-	}, s.chars)
+	}, s.chars&^SpSized)
 }
 
 type filterErrSink[T any] struct {

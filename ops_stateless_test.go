@@ -186,9 +186,9 @@ func TestNilCallbackPanic(t *testing.T) {
 func TestCharsPropagation(t *testing.T) {
 	// FromSlice 源特征：SpSized|SpOrdered|SpSubSized
 
-	// Filter 保留全部
-	if c := base2().Filter(func(int) bool { return true }).chars; c&SpSized == 0 || c&SpOrdered == 0 {
-		t.Errorf("Filter 后特征位 = %b, SpSized/SpOrdered 应保留", c)
+	// Filter 清 SpSized（子集数量不精确，对齐 Java filter 清 SIZED）、保 SpOrdered
+	if c := base2().Filter(func(int) bool { return true }).chars; c&SpSized != 0 || c&SpOrdered == 0 {
+		t.Errorf("Filter 后特征位 = %b, SpSized 应清除、SpOrdered 应保留", c)
 	}
 	// Map（1:1 变换）保留 SpSized，清除 SpSorted/SpDistinct
 	if c := base2().Map(func(v int) int { return v }).chars; c&SpSized == 0 || c&SpSorted != 0 || c&SpDistinct != 0 {

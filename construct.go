@@ -129,6 +129,11 @@ func (s *Stream[T]) Concat(other *Stream[T]) *Stream[T] {
 	if s.chars&SpLimited == 0 || other.chars&SpLimited == 0 {
 		chars &^= SpLimited // 有限性双侧 AND：任一侧无限/未知即整体未知
 	}
+	if s.chars&SpOrdered == 0 || other.chars&SpOrdered == 0 {
+		// 相遇序确定性双侧 AND：任一侧序不确定（如 FromMap/Unordered 声明），
+		// 拼接整体的相遇序即不确定——与 Zip/Join 的双侧 AND 同规则。
+		chars &^= SpOrdered
+	}
 	return &Stream[T]{pipeline[T]{
 		drive: func(down Sink[T], ec *evalCtx) {
 			driveA(suppressEnd[T]{down}, ec) // 本流段：Begin 下传、End 吞掉

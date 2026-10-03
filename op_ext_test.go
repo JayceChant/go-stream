@@ -407,6 +407,13 @@ func TestSpLimitedPropagation(t *testing.T) {
 	if c := Of(1).Concat(Generate(func() int { return 1 })).chars; c&SpLimited != 0 {
 		t.Errorf("Concat 一侧无限不应置 SpLimited, got %b", c)
 	}
+	// Concat 相遇序确定性双侧 AND（Task 26 审计修订）：任一侧序不确定即整体失 SpOrdered
+	if c := Of(1).Concat(Of(2)).chars; c&SpOrdered == 0 {
+		t.Errorf("Concat 双侧有序应保 SpOrdered, got %b", c)
+	}
+	if c := Of(1).Concat(FromMap(map[int]int{1: 1}).Map(func(kv KV[int, int]) int { return kv.Key })).chars; c&SpOrdered != 0 {
+		t.Errorf("Concat 一侧 Unordered 应失 SpOrdered, got %b", c)
+	}
 	if c := Of(1).Zip(Of(2), func(a, b int) int { return a }).chars; c&SpLimited == 0 {
 		t.Errorf("Zip 双侧有限应置 SpLimited, got %b", c)
 	}

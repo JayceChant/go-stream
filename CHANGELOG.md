@@ -3,6 +3,35 @@
 All notable changes to this project will be documented in this file.
 由 [release-please](https://github.com/googleapis/release-please) 基于中文 Conventional Commits 自动维护；v0.1.0 及之前为人工回填。
 
+## [0.3.0](https://github.com/JayceChant/go-stream/compare/v0.2.0...v0.3.0) (2026-10-03)
+
+
+### Features
+
+* **stream:** 实现 TimeWindow 时间窗口分桶（Task 24） ([edfe5c2](https://github.com/JayceChant/go-stream/commit/edfe5c215903ed1ca1f9317ed3c535b8d06749fd))
+* **stream:** 新增 CompleteTimeBuckets——时间桶空档补全配套算子 ([41f2132](https://github.com/JayceChant/go-stream/commit/41f213273d4185f717097471006ceb011fd791ee))
+* **stream:** 新增 SortedByTime——TimeWindow 桶流的时间序配套算子 ([00c45fd](https://github.com/JayceChant/go-stream/commit/00c45fda59e9b01e92e3020a8d75b7b4ece7da95))
+* **stream:** 新增 SpLimited 特征位并在 Join 链接期守卫右流有限性 ([5c41dce](https://github.com/JayceChant/go-stream/commit/5c41dceb4bb12fea92c106dab675d114c4f3f1d5))
+* **stream:** 添加 Join/LeftJoin 双流条件连接 ([fbb0c73](https://github.com/JayceChant/go-stream/commit/fbb0c7364504ea36c7f8167b6a394fd2c71d282a))
+
+
+### Bug Fixes
+
+* **stream:** Filter/FilterErr 清 SpSized、Concat SpOrdered 改双侧 AND ([7bbe4c6](https://github.com/JayceChant/go-stream/commit/7bbe4c622bf105db640d0dd0db356195b216c545))
+* **stream:** panic 消息统一为英文——面向国际用户的可读运行时报错 ([5c748c2](https://github.com/JayceChant/go-stream/commit/5c748c2985063653fa8ab1a05a0f6c17cce64b1e))
+* **stream:** TimeWindow 桶键经 .UTC() 规范化，混合时区等值瞬间不拆桶 ([b80e8e4](https://github.com/JayceChant/go-stream/commit/b80e8e4c3570f7839fe6448c4ed58c1721fcf5bc))
+* **stream:** TimeWindow 特征位补 SpLimited，输出可作 Join/LeftJoin 右流 ([5e8e8b8](https://github.com/JayceChant/go-stream/commit/5e8e8b85664b9f0eb9a9a989930442e4cede3221))
+* **stream:** Zip 有限性 SpLimited 改取短 OR——任一侧已知有限即输出必有限 ([02dc2f5](https://github.com/JayceChant/go-stream/commit/02dc2f54208cc7efe0900c8081d9a4b90450e4db))
+* **stream:** 物化型特征位按 Java PRESERVE 语义修正——Limit 透传 SpSorted、Sorted/DistinctBy 互不清位 ([ded045a](https://github.com/JayceChant/go-stream/commit/ded045a57ceaac9c76497333d691249edc1b65c8))
+
+
+### Documentation
+
+* **example:** 添加 Join 双流条件连接可运行示例 ([d56ae62](https://github.com/JayceChant/go-stream/commit/d56ae62b27348e68ca0f236c8af539dbb22b2c08))
+* **skill:** 新增面向用户的 coding-agent 使用指引并约定 API 同步维护 ([2953d60](https://github.com/JayceChant/go-stream/commit/2953d605bf05f8fa1487eef7f653256b5b18e46d))
+* **spec:** 按精简纪律执行首次压缩——三件套沉降历史至 legacy ([918567f](https://github.com/JayceChant/go-stream/commit/918567f93530e70320256027bdd2ac0fe70a2e2d))
+* **stream:** 合并后收尾——时间窗口任务统一改称 Task 26，示例计数 eight→nine ([c494996](https://github.com/JayceChant/go-stream/commit/c494996e52139de2c56542a05ea4d51b24c28ca6))
+
 ## [0.2.0](https://github.com/JayceChant/go-stream/compare/v0.1.0...v0.2.0) (2026-09-08)
 
 本版本聚焦一次排序语义拆分与两块能力扩展：`Sorted` 改为不稳定 pdqsort（对齐 `slices.SortFunc`，默认更快），稳定语义由新增的 `StableSorted` 承接；新增 `NumberStream` 数值流与配套数值收集器（`Summing`/`Averaging`/`Summarizing` 等）；落地流扩展第一批（`ToSeq`、`WindowSliding`、Collector 组合生态、`RangeClosed`/`OfNonZero`，对齐 Java 25 能力缺口）。工程上接入 release-please 发布自动化，CHANGELOG 与 GitHub Release 自本版起由 Conventional Commits 自动维护。

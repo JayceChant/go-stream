@@ -6,7 +6,7 @@
 //
 //	stream.Of(1, 2, 3).Filter(func(v int) bool { return v > 1 }).Map(strconv.Itoa).ToSlice()
 //
-// 详细设计（架构、错误模型、API 详案）见项目 spec/spec.md。
+// 详细设计（架构、错误模型、API 详案）见 docs/design.md 与 docs/api.md，行为契约见 .spec/requirements.md。
 package stream
 
 import "github.com/JayceChant/go-stream/constraints"

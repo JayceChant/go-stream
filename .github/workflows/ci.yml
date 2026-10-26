@@ -37,7 +37,7 @@ jobs:
       - name: Test (race detector)
         run: go test -race -covermode=atomic -coverprofile=coverage.txt ./...
 
-      # example/ 为独立模块（覆盖率隔离，见 spec「示例目录」），
+      # example/ 为独立模块（覆盖率隔离，见 .spec/requirements.md「示例目录」），
       # 单独 build+vet 保证示例始终可编译、不烂尾
       - name: Build examples (separate module)
         run: |

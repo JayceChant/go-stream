@@ -5,22 +5,23 @@
 
 ## 1. 规格驱动（Spec-Driven）
 
-- 唯一规格目录：项目根目录下的 `spec/`，包含三份文档：
-  - `spec/spec.md` —— 需求与设计规格
-  - `spec/tasks.md` —— 任务清单与依赖关系；**任务完成后必须勾选 `[x]`**
-  - `spec/checklist.md` —— 固定验收动作清单；每次任务收尾**按序核对**（不勾选），随项目实际动态调整（精简纪律见 1.1 节）
+- 唯一规格目录：项目根目录下的 `.spec/`，包含：
+  - `.spec/requirements.md` —— 需求与设计规格
+  - `.spec/tasks.md` —— 任务清单与依赖关系；**任务完成后必须勾选 `[x]`**
+  - `.spec/checklist.md` —— 固定验收动作清单；每次任务收尾**按序核对**（不勾选），随项目实际动态调整（精简纪律见 1.1 节）
+  - `.spec/decisions.md` —— 决策记录与降级档案
 - 所有后续 task 都要遵循 spec 的规定；实现不得偏离规格。
-- 实现过程中发现规格有误或不完整：先修订 `spec.md`（说明理由），经确认后再改代码。**规格与代码冲突时，以最新修订的 spec 为准。**
-- 项目自身的历史决策与立项记录（如由 spec 后续 TODO 转正的功能）写在各项目 `AGENTS.md` 的项目专属章节，不进入本通用文件。
+- 实现过程中发现规格有误或不完整：先修订 `.spec/requirements.md`（说明理由），经确认后再改代码。**规格与代码冲突时，以最新修订的 spec 为准。**
+- 项目自身的历史决策与立项记录（如由 spec 后续 TODO 转正的功能）写在各项目 `AGENTS.md` 的项目专属章节或 `.spec/decisions.md`，不进入本通用文件。
 
 ## 1.1 精简纪律（spec 目录保持最小可用）
 
 spec 目录的价值密度优先于历史完整性（完整历史在 git）：
 
-- `spec.md` 行数上限由各项目 `AGENTS.md` 声明。超出时：只保留关键内容与最近条目；较久远且对后续开发影响不大、特别是已完成事项的展开描述（长篇 Scenario、已关闭的开放问题、修订/评审过程记录）高度精简（一段话或删除）后转移到 `spec/legacy.md`。新增 Requirement 前先评估是否可并入既有 Requirement。
-- `tasks.md` 仅保留：未完成任务、最近完成的任务、虽久远但对项目长远有影响的任务；已完成且无后续参考意义的批次条目直接删除，确有价值的压缩为一句话移入 `spec/legacy.md`。
+- `.spec/requirements.md` 行数上限由各项目 `AGENTS.md` 声明。超出时：只保留关键内容与最近条目；较久远且对后续开发影响不大、特别是已完成事项的展开描述（长篇 Scenario、已关闭的开放问题、修订/评审过程记录）高度精简（一段话或删除）后转移到 `.spec/decisions.md`。新增 Requirement 前先评估是否可并入既有 Requirement。
+- `tasks.md` 仅保留：未完成任务、最近完成的任务、虽久远但对项目长远有影响的任务；已完成且无后续参考意义的批次条目直接删除，确有价值的压缩为决策记录移入 `.spec/decisions.md`。
 - `checklist.md` 始终按当前实际需要执行的验收动作动态调整：过时验收项删除，新增有用验收项加入，不为历史保留条目。
-- `spec/legacy.md` 是无格式要求的降级档案（按时间追加即可），条目附 commit hash 与取代关系（被现行哪个 Requirement/章节取代），仅作考古参考，**不作为实现依据**；现行口径一律以同目录 `spec.md` 为准。条目在口径被取代时移入。
+- `.spec/decisions.md` 记录决策史（背景、备选方案与否决理由、后果，按日期倒序），**不作为实现依据**；现行口径一律以同目录 `requirements.md` 为准。条目在口径被取代时以新条目记录并标注取代关系。
 - **精简动作随当次任务提交，不必单独立任务。**
 
 ## 2. Git 提交规范（强制）
@@ -68,9 +69,9 @@ spec 目录的价值密度优先于历史完整性（完整历史在 git）：
 
 ## 6. 每次循环的标准流程
 
-1. 读 `spec/tasks.md`，选择下一个未完成任务（遵循 Task Dependencies 顺序）
+1. 读 `.spec/tasks.md`，选择下一个未完成任务（遵循 Task Dependencies 顺序）
 2. 阅读 spec 中相关章节，实现 + 单元测试
-3. 勾选 `spec/tasks.md` 对应项；按序核对 `spec/checklist.md` 验收动作
+3. 勾选 `.spec/tasks.md` 对应项；按序核对 `.spec/checklist.md` 验收动作
 4. 通过质量门槛（总则见第 5 节，命令清单见语言规范文件）
 5. 等待用户接受
 6. 按第 2 节 Git 提交规范提交（中文 Conventional Commits）
@@ -78,7 +79,7 @@ spec 目录的价值密度优先于历史完整性（完整历史在 git）：
 
 ## 7. 环境中立与其它全局规则
 
-- **本地路径不得进入任何提交文档**（AGENTS.md、agents/、spec/、README、docs 等）：文档中只允许出现相对项目根目录的路径与本机无关的通用描述。本机绝对路径（shell 位置、项目根、工具链路径等）**只能**写入项目根目录的 `.env.local`。
+- **本地路径不得进入任何提交文档**（AGENTS.md、.agents/、.spec/、README、docs 等）：文档中只允许出现相对项目根目录的路径与本机无关的通用描述。本机绝对路径（shell 位置、项目根、工具链路径等）**只能**写入项目根目录的 `.env.local`。
 - **`.env.local` 为本地环境配置 dotfile**：
   - 已在 `.gitignore` 中忽略，**禁止提交**；
   - 键值格式（`KEY=VALUE`），至少包含：`WIN_PROJECT_ROOT`、`WSL_BASH`/`WSL_PROJECT_ROOT`/`WSL_GIT`、`GIT_BASH`/`GIT_BASH_PROJECT_ROOT`，以及语言工具链路径键（Go 项目为 `WSL_GO`/`WSL_GOFMT`）；

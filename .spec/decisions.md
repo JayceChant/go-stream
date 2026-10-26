@@ -12,7 +12,7 @@
 - 2026-09-12~14 `Concat`/`Cache` 方法化，旧包级签名转 deprecated adapter + `//go:fix inline`（Task 25，`ca85ade`）；本版本仅 deprecated，下一版本移除并标 BREAKING。
 - 2026-10-03 特征位健全性审计（Task 26）：Filter/FilterErr 补清 SpSized（`7bbe4c6`）；Limit 透传 SpSorted、Sorted/DistinctBy 互不清对方位（`ded045a`，对齐 Java PRESERVE）；Zip SpLimited 改取短 OR（`02dc2f5`）；Reverse 保留 SpSorted（用户决议，「存在比较器」语义）。
 - 2026-10-03 TimeWindow 评审决议集：裁撤 TimeWindowBy 独立聚合入口（桶级聚合由 Map 组合表达）；桶键 `.UTC()` 规范化（`b80e8e4`，混合时区等值瞬间不拆桶）；空桶不默认补全（`CompleteTimeBuckets` 显式表达）；桶序维持首现序不作默认时间排序（`SortedByTime` 配套）。
-- 2026-10-03 AGENTS.md 历史注记沉降：「并行求值原为 spec 后续 TODO」条目；checklist.md 逐任务勾选记录整体转固定动作清单。〔机制见 agents/common.md 1.1〕
+- 2026-10-03 AGENTS.md 历史注记沉降：「并行求值原为 spec 后续 TODO」条目；checklist.md 逐任务勾选记录整体转固定动作清单。〔机制见 .agents/general.md 1.1〕
 
 ## Task 1–23 已交付批次时间线（详见 git）
 

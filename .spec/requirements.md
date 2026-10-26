@@ -1,6 +1,6 @@
 # Go Stream 库（Java Stream API 的 Go 1.27 泛型实现）Spec
 
-> 编写格式：Requirement（SHALL 条款）+ Scenario（WHEN/THEN，落到可核对的行为）+ 决策依据（关键取舍原因，防反复）；精简纪律（上限 400 行与 legacy 转移）见 [`agents/common.md`](../agents/common.md) 1.1 节。
+> 编写格式：Requirement（SHALL 条款）+ Scenario（WHEN/THEN，落到可核对的行为）+ 决策依据（关键取舍原因，防反复）；精简纪律（上限 400 行与决策记录转移）见 [`.agents/general.md`](../.agents/general.md) 1.1 节。
 
 ## Why
 
@@ -150,7 +150,7 @@ Java Stream 的骨架是一棵**单继承类树**（用"模板方法"让子类�
   - 测试：`*_test.go`、`example_test.go`、`benchmark_test.go`、`parallel_test.go`、`whitebox_test.go`、`fuzz_test.go`、`coverage_extra_test.go`、`time_window_test.go` 等
   - 示例：`example/`（独立 module + replace 指向根模块，隔离覆盖率）——`basics`/`collectors`/`numeric`/`errors`/`parallel`/`lifecycle`/`join`/`extensions`/`timewindow`
   - 文档：`README.md`/`README_CN.md`、`docs/design.md`、`docs/api.md`、`skills/go-stream/SKILL.md`（面向下游用户的 coding-agent 使用指引，英文编写、与 API 面同步维护——AGENTS.md 项目专属约定已载明）
-  - 协作规范：`AGENTS.md`、`agents/common.md`、`agents/go.md`（`agents/` 下两文件可整体复用到其它项目）
+  - 协作规范：`AGENTS.md`、`.agents/general.md`、`.agents/go.md`（`.agents/` 下两文件可整体复用到其它项目）
   - CI/质量与发布：`.github/workflows/{ci,govulncheck,scorecard,sonarcloud,codeql,release-please}.yml`、`codecov.yml`、`sonar-project.properties`（Actions 测试矩阵 + lint、Codecov、govulncheck、OpenSSF Scorecard、SonarCloud 质量门禁、CodeQL）、`release-please-config.json`、`.release-please-manifest.json`、`CHANGELOG.md`（release-please 基于 Conventional Commits 自动维护，v0.1.0 及之前条目人工回填）
 
 ## ADDED Requirements
@@ -379,7 +379,7 @@ Java Stream 的骨架是一棵**单继承类树**（用"模板方法"让子类�
 
 ### Requirement: 质量保障
 **文档交付**：`README.md`/`README_CN.md`（简介/安装/快速上手/API 速览/与 Java 对照/设计要点/路线图）、`docs/design.md`（架构原理：管道/Sink/Splitterator/分段求值/错误模型/组合替代继承映射表/并行求值）、`docs/api.md`（分组 API 参考 + 示例）；`example_test.go` 可运行示例与文档示例一致。
-全部公开 API 中文 godoc；`go fix`/`gofmt`/`go vet`/`go test ./...`/`golangci-lint` 全绿（命令清单见 `agents/go.md`）；**语句覆盖率 100% 基线**（根包与 collector 子包，`go tool cover -func` 总计）；benchmark：`Filter+Map+ToSlice` 相对手写 for 循环额外开销目标 <3x；并行求值 `go test -race` 全绿；Fuzz 测试锁定核心不变量（分片并集==原集合且保序、随机算子组合与参考实现等价、并行与串行等价、Zip 取短、Join 等价、Cache 重放、TimeWindow 分桶等价），语料不随仓提交。
+全部公开 API 中文 godoc；`go fix`/`gofmt`/`go vet`/`go test ./...`/`golangci-lint` 全绿（命令清单见 `.agents/go.md`）；**语句覆盖率 100% 基线**（根包与 collector 子包，`go tool cover -func` 总计）；benchmark：`Filter+Map+ToSlice` 相对手写 for 循环额外开销目标 <3x；并行求值 `go test -race` 全绿；Fuzz 测试锁定核心不变量（分片并集==原集合且保序、随机算子组合与参考实现等价、并行与串行等价、Zip 取短、Join 等价、Cache 重放、TimeWindow 分桶等价），语料不随仓提交。
 
 ### Requirement: 示例目录（example/，Task 15）
 

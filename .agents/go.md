@@ -11,14 +11,14 @@
 ## 2. 语言规范
 
 - 工具链 **go 1.27**；`go.mod` 声明 `go 1.27`。
-- 积极使用**泛型方法**（方法级类型参数，如 `Map[U any]`）。方法**自有**类型参数可带任意约束（含 `[K comparable]`，已实测 go1.27.0）；**不得以“方法不能带约束”为由让签名退回 `any` 擦除**。牢记三条硬限制（详证见项目 `.spec/requirements.md`「Go 1.27 泛型方法的关键约束」）：
+- 积极使用**泛型方法**（方法级类型参数，如 `Map[U any]`）。方法**自有**类型参数可带任意约束（含 `[K comparable]`，已实测 go1.27.0）；**不得以“方法不能带约束”为由让签名退回 `any` 擦除**。牢记三条硬限制（详证见 [`.spec/decisions.md`](../.spec/decisions.md)「Go 1.27 泛型方法约束与组合替代继承」）：
   1. **接口方法不得声明类型参数**——对外 API 挂在具体类型（如 `*Stream[T]`）上；
   2. **方法不得约束接收者已有的类型参数**（`func (s *Stream[T comparable])` 语法非法）——需约束 `T` 本身的 API（如 Distinct/Contains）只能包级函数；
   3. **方法返回 T 的派生类型**（如 `*Stream[[]T]`）触发实例化循环——此类 API（如 Chunk/Enumerate）只能包级函数。
 
   判定口诀：新增类型参数随便加（任意约束）；要动 `T` 本身（约束它 / 返回其派生类型）就降级为包级函数。
 - **组合优先**：禁止用“嵌入 + 期望子类覆写方法”模拟继承；待定制行为一律以函数值参数注入。
-- **错误即值**（错误处理设计详见项目 `.spec/requirements.md`）：
+- **错误即值**（契约见 [`.spec/requirements.md`](../.spec/requirements.md)「错误即值模型」，机制见 `docs/design.md` 第 5 节）：
   - 可预期且可恢复的错误 → `error` 值传播（`FromFunc` 源、`MapErr` 等变体、`Err()` 查询）
   - 编程 bug / 不可恢复（重复消费流、nil 回调）→ `panic`，信息清晰且为英文（运行时报错文案语言政策见 [`general.md`](./general.md) 第 4 节）
   - 普通算子回调不带 error 签名
@@ -41,8 +41,13 @@ gofmt -l .           # 输出必须为空
 go vet ./...         # 无告警
 go test ./...        # 全绿
 golangci-lint run    # 无告警（配置见 .golangci.yml）
+go -C example build ./...   # 示例独立 module
+go -C example vet ./...
 ```
 
 - **每次代码修改后、提交前，必须完整通过上述全部检查**（含 `go fix` 与 golangci-lint），任一失败不得提交。
 - `go fix` 产生的改写若改变了代码，需随本次任务一并纳入提交。
-- 性能敏感路径的改动需附 benchmark 数据（`go test -bench`）。
+- **覆盖率基线**：根包与 `collector` 子包语句覆盖率 100%（`go tool cover -func` 总计），新增代码不得降低。
+- **并发改动**：`go test -race ./...` 全绿。
+- **性能敏感路径**：`Filter+Map+ToSlice` 相对手写 for 循环额外开销目标 <3x；改动需附 `go test -bench` 数据。
+- **Fuzz 不变量**：分片并集==原集合且保序、随机算子组合与参考实现等价、并行与串行等价、Zip 取短、Join 等价、Cache 重放、TimeWindow 分桶等价；语料不随仓提交。

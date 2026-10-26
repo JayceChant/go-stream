@@ -1,6 +1,8 @@
 # 架构设计
 
 > 本文阐述 go-stream 的核心实现原理：如何把 Java Stream 的抽象类层次转换为 Go 组合式结构，以及求值引擎、错误模型的关键机制。
+>
+> 设计取舍与决策史见 [.spec/decisions.md](../.spec/decisions.md)；行为契约见 [.spec/requirements.md](../.spec/requirements.md)。
 
 ## 1. 从 Java 类层次到 Go 组合
 

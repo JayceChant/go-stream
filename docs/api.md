@@ -2,6 +2,8 @@
 
 > 包 `stream`（`github.com/JayceChant/go-stream`）。全部操作按「构造 → 中间 → 终止」分节；标注 *短路* 的操作满足条件即停止源遍历。
 >
+> 行为契约以 [.spec/requirements.md](../.spec/requirements.md) 为准；本文为 API 速查参考。
+>
 > 更多可运行示例见 [example_test.go](../example_test.go)。
 
 ## 构造函数（源适配）
